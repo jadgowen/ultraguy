@@ -1,0 +1,61 @@
+// Tiny synthesized placeholder sound effects (WebAudio). Swap for jsfxr/ChipTone
+// files later; callers only use the names in `sfx`.
+
+let ctx: AudioContext | null = null;
+
+/** Browsers need a user gesture before audio plays; call from a key press. */
+export function unlockAudio(): void {
+  if (!ctx) ctx = new AudioContext();
+  if (ctx.state === 'suspended') void ctx.resume();
+}
+
+function tone(f0: number, f1: number, dur: number, type: OscillatorType = 'square', vol = 0.06): void {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(f0, t);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(f1, 1), t + dur);
+  gain.gain.setValueAtTime(vol, t);
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  osc.connect(gain).connect(ctx.destination);
+  osc.start(t);
+  osc.stop(t + dur);
+}
+
+function noise(dur: number, vol = 0.08): void {
+  if (!ctx) return;
+  const t = ctx.currentTime;
+  const len = Math.floor(ctx.sampleRate * dur);
+  const buf = ctx.createBuffer(1, len, ctx.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+  const src = ctx.createBufferSource();
+  const gain = ctx.createGain();
+  src.buffer = buf;
+  gain.gain.value = vol;
+  src.connect(gain).connect(ctx.destination);
+  src.start(t);
+}
+
+export const sfx = {
+  shoot: () => tone(1200, 500, 0.06),
+  hit: () => tone(300, 120, 0.08),
+  deflect: () => tone(2000, 1800, 0.05, 'triangle', 0.08),
+  enemyDie: () => noise(0.2),
+  hurt: () => tone(500, 80, 0.25, 'sawtooth', 0.07),
+  die: () => {
+    noise(0.5, 0.12);
+    tone(400, 40, 0.6, 'square', 0.06);
+  },
+  land: () => tone(120, 60, 0.04, 'triangle', 0.05),
+  pickup: () => tone(600, 1400, 0.12, 'square', 0.05),
+  enemyShot: () => tone(700, 300, 0.05, 'triangle', 0.05),
+  select: () => tone(900, 900, 0.05),
+  clear: () => {
+    tone(523, 523, 0.15);
+    setTimeout(() => tone(659, 659, 0.15), 150);
+    setTimeout(() => tone(784, 1046, 0.4), 300);
+  },
+};
