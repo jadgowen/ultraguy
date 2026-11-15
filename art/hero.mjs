@@ -19,12 +19,8 @@
 //   V  visor              v  visor shade    W  white glint
 //   G  metal              g  metal shade
 
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { deflateSync } from 'node:zlib';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { Bitmap, drawGrid, encodePNG, write } from './lib.mjs';
 
-const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const FRAME = 24;
 
 const PALETTE = {
@@ -235,36 +231,10 @@ const FRAMES = {
 
 // --- rendering -----------------------------------------------------------------
 
-class Bitmap {
-  constructor(w, h) {
-    this.w = w;
-    this.h = h;
-    this.data = Buffer.alloc(w * h * 4);
-  }
-  set(x, y, rgb) {
-    if (x < 0 || y < 0 || x >= this.w || y >= this.h) return;
-    const i = (y * this.w + x) * 4;
-    this.data[i] = (rgb >> 16) & 255;
-    this.data[i + 1] = (rgb >> 8) & 255;
-    this.data[i + 2] = rgb & 255;
-    this.data[i + 3] = 255;
-  }
-}
-
 function drawPart(bmp, name, ox, oy, charMap, palette) {
   const rows = P[name];
   if (!rows) throw new Error(`Unknown part "${name}"`);
-  const w = rows[0].length;
-  rows.forEach((row, y) => {
-    if (row.length !== w) throw new Error(`Part "${name}" row ${y} is ${row.length} wide, expected ${w}`);
-    [...row].forEach((ch, x) => {
-      if (ch === '.') return;
-      const c = charMap?.[ch] ?? ch;
-      const rgb = palette[c] ?? PALETTE[c];
-      if (rgb === undefined) throw new Error(`Part "${name}": unknown color "${ch}"`);
-      bmp.set(ox + x, oy + y, rgb);
-    });
-  });
+  drawGrid(bmp, `Part "${name}"`, rows, ox, oy, (c) => palette[c] ?? PALETTE[c], { map: charMap });
 }
 
 function drawFrame(bmp, frame, fx, fy, palette, scale = 1) {
@@ -280,57 +250,15 @@ function drawFrame(bmp, frame, fx, fy, palette, scale = 1) {
   }
 }
 
-// --- PNG encoding (no dependencies) ------------------------------------------
-
-const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
-  let c = n;
-  for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
-  return c >>> 0;
-});
-
-function crc32(buf) {
-  let c = 0xffffffff;
-  for (const b of buf) c = CRC_TABLE[(c ^ b) & 255] ^ (c >>> 8);
-  return (c ^ 0xffffffff) >>> 0;
-}
-
-function chunk(type, data) {
-  const len = Buffer.alloc(4);
-  len.writeUInt32BE(data.length);
-  const body = Buffer.concat([Buffer.from(type, 'ascii'), data]);
-  const crc = Buffer.alloc(4);
-  crc.writeUInt32BE(crc32(body));
-  return Buffer.concat([len, body, crc]);
-}
-
-function encodePNG(bmp) {
-  const ihdr = Buffer.alloc(13);
-  ihdr.writeUInt32BE(bmp.w, 0);
-  ihdr.writeUInt32BE(bmp.h, 4);
-  ihdr[8] = 8; // bit depth
-  ihdr[9] = 6; // RGBA
-  const stride = bmp.w * 4;
-  const raw = Buffer.alloc((stride + 1) * bmp.h);
-  for (let y = 0; y < bmp.h; y++) bmp.data.copy(raw, y * (stride + 1) + 1, y * stride, (y + 1) * stride);
-  const sig = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  return Buffer.concat([sig, chunk('IHDR', ihdr), chunk('IDAT', deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]);
-}
-
-function write(path, buf) {
-  mkdirSync(dirname(path), { recursive: true });
-  writeFileSync(path, buf);
-  console.log(`wrote ${path.replace(ROOT + '/', '')}`);
-}
-
 // --- outputs -----------------------------------------------------------------
 
 const names = Object.keys(FRAMES);
 
 const sheet = new Bitmap(FRAME * names.length, FRAME);
 names.forEach((n, i) => drawFrame(sheet, FRAMES[n], i * FRAME, 0, {}));
-write(join(ROOT, 'public/assets/hero.png'), encodePNG(sheet));
+write('public/assets/hero.png', encodePNG(sheet));
 write(
-  join(ROOT, 'public/assets/hero.json'),
+  'public/assets/hero.json',
   Buffer.from(JSON.stringify({ frameWidth: FRAME, frameHeight: FRAME, frames: Object.fromEntries(names.map((n, i) => [n, i])) }, null, 2) + '\n'),
 );
 
@@ -339,8 +267,8 @@ const GAP = 6;
 const cell = FRAME * SCALE + GAP;
 const palettes = Object.entries(PREVIEW_PALETTES);
 const preview = new Bitmap(cell * names.length + GAP, cell * palettes.length + GAP);
-for (let i = 0; i < preview.w * preview.h; i++) preview.data.writeUInt32BE(0x4a5578ff, i * 4);
+preview.fill(0x4a5578);
 palettes.forEach(([, pal], row) => {
   names.forEach((n, i) => drawFrame(preview, FRAMES[n], GAP + i * cell, GAP + row * cell, pal, SCALE));
 });
-write(join(ROOT, 'art/hero-preview.png'), encodePNG(preview));
+write('art/hero-preview.png', encodePNG(preview));

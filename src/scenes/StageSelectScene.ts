@@ -11,7 +11,7 @@ import type { GameSceneData } from './GameScene';
 import { FONT, MenuScene } from './menu';
 
 const PANEL_W = 72;
-const PANEL_H = 52;
+const PANEL_H = 58;
 
 /** Panel positions: up, left, right, down around the hero (matches STAGE_SELECT_ORDER). */
 const SLOTS: { x: number; y: number; dir: 'up' | 'left' | 'right' | 'down' }[] = [
@@ -50,16 +50,17 @@ export class StageSelectScene extends MenuScene {
       const { x, y } = SLOTS[i];
       const cleared = save.cleared.includes(id);
       const theme = THEMES[stage.theme];
-      this.add.rectangle(x, y, PANEL_W, PANEL_H, Phaser.Display.Color.HexStringToColor(theme.sky).color);
+      // Dark panel with a stripe in the stage's theme color.
+      this.add.rectangle(x, y, PANEL_W, PANEL_H, 0x141626);
+      this.add.rectangle(x, y - PANEL_H / 2 + 2, PANEL_W, 3, Phaser.Display.Color.HexStringToColor(theme.sky).color);
       const frame = this.add.rectangle(x, y, PANEL_W, PANEL_H).setStrokeStyle(2, 0x3a3f66);
       this.frames.push(frame);
-      const boss = this.add.image(x, y + 4, `${stage.boss}_idle`).setOrigin(0.5, 1);
-      if (cleared) boss.setTint(0x555566);
+      const boss = this.add.image(x, y + 6, `${stage.boss}_idle`).setOrigin(0.5, 1);
+      if (cleared) boss.setTint(0x9a9ab0);
       this.add.text(x, y + 9, stage.bossName, { fontFamily: FONT, fontSize: '8px', color: '#fff1e0' }).setOrigin(0.5, 0);
-      this.add.text(x, y + 18, stage.name, small).setOrigin(0.5, 0);
-      if (cleared) {
-        this.add.text(x, y - 14, 'CLEAR', { fontFamily: FONT, fontSize: '8px', color: '#5ef0c8', backgroundColor: '#000000' }).setOrigin(0.5);
-      }
+      this.add
+        .text(x, y + 18, cleared ? `${stage.name} - CLEAR` : stage.name, { ...small, color: cleared ? '#5ef0c8' : '#8a8fa8' })
+        .setOrigin(0.5, 0);
     });
 
     this.add.text(VIEW_W / 2, VIEW_H - 14, 'ARROWS choose   ENTER/Z start   X boss test   BKSP back', small).setOrigin(0.5);
