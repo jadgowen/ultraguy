@@ -28,6 +28,8 @@ export abstract class Boss {
   vx = 0;
   vy = 0;
   hp = BOSS_MAX_HP;
+  /** Full health (minibosses have less). */
+  maxHp = BOSS_MAX_HP;
   /** What the health bar shows; fills up during the intro. */
   barHp = 0;
   invuln = 0;
@@ -55,6 +57,11 @@ export abstract class Boss {
     this.sprite = g.add.image(0, 0, `${kind}_idle`).setOrigin(0.5, 1).setDepth(6);
   }
 
+  /** Texture prefix (`${texKey}_${pose}`); defaults to the boss kind. */
+  protected get texKey(): string {
+    return this.kind;
+  }
+
   get cx(): number {
     return this.x + this.w / 2;
   }
@@ -68,7 +75,7 @@ export abstract class Boss {
     return this.state === 'drop' || this.state === 'fill';
   }
   get phase2(): boolean {
-    return this.hp <= BOSS_MAX_HP / 2;
+    return this.hp <= this.maxHp / 2;
   }
   /** Can be damaged right now. */
   get vulnerable(): boolean {
@@ -93,6 +100,22 @@ export abstract class Boss {
   protected abstract pose(): string;
   /** Called once when the fight starts. */
   protected begin(): void {}
+
+  /**
+   * The pose struck while the health bar fills (after a beat of standing
+   * still): each boss shows off its attack stance. Default: its normal pose.
+   */
+  protected introPose(): string {
+    return this.pose();
+  }
+
+  /** Frames into the health-bar fill when the boss strikes its intro pose. */
+  static readonly INTRO_POSE_AT = 24;
+
+  /** Striking the intro pose right now. */
+  protected get posing(): boolean {
+    return this.state === 'fill' && this.t >= Boss.INTRO_POSE_AT;
+  }
 
   protected facePlayer(): void {
     this.facing = this.g.player.cx < this.cx ? -1 : 1;
@@ -145,11 +168,17 @@ export abstract class Boss {
         }
         break;
       case 'fill':
-        if (this.t % 3 === 0 && this.barHp < BOSS_MAX_HP) {
+        if (this.t === Boss.INTRO_POSE_AT) {
+          // Intro pose: a white flash and a thump.
+          this.flash = 6;
+          this.g.shake(2);
+          sfx.charge(2);
+        }
+        if (this.t % 3 === 0 && this.barHp < this.maxHp) {
           this.barHp++;
           sfx.tick();
         }
-        if (this.barHp >= BOSS_MAX_HP && this.t > 20) {
+        if (this.barHp >= this.maxHp && this.t > Boss.INTRO_POSE_AT + 30) {
           this.state = 'fight';
           this.t = 0;
           this.begin();
@@ -164,7 +193,7 @@ export abstract class Boss {
   }
 
   render(): void {
-    this.sprite.setTexture(`${this.kind}_${this.pose()}`);
+    this.sprite.setTexture(`${this.texKey}_${this.posing ? this.introPose() : this.pose()}`);
     this.sprite.setFlipX(this.facing < 0);
     this.sprite.setPosition(Math.round(this.cx), Math.round(this.bottom));
     this.sprite.setAlpha(this.alpha);

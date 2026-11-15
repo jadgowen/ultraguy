@@ -116,3 +116,23 @@ export const FINALE: StageData = {
     Y: finalRoom.right,
   },
 };
+
+const rematchRoom = bossRoom();
+
+/**
+ * BOSS HALL: before the throne, eight teleporter capsules ('T'), one per
+ * stage boss. Press UP in a capsule to refight that boss; the exit capsule
+ * opens once all eight are beaten. Bosses are fought in the room below.
+ */
+export const GAUNTLET: StageData = {
+  id: 'gauntlet',
+  name: 'BOSS HALL',
+  theme: 'fortress',
+  layout: ['AB', 'XY'],
+  screens: {
+    A: [CEIL, CEIL, ...rows(SKY, 10), '.P...T..T..T..T.', FLOOR, FLOOR],
+    B: [CEIL, CEIL, ...rows(SKY, 10), '.T..T..T..T...*.', FLOOR, FLOOR],
+    X: rematchRoom.left,
+    Y: rematchRoom.right,
+  },
+};

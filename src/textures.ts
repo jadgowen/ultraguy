@@ -37,7 +37,7 @@ function tri(g: G, color: number, x1: number, y1: number, x2: number, y2: number
 
 /** Tileset per theme: 0 solid, 1 ladder, 2 spike, 3 boss door, 4 ice, 5 cloud. */
 function makeTileset(scene: Phaser.Scene, id: ThemeId, t: Theme): void {
-  make(scene, `tiles_${id}`, 192, 16, (g) => {
+  make(scene, `tiles_${id}`, 208, 16, (g) => {
     const s = t.solid;
     rect(g, s.base, 0, 0, 16, 16);
     rect(g, s.light, 0, 0, 16, 2);
@@ -125,6 +125,13 @@ function makeTileset(scene: Phaser.Scene, id: ThemeId, t: Theme): void {
     // 11: electric barrier (off): just the posts.
     drawPosts(176);
     rect(g, e.glow, 182, 7, 4, 2);
+    // 12: frozen block (Flame Burst melts it): pale ice with frost cracks.
+    rect(g, 0xbfe8ff, 192, 0, 16, 16);
+    rect(g, 0xffffff, 192, 0, 16, 2);
+    rect(g, 0xffffff, 192, 0, 2, 16);
+    rect(g, 0x6aa8d8, 192, 14, 16, 2);
+    rect(g, 0x6aa8d8, 206, 0, 2, 16);
+    for (const [x, y, w, h] of [[196, 4, 1, 4], [197, 8, 3, 1], [200, 9, 1, 3], [202, 4, 3, 1], [204, 5, 1, 3]]) rect(g, 0x6aa8d8, x, y, w, h);
   });
 }
 

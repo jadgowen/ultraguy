@@ -41,7 +41,7 @@ export class FortressScene extends MenuScene {
     this.add.text(VIEW_W / 2, 16, 'THE FORTRESS', { fontFamily: FONT, fontSize: '16px', color: '#ff5050' }).setOrigin(0.5);
 
     // A path up the tower: stage 1 at the bottom, the throne at the top.
-    const ys = [196, 152, 108, 60];
+    const ys = [204, 166, 128, 90, 52];
     const g = this.add.graphics();
     g.lineStyle(2, 0x3a2a4a, 1);
     for (let i = 0; i < ys.length - 1; i++) g.lineBetween(VIEW_W / 2, ys[i] - 10, VIEW_W / 2, ys[i + 1] + 10);

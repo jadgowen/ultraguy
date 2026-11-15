@@ -110,6 +110,10 @@ export class Magma extends Boss {
     return this.mode === 'windup' && this.t % 6 < 3;
   }
 
+  protected introPose(): string {
+    return 'throw';
+  }
+
   protected pose(): string {
     if (!this.grounded) return 'jump';
     if (this.mode === 'lob' || this.mode === 'windup' || this.mode === 'charge') return 'throw';

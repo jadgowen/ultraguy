@@ -16,12 +16,15 @@ export abstract class MenuScene extends Phaser.Scene {
   private items: Phaser.GameObjects.Text[] = [];
   private cursor: Phaser.GameObjects.Text | null = null;
   protected selected = 0;
+  /** While true, the list ignores UP/DOWN (e.g. waiting for a key to bind). */
+  protected inputLocked = false;
 
   protected initMenu(): void {
     this.acc = 0;
     this.frame = 0;
     this.items = [];
     this.cursor = null;
+    this.inputLocked = false;
     this.controls = new Controls(this);
   }
 
@@ -49,7 +52,7 @@ export abstract class MenuScene extends Phaser.Scene {
       this.acc -= STEP_MS;
       this.frame++;
       this.controls.poll();
-      if (this.items.length) {
+      if (this.items.length && !this.inputLocked) {
         if (this.controls.justPressed('up')) {
           this.select(this.selected - 1);
           sfx.tick();

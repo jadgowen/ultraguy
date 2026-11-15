@@ -1,6 +1,6 @@
 import { CALDERA } from './caldera';
 import { CANOPY } from './canopy';
-import { FINALE, FORTRESS_1, FORTRESS_2, FORTRESS_3 } from './fortress';
+import { FINALE, FORTRESS_1, FORTRESS_2, FORTRESS_3, GAUNTLET } from './fortress';
 import { FOUNDRY } from './foundry';
 import { GLACIER } from './glacier';
 import { INTRO } from './intro';
@@ -25,11 +25,12 @@ export const FORTRESS_STAGES: Record<FortressStageId, StageData> = {
   fortress1: FORTRESS_1,
   fortress2: FORTRESS_2,
   fortress3: FORTRESS_3,
+  gauntlet: GAUNTLET,
   finale: FINALE,
 };
 
 /** Fortress stages in play order. */
-export const FORTRESS_ORDER: FortressStageId[] = ['fortress1', 'fortress2', 'fortress3', 'finale'];
+export const FORTRESS_ORDER: FortressStageId[] = ['fortress1', 'fortress2', 'fortress3', 'gauntlet', 'finale'];
 
 const OTHER_STAGES: Partial<Record<StageId, StageData>> = { ...FORTRESS_STAGES, intro: INTRO };
 

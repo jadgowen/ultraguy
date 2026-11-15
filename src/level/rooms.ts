@@ -29,3 +29,29 @@ export function bossRoom(floor = '#'): { left: string[]; right: string[] } {
 export function water(screen: string[]): string[] {
   return screen.map((r) => r.replace(/\./g, '~'));
 }
+
+/**
+ * Two-screen miniboss hall: a flat floor with the miniboss ('M') near the
+ * right, a checkpoint before it, and an energy tank ('E') up a two-step ledge
+ * just left of the fight. `top` is the floor's surface tile ('I' for ice).
+ */
+export function miniHall(top = '#', underwater = false): { a: string[]; b: string[] } {
+  const floor = [top.repeat(16), '################'];
+  const a = [...rows(SKY, 8), '...E............', '..###...........', SKY, '##..............', '.....c..........', ...floor];
+  const b = [...rows(SKY, 12), '............M...', ...floor];
+  return underwater ? { a: water(a), b: water(b) } : { a, b };
+}
+
+/**
+ * Small hidden room holding an upgrade capsule ('U'). Goes right of a screen
+ * whose right wall is solid; open that wall's bottom two cells with 'F'
+ * (fake wall) or '&' (frozen block) to make the way in.
+ */
+export const SECRET_ROOM: string[] = [
+  ...rows('################', 10),
+  '.........#######',
+  '.........#######',
+  '....U....#######',
+  '################',
+  '################',
+];

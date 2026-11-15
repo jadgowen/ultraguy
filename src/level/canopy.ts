@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { SKY, bossRoom, rows } from './rooms';
+import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
 
 // CANOPY (jungle). Forest floor under a leaf ceiling, full of camouflaged
 // lurkers and seed-spitting plants; climb a vine up through the canopy and
@@ -10,6 +10,8 @@ import { SKY, bossRoom, rows } from './rooms';
 
 const room = bossRoom();
 
+const hall = miniHall('#');
+
 export const CANOPY: StageData = {
   id: 'canopy',
   name: 'CANOPY',
@@ -17,8 +19,12 @@ export const CANOPY: StageData = {
   boss: 'mantis',
   bossName: 'MANTIS',
   bossWeapon: 'thorn',
-  layout: ['......EdFefgG|XY', 'ABaCbcD'],
+  layout: ['......EdF12efgG|XY', 'ABaCbcDS'],
+  miniboss: 'toad',
+  upgrade: 'boots',
   screens: {
+    '1': hall.a,
+    '2': hall.b,
     A: [
       '################',
       '######...#######',
@@ -64,11 +70,13 @@ export const CANOPY: StageData = {
       '############H###',
       '############H###',
       ...rows('............H..#', 9),
-      '......l.....H..#',
-      '............H..#',
+      '......l.....H..F',
+      '............H..F',
       '################',
       '################',
     ],
+    // Hidden room through D's fake wall: the Jump Boots.
+    S: SECRET_ROOM,
     E: [
       ...rows('#...............', 7),
       '#........f......',

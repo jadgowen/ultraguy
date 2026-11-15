@@ -1,10 +1,11 @@
 import Phaser from 'phaser';
-import { PHYS, PLAYER_MAX_HP, TILE } from '../constants';
+import { PHYS, TILE } from '../constants';
+import { BASE_MAX, HELMET_MAX, PartId, armoredDamage } from '../parts';
 import { conveyorUnder, moveX, moveY, standingOnIce, touchesSpike, touchesTile } from '../physics';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 import { heroFrames } from '../heroSprites';
-import { MAX_AMMO, WEAPON_ORDER, WeaponId, heroTexture } from '../weapons';
+import { WEAPON_ORDER, WeaponId, heroTexture } from '../weapons';
 
 export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'climb' | 'hurt' | 'dead';
 
@@ -22,8 +23,12 @@ export class Player {
   facing: 1 | -1 = 1;
   state: PlayerState = 'idle';
   grounded = false;
-  hp = PLAYER_MAX_HP;
+  hp = BASE_MAX;
   invuln = 0;
+  /** Armor parts found (from the save). */
+  parts = new Set<PartId>();
+  /** Mid-air jumps left (Jump Boots). */
+  private airJumps = 0;
   shootPose = 0;
   /** Frames the fire button has been held (Ultra Gun only). */
   charge = 0;
@@ -31,7 +36,7 @@ export class Player {
   private airSlide = false;
   weapon: WeaponId = 'buster';
   /** Ammo per weapon; kept across deaths, like the classics. */
-  readonly ammo = Object.fromEntries(WEAPON_ORDER.map((w) => [w, MAX_AMMO])) as Record<WeaponId, number>;
+  readonly ammo = Object.fromEntries(WEAPON_ORDER.map((w) => [w, BASE_MAX])) as Record<WeaponId, number>;
   private hurtTimer = 0;
   private knockDir = 0;
   deadTimer = 0;
@@ -41,9 +46,27 @@ export class Player {
   readonly sprite: Phaser.GameObjects.Image;
   private readonly frames: Record<string, number>;
 
-  constructor(private g: GameScene) {
+  constructor(private g: GameScene, parts: PartId[] = []) {
+    this.setParts(parts);
+    for (const w of WEAPON_ORDER) this.ammo[w] = this.maxAmmo;
     this.frames = heroFrames(g);
     this.sprite = g.add.image(0, 0, heroTexture('buster'), this.frames.idle).setOrigin(0.5, 1).setDepth(10);
+  }
+
+  setParts(parts: PartId[]): void {
+    this.parts = new Set(parts);
+  }
+
+  has(part: PartId): boolean {
+    return this.parts.has(part);
+  }
+
+  /** Life and weapon energy capacity (the helmet raises both). */
+  get maxHp(): number {
+    return this.has('helmet') ? HELMET_MAX : BASE_MAX;
+  }
+  get maxAmmo(): number {
+    return this.has('helmet') ? HELMET_MAX : BASE_MAX;
   }
 
   get cx(): number {
@@ -66,7 +89,8 @@ export class Player {
     this.facing = 1;
     this.state = 'idle';
     this.grounded = true;
-    this.hp = PLAYER_MAX_HP;
+    this.hp = this.maxHp;
+    this.airJumps = 0;
     this.invuln = this.shootPose = this.hurtTimer = this.deadTimer = this.charge = 0;
     this.airSlide = false;
     this.sprite.setVisible(true);
@@ -119,7 +143,8 @@ export class Player {
       return;
     }
     if (c.isDown('fire')) {
-      this.charge++;
+      // Without the UltraBlaster the charge stops at half power.
+      if (this.has('blaster') || this.charge < PHYS.chargeMid) this.charge++;
       if (this.charge === PHYS.chargeMid) sfx.charge(1);
       if (this.charge === PHYS.chargeFull) sfx.charge(2);
     } else {
@@ -149,9 +174,17 @@ export class Player {
       return;
     }
 
+    if (this.grounded) this.airJumps = this.has('boots') ? 1 : 0;
     if (c.justPressed('jump') && this.grounded) {
       this.vy = this.inWater ? -PHYS.waterJump : -PHYS.jump;
       this.grounded = false;
+    } else if (c.justPressed('jump') && this.airJumps > 0) {
+      // Jump Boots: one more jump in mid-air, with a puff under the feet.
+      this.airJumps--;
+      this.vy = this.inWater ? -PHYS.waterJump : -PHYS.jump * 0.9;
+      this.airSlide = false;
+      this.g.burst(this.cx, this.bottom, 'boom', 3);
+      sfx.land();
     }
     // Variable jump height: letting go of jump kills upward speed.
     if (!c.isDown('jump') && this.vy < 0) this.vy = 0;
@@ -245,6 +278,7 @@ export class Player {
 
   private startClimb(col: number): void {
     this.state = 'climb';
+    this.airJumps = this.has('boots') ? 1 : 0;
     this.ladderCol = col;
     this.x = col * TILE + TILE / 2 - this.w / 2;
     this.vx = this.vy = 0;
@@ -272,6 +306,7 @@ export class Player {
 
   hurt(dmg: number, sourceX: number): void {
     if (this.invuln > 0 || this.state === 'dead') return;
+    if (this.has('armor')) dmg = armoredDamage(dmg);
     this.hp = Math.max(0, this.hp - dmg);
     if (this.hp === 0) {
       this.die(true);
@@ -297,7 +332,7 @@ export class Player {
   }
 
   heal(n: number): void {
-    this.hp = Math.min(PLAYER_MAX_HP, this.hp + n);
+    this.hp = Math.min(this.maxHp, this.hp + n);
   }
 
   // --- rendering ----------------------------------------------------------

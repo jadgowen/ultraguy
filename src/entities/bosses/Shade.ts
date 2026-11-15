@@ -149,6 +149,7 @@ export class Shade extends Boss {
     if (!this.grounded) name = `jump${s}`;
     else if (Math.abs(this.vx) > 0) name = ['run1', 'run2', 'run3', 'run2'][Math.floor(this.animT / 7) % 4] + s;
     else name = `idle${s}`;
+    if (this.posing) name = 'idle_s'; // intro: arm cannon raised
     this.sprite.setTexture('hero_shade', this.frames[name]);
     this.sprite.setFlipX(this.facing < 0);
     this.sprite.setPosition(Math.round(this.cx), Math.round(this.bottom));

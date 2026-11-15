@@ -1,0 +1,294 @@
+import Phaser from 'phaser';
+import type { MiniKind, Point } from '../../level/Level';
+import { sfx } from '../../sfx';
+import type { GameScene } from '../../scenes/GameScene';
+import type { WeaponId } from '../../weapons';
+import { Boss, Room } from './Boss';
+
+/** Moves a miniboss can use. Each kind picks a few. */
+type Move = 'hop' | 'stomp' | 'volley' | 'lob' | 'charge' | 'rain' | 'ring' | 'roll' | 'swoop' | 'dash';
+
+interface MiniDef {
+  name: string;
+  w: number;
+  h: number;
+  hp: number;
+  weakness: WeaponId | null;
+  moves: Move[];
+  /** Floats instead of walking (no gravity). */
+  flies?: boolean;
+  /** Projectile texture for volleys/lobs/rings. */
+  shot: { tex: string; w: number; h: number };
+}
+
+/**
+ * Minibosses guard the middle of each boss stage. Weaker than the stage
+ * boss (MINI_HP) and weak to the same weapon as that boss.
+ */
+export const MINIBOSSES: Record<MiniKind, MiniDef> = {
+  press: { name: 'PRESS TITAN', w: 38, h: 36, hp: 18, weakness: 'thorn', moves: ['stomp', 'volley', 'stomp'], shot: { tex: 'bshot', w: 6, h: 6 } },
+  toad: { name: 'BRIAR TOAD', w: 38, h: 28, hp: 18, weakness: 'cyclone', moves: ['hop', 'lob', 'hop'], shot: { tex: 'seed', w: 6, h: 6 } },
+  mammoth: { name: 'TUSK MAMMOTH', w: 42, h: 32, hp: 18, weakness: 'quake', moves: ['charge', 'rain', 'volley'], shot: { tex: 'iceshard', w: 6, h: 6 } },
+  kite: { name: 'STORM KITE', w: 40, h: 20, hp: 16, weakness: 'frost', moves: ['rain', 'swoop', 'volley'], flies: true, shot: { tex: 'bolt', w: 6, h: 12 } },
+  dynamo: { name: 'DYNAMO', w: 34, h: 36, hp: 18, weakness: 'saw', moves: ['ring', 'volley', 'hop'], shot: { tex: 'vorb', w: 8, h: 8 } },
+  crab: { name: 'CINDER CRAB', w: 40, h: 26, hp: 18, weakness: 'bubble', moves: ['lob', 'charge', 'lob'], shot: { tex: 'fireball', w: 8, h: 8 } },
+  crusher: { name: 'CRUSHER', w: 42, h: 30, hp: 20, weakness: 'flame', moves: ['charge', 'roll', 'volley'], shot: { tex: 'scrap', w: 8, h: 8 } },
+  angler: { name: 'ANGLER', w: 38, h: 26, hp: 18, weakness: 'spark', moves: ['dash', 'volley', 'ring'], flies: true, shot: { tex: 'bbubble', w: 10, h: 10 } },
+};
+
+/** One class for all eight: a small set of moves, picked at random without repeats. */
+export class Miniboss extends Boss {
+  readonly def: MiniDef;
+  private move: Move | 'idle' = 'idle';
+  private wait = 30;
+  private last: Move | null = null;
+  private homeY: number;
+  private dir: 1 | -1 = -1;
+
+  constructor(g: GameScene, readonly mini: MiniKind, at: Point, room: Room) {
+    const def = MINIBOSSES[mini];
+    super(g, mini, def.w, def.h, def.weakness, at, room);
+    this.def = def;
+    this.hp = this.maxHp = def.hp;
+    // Fliers hover at chest height (low enough to hit with a jumping shot).
+    this.homeY = room.floor - def.h - 52;
+  }
+
+  get name(): string {
+    return this.def.name;
+  }
+
+  protected get texKey(): string {
+    return this.mini;
+  }
+
+  private setMove(m: Move | 'idle', wait = 0): void {
+    this.move = m;
+    this.t = 0;
+    this.wait = wait;
+  }
+
+  private shot(vx: number, vy: number, gravity = false, x = this.cx, y = this.y + 10): void {
+    const s = this.def.shot;
+    this.g.spawnEnemyShot({ x: x - s.w / 2, y: y - s.h / 2, w: s.w, h: s.h, vx, vy, tex: s.tex, dmg: 3, gravity });
+  }
+
+  /** Fliers bob around their home height; walkers use gravity. */
+  private float(): { wall: boolean; landed: boolean } {
+    if (!this.def.flies) return this.physics();
+    const targetY = this.homeY + Math.sin(this.t * 0.06) * 6;
+    this.vy = (targetY - this.y) * 0.08;
+    this.x += this.vx;
+    this.y += this.vy;
+    let wall = false;
+    if (this.x < this.room.left) {
+      this.x = this.room.left;
+      wall = true;
+    } else if (this.x + this.w > this.room.right) {
+      this.x = this.room.right - this.w;
+      wall = true;
+    }
+    return { wall, landed: false };
+  }
+
+  step(): void {
+    // Fliers drift down to their hover height instead of dropping in.
+    if (this.def.flies && this.state === 'drop') {
+      this.t++;
+      this.facePlayer();
+      this.y += 2;
+      if (this.y >= this.homeY) {
+        this.y = this.homeY;
+        this.state = 'fill';
+        this.t = 0;
+      }
+      return;
+    }
+    super.step();
+  }
+
+  protected think(): void {
+    const p = this.g.player;
+    const fast = this.phase2;
+    switch (this.move) {
+      case 'idle':
+        this.vx = 0;
+        this.facePlayer();
+        this.float();
+        if (--this.wait <= 0) this.choose();
+        break;
+
+      // Jump at the player; 'stomp' sends shockwaves both ways on landing.
+      case 'hop':
+      case 'stomp': {
+        if (this.t === 1) {
+          this.facePlayer();
+          const big = this.move === 'stomp';
+          this.vx = Phaser.Math.Clamp((p.cx - this.cx) / (big ? 50 : 30), -2.4, 2.4);
+          this.vy = big ? -6.2 : -4.2;
+          this.grounded = false;
+        }
+        const r = this.physics();
+        if (r.wall) this.vx = 0;
+        if (r.landed && this.t > 2) {
+          this.vx = 0;
+          this.g.shake(this.move === 'stomp' ? 5 : 2);
+          sfx.land();
+          if (this.move === 'stomp') {
+            sfx.quake();
+            this.g.fireGroundWave(this.cx - 4, this.room.floor, -1);
+            this.g.fireGroundWave(this.cx - 4, this.room.floor, 1);
+          }
+          // Toads hop three times in a row.
+          const again = this.move === 'hop' && this.t < 120 && Math.random() < 0.6;
+          if (again) this.t = 0;
+          else this.setMove('idle', fast ? 18 : 30);
+        }
+        break;
+      }
+
+      // Aimed shots.
+      case 'volley': {
+        this.float();
+        const n = fast ? 4 : 3;
+        if (this.t % 16 === 0 && this.t <= n * 16) {
+          this.facePlayer();
+          const a = Math.atan2(p.cy - (this.y + 10), p.cx - this.cx);
+          this.shot(Math.cos(a) * 2.4, Math.sin(a) * 2.4);
+          sfx.enemyShot();
+        }
+        if (this.t >= n * 16 + 24) this.setMove('idle', 30);
+        break;
+      }
+
+      // Arcs landing around the player.
+      case 'lob':
+        this.float();
+        if (this.t % 12 === 0 && this.t <= (fast ? 48 : 36)) {
+          const airtime = 44;
+          const vx = Phaser.Math.Clamp((p.cx - this.cx) / airtime + (Math.random() - 0.5) * 1.2, -3, 3);
+          this.shot(vx, -5, true, this.cx, this.y + 4);
+          sfx.enemyShot();
+        }
+        if (this.t >= 60) this.setMove('idle', 30);
+        break;
+
+      // Flash (telegraph), then rush to the wall.
+      case 'charge':
+        if (this.t < (fast ? 20 : 32)) {
+          this.vx = 0;
+          this.facePlayer();
+          this.float();
+        } else {
+          if (this.t === (fast ? 20 : 32)) this.vx = this.facing * (fast ? 3.6 : 3);
+          if (this.float().wall) {
+            this.g.shake(5);
+            sfx.land();
+            this.vx = 0;
+            this.setMove('idle', 34);
+          }
+        }
+        break;
+
+      // Shots falling from the ceiling, one on the player's position.
+      case 'rain': {
+        this.float();
+        const count = fast ? 6 : 4;
+        if (this.t % 14 === 0 && this.t <= count * 14) {
+          const i = this.t / 14;
+          const x = i === 1 ? p.cx : this.room.left + 20 + Math.random() * (this.room.right - this.room.left - 40);
+          this.shot(0, 1.5, true, x, this.room.top + 4);
+          sfx.enemyShot();
+        }
+        if (this.t >= count * 14 + 40) this.setMove('idle', 24);
+        break;
+      }
+
+      // Burst of shots in every direction.
+      case 'ring':
+        this.float();
+        if (this.t === 20 || (fast && this.t === 44)) {
+          const n = 8;
+          const off = this.t === 44 ? Math.PI / n : 0;
+          for (let i = 0; i < n; i++) {
+            const a = (i / n) * Math.PI * 2 + off;
+            this.shot(Math.cos(a) * 1.8, Math.sin(a) * 1.8, false, this.cx, this.cy);
+          }
+          sfx.zap();
+        }
+        if (this.t >= 70) this.setMove('idle', 30);
+        break;
+
+      // Rolling hazards along the floor.
+      case 'roll':
+        this.float();
+        if (this.t % 30 === 10 && this.t < (fast ? 100 : 70)) {
+          this.facePlayer();
+          this.g.spawnEnemyShot({ x: this.cx - 7, y: this.room.floor - 14, w: 14, h: 14, vx: this.facing * 2.2, vy: 0, tex: 'sawshot', dmg: 3, rolls: true, spin: 0.3, life: 240 });
+          sfx.enemyShot();
+        }
+        if (this.t >= 110) this.setMove('idle', 24);
+        break;
+
+      // Flier dives low across the room, then climbs back up.
+      case 'swoop': {
+        if (this.t === 1) {
+          this.dir = p.cx < this.cx ? -1 : 1;
+          this.facing = this.dir;
+        }
+        const k = Math.min(1, this.t / 90);
+        this.vx = this.dir * (fast ? 3 : 2.4);
+        this.x += this.vx;
+        this.y = this.homeY + Math.sin(k * Math.PI) * 44;
+        if (this.x < this.room.left || this.x + this.w > this.room.right) {
+          this.x = Phaser.Math.Clamp(this.x, this.room.left, this.room.right - this.w);
+          this.dir = -this.dir as 1 | -1;
+          this.facing = this.dir;
+        }
+        if (this.t >= 90) this.setMove('idle', 30);
+        break;
+      }
+
+      // Swimmer lines up with the player, then darts straight at them.
+      case 'dash': {
+        if (this.t < 30) {
+          this.facePlayer();
+          this.vx = 0;
+          this.y += Phaser.Math.Clamp(p.cy - this.cy, -1.2, 1.2);
+        } else {
+          if (this.t === 30) this.vx = this.facing * (fast ? 4 : 3.2);
+          this.x += this.vx;
+          if (this.x < this.room.left || this.x + this.w > this.room.right) {
+            this.x = Phaser.Math.Clamp(this.x, this.room.left, this.room.right - this.w);
+            this.g.shake(3);
+            this.vx = 0;
+            this.setMove('idle', 30);
+          }
+        }
+        break;
+      }
+    }
+    // Keep inside the room vertically.
+    if (this.def.flies) this.y = Phaser.Math.Clamp(this.y, this.room.top, this.room.floor - this.h);
+  }
+
+  private choose(): void {
+    const pool = this.def.moves.filter((m) => m !== this.last);
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    this.last = pick;
+    this.setMove(pick);
+  }
+
+  protected telegraph(): boolean {
+    const windup = (this.move === 'charge' && this.t < (this.phase2 ? 20 : 32)) || (this.move === 'dash' && this.t < 30);
+    return windup && this.t % 6 < 3;
+  }
+
+  protected introPose(): string {
+    return 'attack';
+  }
+
+  protected pose(): string {
+    return this.move === 'idle' || this.move === 'hop' ? 'idle' : 'attack';
+  }
+}

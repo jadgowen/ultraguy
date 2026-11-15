@@ -128,6 +128,10 @@ export class Tide extends Boss {
     return this.mode === 'aim' && this.t > 10 && this.t % 6 < 3;
   }
 
+  protected introPose(): string {
+    return 'open';
+  }
+
   protected pose(): string {
     if (this.mode === 'dash' || this.mode === 'aim') return 'dash';
     if (this.mode === 'bubbles' || this.mode === 'geyser') return 'open';

@@ -1,23 +1,13 @@
 import Phaser from 'phaser';
+import { ACTIONS, Action, loadSettings } from './settings';
 
 /**
  * Input layer: the game only ever asks about Actions, never about keys.
+ * Key bindings come from the player's settings (see settings.ts).
  * Remapping, gamepads and new "special" buttons all happen here.
  */
-export type Action = 'left' | 'right' | 'up' | 'down' | 'jump' | 'fire' | 'start';
-
-const ACTIONS: Action[] = ['left', 'right', 'up', 'down', 'jump', 'fire', 'start'];
-const KC = Phaser.Input.Keyboard.KeyCodes;
-
-export const DEFAULT_KEYS: Record<Action, number[]> = {
-  left: [KC.LEFT, KC.A],
-  right: [KC.RIGHT, KC.D],
-  up: [KC.UP, KC.W],
-  down: [KC.DOWN, KC.S],
-  jump: [KC.Z, KC.SPACE, KC.K],
-  fire: [KC.X, KC.J],
-  start: [KC.ENTER, KC.ESC, KC.P],
-};
+export type { Action } from './settings';
+export { DEFAULT_KEYS } from './settings';
 
 export class Controls {
   private keys = new Map<Action, Phaser.Input.Keyboard.Key[]>();
@@ -29,7 +19,7 @@ export class Controls {
   private pressed = new Set<Action>();
   private released = new Set<Action>();
 
-  constructor(private scene: Phaser.Scene, bindings: Record<Action, number[]> = DEFAULT_KEYS) {
+  constructor(private scene: Phaser.Scene, bindings: Record<Action, number[]> = loadSettings().keys) {
     const kb = scene.input.keyboard!;
     for (const action of ACTIONS) {
       const keys = bindings[action].map((code) => {
@@ -65,6 +55,8 @@ export class Controls {
       if (pad.A) this.held.add('jump');
       if (pad.B || pad.X) this.held.add('fire');
       if (pad.buttons[9]?.pressed) this.held.add('start');
+      if (pad.L1) this.held.add('prev');
+      if (pad.R1) this.held.add('next');
     }
 
     this.pressed.clear();

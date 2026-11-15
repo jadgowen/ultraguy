@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { SKY, bossRoom, rows } from './rooms';
+import { bossRoom, miniHall, rows, SKY } from './rooms';
 
 // SCRAPYARD. Conveyor belts ('<' '>') carry you while you stand on them:
 // some fight you, some push you toward spikes. Grinders roll along the
@@ -12,6 +12,8 @@ import { SKY, bossRoom, rows } from './rooms';
 const FLOOR = '################';
 const room = bossRoom();
 
+const hall = miniHall('#');
+
 export const SCRAPYARD: StageData = {
   id: 'scrapyard',
   name: 'SCRAPYARD',
@@ -19,8 +21,11 @@ export const SCRAPYARD: StageData = {
   boss: 'scrap',
   bossName: 'SCRAP',
   bossWeapon: 'saw',
-  layout: ['......HIJKLMN|XY', 'ABCDEFG'],
+  layout: ['......HIJ12KLMN|XY', 'ABCDEFG'],
+  miniboss: 'crusher',
   screens: {
+    '1': hall.a,
+    '2': hall.b,
     A: [...rows(SKY, 10), '..........###...', SKY, '..P.........j...', FLOOR, FLOOR],
     // Belt pushing against you.
     B: [...rows(SKY, 12), '..........g.....', '####<<<<<<<<####', FLOOR],

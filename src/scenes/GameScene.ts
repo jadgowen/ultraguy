@@ -1,17 +1,18 @@
 import Phaser from 'phaser';
 import { playMusic, stageMusic, stopMusic } from '../audio';
-import { PHYS, PLAYER_MAX_HP, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
+import { PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
 import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
 import { Player } from '../entities/Player';
-import { BOSS_MAX_HP, Boss, Room, createBoss } from '../entities/bosses';
+import { Boss, Miniboss, Room, createBoss } from '../entities/bosses';
 import { Controls } from '../input';
-import { Door, ELECTRIC_OFF_INDEX, Level, Point, Section, StageId, Tile } from '../level/Level';
-import { getStage } from '../level/stages';
+import { BossKind, Door, ELECTRIC_OFF_INDEX, Level, Point, Section, StageId, Tile } from '../level/Level';
+import { PART_ORDER, PARTS } from '../parts';
+import { BOSS_STAGES, getStage } from '../level/stages';
 import { THEMES } from '../level/themes';
 import { Box, moveY, overlaps } from '../physics';
-import { loadSave, recordClear } from '../save';
+import { MAX_TANKS, loadSave, recordClear, recordPart, setTanks } from '../save';
 import { sfx } from '../sfx';
-import { MAX_AMMO, WEAPONS, WeaponId } from '../weapons';
+import { WEAPONS, WeaponId } from '../weapons';
 
 const TRANSITION_FRAMES = 64;
 const DOOR_PAN_FRAMES = 80;
@@ -22,6 +23,17 @@ const ELECTRIC_PERIOD = 100;
 
 /** Damage a boss takes from its weakness weapon. */
 const WEAKNESS_DAMAGE = 4;
+/** Freeze-frames when a weakness hit lands. */
+const WEAK_HIT_STOP = 6;
+
+/** Boss rematch room: which boss each teleporter (left to right) sends you to. */
+const REMATCH_ORDER: BossKind[] = ['anvil', 'mantis', 'frostline', 'gale', 'volt', 'magma', 'scrap', 'tide'];
+const TELEPORT_FRAMES = 40;
+
+/** Display names for each stage boss (from the stage data). */
+const BOSS_NAMES: Partial<Record<BossKind, string>> = Object.fromEntries(
+  Object.values(BOSS_STAGES).map((st) => [st.boss, st.bossName]),
+);
 
 export interface GameSceneData {
   stage: StageId;
@@ -117,6 +129,21 @@ export class GameScene extends Phaser.Scene {
   private bossRoom: Room | null = null;
   private shadeRing: Phaser.GameObjects.Image | null = null;
   private bossDefeated = false;
+  /** The stage's miniboss has been beaten this visit. */
+  private miniDefeated = false;
+  /** Energy tanks lying in the stage (taken ones stay taken this visit). */
+  private tankItems: { box: Box; sprite: Phaser.GameObjects.Image; taken: boolean }[] = [];
+  /** Rematch room: capsules, which are done, and a teleport in progress. */
+  private capsules: { box: Box; sprite: Phaser.GameObjects.Image; kind: BossKind; done: boolean }[] = [];
+  private teleport: { t: number; to: 'arena' | 'hub'; kind?: BossKind; back?: Point } | null = null;
+  private hubSpot: Point | null = null;
+  /** Freeze-frame counter (weakness hits). */
+  private hitStop = 0;
+  /** Upgrade capsule (armor part) in this stage, and the pickup sequence timer. */
+  private upgradeItem: { box: Box; sprite: Phaser.GameObjects.Image; icon: Phaser.GameObjects.Image; taken: boolean } | null = null;
+  private partGetT = 0;
+  private weaponLabel!: Phaser.GameObjects.Text;
+  private weaponLabelT = 0;
   private bossDeathT = 0;
   /** Weapons earned so far (from the save). */
   private unlocked: WeaponId[] = ['buster'];
@@ -159,6 +186,15 @@ export class GameScene extends Phaser.Scene {
     this.bossRoom = null;
     this.shadeRing = null;
     this.bossDefeated = false;
+    this.miniDefeated = false;
+    this.tankItems = [];
+    this.capsules = [];
+    this.teleport = null;
+    this.hubSpot = null;
+    this.hitStop = 0;
+    this.weaponLabelT = 0;
+    this.upgradeItem = null;
+    this.partGetT = 0;
     this.bossDeathT = 0;
     this.weaponGetT = 0;
     this.wind = 0;
@@ -189,6 +225,12 @@ export class GameScene extends Phaser.Scene {
       const waterSet = waterMap.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
       waterMap.createLayer(0, waterSet, 0, 0)!.setDepth(15).setAlpha(0.4);
     }
+    // Fake walls hide what's behind them: drawn over the sprites.
+    if (this.level.findTiles(Tile.Fake).length) {
+      const fakeMap = this.make.tilemap({ data: this.level.fakeIndexGrid(), tileWidth: TILE, tileHeight: TILE });
+      const fakeSet = fakeMap.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
+      fakeMap.createLayer(0, fakeSet, 0, 0)!.setDepth(16);
+    }
     this.electricTiles = this.level.findTiles(Tile.Electric);
     this.electricOn = true;
     this.electricT = 0;
@@ -204,9 +246,36 @@ export class GameScene extends Phaser.Scene {
     if (this.level.goal) {
       this.goalSprite = this.add.image(this.level.goal.x, this.level.goal.y, 'goal').setOrigin(0.5, 1).setDepth(4);
     }
+    for (const t of this.level.tanks) {
+      const sprite = this.add.image(t.x, t.y, 'etank').setOrigin(0.5, 1).setDepth(4);
+      this.tankItems.push({ box: { x: t.x - 6, y: t.y - 10, w: 12, h: 10 }, sprite, taken: false });
+    }
+    // Rematch room: one capsule per boss; the exit opens once all are beaten.
+    [...this.level.teleporters]
+      .sort((a, b) => a.x - b.x)
+      .forEach((t, i) => {
+        const sprite = this.add.image(t.x, t.y, 'capsule_on').setOrigin(0.5, 1).setDepth(3);
+        this.capsules.push({ box: { x: t.x - 8, y: t.y - 28, w: 16, h: 28 }, sprite, kind: REMATCH_ORDER[i % REMATCH_ORDER.length], done: false });
+        const label = BOSS_NAMES[REMATCH_ORDER[i % REMATCH_ORDER.length]] ?? '';
+        this.add.text(t.x, t.y - 38, label, { fontFamily: 'monospace', fontSize: '7px', color: '#c8ccd8' }).setOrigin(0.5).setDepth(3);
+      });
+    if (this.capsules.length) {
+      const hub = this.level.playerStart;
+      this.add.text(hub.x + 140, hub.y - 120, 'UP in a capsule to rematch a boss', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' }).setOrigin(0.5).setDepth(3);
+    }
+    this.goalSprite?.setVisible(!this.capsules.length);
+    // Upgrade capsule: holds this stage's armor part until it's found.
+    const up = this.level.upgrade;
+    const part = stage.upgrade;
+    if (up && part) {
+      const owned = loadSave().parts.includes(part);
+      const sprite = this.add.image(up.x, up.y, owned ? 'capsule_off' : 'capsule_on').setOrigin(0.5, 1).setDepth(3);
+      const icon = this.add.image(up.x, up.y - 15, `part_${part}`).setDepth(3.5).setVisible(!owned);
+      this.upgradeItem = { box: { x: up.x - 8, y: up.y - 28, w: 16, h: 28 }, sprite, icon, taken: owned };
+    }
 
     this.controls = new Controls(this);
-    this.player = new Player(this);
+    this.player = new Player(this, loadSave().parts);
 
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(50);
     this.banner = this.add
@@ -216,6 +285,11 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(60);
     this.pauseLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(70).setVisible(false);
+    this.weaponLabel = this.add
+      .text(12, 80, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0', stroke: '#000000', strokeThickness: 2 })
+      .setScrollFactor(0)
+      .setDepth(60)
+      .setVisible(false);
 
     playMusic(this, stageMusic(stage));
     this.respawn();
@@ -235,6 +309,11 @@ export class GameScene extends Phaser.Scene {
 
   private step(): void {
     this.controls.poll();
+    if (this.hitStop > 0) {
+      this.hitStop--;
+      return;
+    }
+    if (this.weaponLabelT > 0 && --this.weaponLabelT === 0) this.weaponLabel.setVisible(false);
 
     if (this.clearTimer > 0) {
       this.stepEffects();
@@ -250,6 +329,14 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.weaponGetT > 0) {
       this.stepWeaponGet();
+      return;
+    }
+    if (this.partGetT > 0) {
+      this.stepPartGet();
+      return;
+    }
+    if (this.teleport) {
+      this.stepTeleport();
       return;
     }
     const cutscene = this.transition || this.doorSeq || this.boss?.inIntro || this.bossDeathT > 0;
@@ -279,13 +366,14 @@ export class GameScene extends Phaser.Scene {
       // Player is frozen while the boss drops in and its health bar fills;
       // the boss's name is shown meanwhile.
       this.boss.step();
-      const name = this.boss.kind === 'shade' ? 'SHADE' : this.level.data.bossName;
+      const name = this.bossName(this.boss);
       if (name) this.banner.setText(name).setVisible(this.boss.state === 'fill');
       if (!this.boss.inIntro) this.banner.setVisible(false);
       return;
     }
 
     const p = this.player;
+    this.cycleWeapon();
     p.update();
     if (!p.alive && p.deadTimer <= 0) {
       this.respawn();
@@ -303,10 +391,13 @@ export class GameScene extends Phaser.Scene {
     this.stepBossDeath();
 
     this.collide();
+    this.checkCapsules();
+    if (this.teleport) return;
     this.checkDoors();
     if (this.doorSeq) return;
     this.checkSection();
     this.updateCheckpoint();
+    this.tryStartMiniboss();
     if (!this.transition) this.followCamera();
     this.manageSpawns();
     this.cull();
@@ -480,6 +571,7 @@ export class GameScene extends Phaser.Scene {
           b.y = p.y + 3;
           b.life++;
           b.sprite.setAlpha(1 - b.life / 24);
+          this.meltBlocks(b);
           break;
         case 'bubble':
           b.life++;
@@ -600,8 +692,10 @@ export class GameScene extends Phaser.Scene {
           const dmg = weak ? WEAKNESS_DAMAGE : b.weapon === 'buster' ? b.power : 1;
           boss.hit(dmg, weak);
           if (weak) {
+            // Weakness hits land hard: a freeze-frame and a shake.
             sfx.weakHit();
-            this.shake(3);
+            this.shake(5);
+            this.hitStop = WEAK_HIT_STOP;
           } else sfx.hit();
           if (b.pierce) b.hitTargets.add(boss);
           else b.dead = true;
@@ -661,8 +755,19 @@ export class GameScene extends Phaser.Scene {
         sfx.pickup();
       }
     }
+    const u = this.upgradeItem;
+    if (u && !u.taken && overlaps(p, u.box)) this.startPartGet();
+    for (const t of this.tankItems) {
+      if (t.taken || !overlaps(p, t.box)) continue;
+      t.taken = true;
+      t.sprite.setVisible(false);
+      setTanks(loadSave().tanks + 1);
+      sfx.pickup();
+      this.flashLabel(loadSave().tanks >= MAX_TANKS ? 'E-TANK (FULL)' : 'E-TANK');
+    }
     const goal = this.level.goal;
-    if (goal && overlaps(p, { x: goal.x - 6, y: goal.y - 16, w: 12, h: 16 })) this.stageClear();
+    const goalOpen = this.capsules.every((c) => c.done);
+    if (goal && goalOpen && overlaps(p, { x: goal.x - 6, y: goal.y - 16, w: 12, h: 16 })) this.stageClear();
   }
 
   private killEnemy(e: Enemy): void {
@@ -671,9 +776,10 @@ export class GameScene extends Phaser.Scene {
     this.addEffect(e.cx, e.cy, 0, 0, 0, 14, true);
     const roll = Math.random();
     const hasAmmoWeapons = this.unlocked.length > 1;
-    if (roll < 0.08) this.dropPickup(e.cx, e.cy, 10, 0, 'hp_big', 12, 10);
-    else if (roll < 0.3) this.dropPickup(e.cx, e.cy, 3, 0, 'hp_small', 8, 6);
-    else if (hasAmmoWeapons && roll < 0.42) this.dropPickup(e.cx, e.cy, 0, 6, 'ammo_small', 8, 6);
+    if (roll < 0.06) this.dropPickup(e.cx, e.cy, 10, 0, 'hp_big', 12, 10);
+    else if (roll < 0.26) this.dropPickup(e.cx, e.cy, 3, 0, 'hp_small', 8, 6);
+    else if (hasAmmoWeapons && roll < 0.31) this.dropPickup(e.cx, e.cy, 0, 14, 'ammo_big', 12, 10);
+    else if (hasAmmoWeapons && roll < 0.45) this.dropPickup(e.cx, e.cy, 0, 6, 'ammo_small', 8, 6);
   }
 
   private dropPickup(cx: number, cy: number, heal: number, ammo: number, tex: string, w: number, h: number): void {
@@ -691,7 +797,7 @@ export class GameScene extends Phaser.Scene {
       const candidates = this.unlocked.filter((w) => w !== 'buster');
       target = candidates.sort((a, b) => p.ammo[a] - p.ammo[b])[0];
     }
-    if (target) p.ammo[target] = Math.min(MAX_AMMO, p.ammo[target] + n);
+    if (target) p.ammo[target] = Math.min(p.maxAmmo, p.ammo[target] + n);
   }
 
   private stepPickups(): void {
@@ -760,8 +866,14 @@ export class GameScene extends Phaser.Scene {
     const at = this.level.boss;
     const kind = this.level.data.boss;
     if (!at || !kind || this.boss || this.bossDefeated) return;
-    const sec = this.section;
-    if (this.level.sectionAt(at.x, at.y - 1) !== sec) return;
+    if (this.level.sectionAt(at.x, at.y - 1) !== this.section) return;
+    this.spawnBossInRoom(kind);
+  }
+
+  /** Lock the camera on the boss room ('X' marker's section) and start a boss there. */
+  private spawnBossInRoom(kind: BossKind): void {
+    const at = this.level.boss!;
+    const sec = this.level.sectionAt(at.x, at.y - 1)!;
     const camX = Math.round(this.bossRoomCamX(sec));
     this.arena = { camX, left: camX + 8, right: camX + VIEW_W - 8 };
     this.camX = camX;
@@ -773,6 +885,81 @@ export class GameScene extends Phaser.Scene {
     };
     this.boss = createBoss(kind, this, at, this.bossRoom);
     playMusic(this, kind === 'overlord' ? 'finalboss' : 'boss');
+  }
+
+  /** Name shown while a boss's health bar fills. */
+  private bossName(boss: Boss): string | undefined {
+    if (boss instanceof Miniboss) return boss.name;
+    if (boss.kind === 'shade') return 'SHADE';
+    if (boss.kind === this.level.data.boss) return this.level.data.bossName;
+    return BOSS_NAMES[boss.kind];
+  }
+
+  // --- miniboss -------------------------------------------------------------------
+
+  /**
+   * Walking up to the 'M' marker locks the camera with the miniboss near the
+   * right edge of the view. Beating it unlocks the camera again.
+   */
+  private tryStartMiniboss(): void {
+    const at = this.level.miniboss;
+    const kind = this.level.data.miniboss;
+    if (!at || !kind || this.boss || this.miniDefeated || !this.player.alive) return;
+    const sec = this.section;
+    if (this.level.sectionAt(at.x, at.y - 1) !== sec || this.player.cx < at.x - 170) return;
+    const secLeft = sec.x0 * SCREEN_W;
+    const secRight = (sec.x1 + 1) * SCREEN_W;
+    const camX = Math.round(Phaser.Math.Clamp(at.x + 48 - VIEW_W, secLeft, secRight - VIEW_W));
+    this.arena = { camX, left: camX + 8, right: camX + VIEW_W - 8 };
+    const room: Room = { left: this.arena.left, right: this.arena.right, top: sec.row * SCREEN_H + TILE, floor: at.y };
+    this.boss = createBoss(kind, this, at, room);
+    playMusic(this, 'boss');
+  }
+
+  // --- boss rematch room -------------------------------------------------------------
+
+  /** Press UP inside an open capsule to teleport to its boss. */
+  private checkCapsules(): void {
+    const p = this.player;
+    if (!this.capsules.length || this.boss || !p.alive || p.state !== 'idle' && p.state !== 'run') return;
+    if (!this.controls.justPressed('up')) return;
+    const c = this.capsules.find((k) => !k.done && overlaps(p, k.box));
+    if (!c) return;
+    this.hubSpot = { x: c.box.x + c.box.w / 2, y: c.box.y + c.box.h };
+    this.teleport = { t: 0, to: 'arena', kind: c.kind };
+    sfx.charge(2);
+  }
+
+  /** Beam out (hero flickers away), jump the camera, beam in. */
+  private stepTeleport(): void {
+    const tp = this.teleport!;
+    const p = this.player;
+    tp.t++;
+    p.vx = p.vy = 0;
+    p.sprite.setVisible(tp.t % 4 < 2 && tp.t < TELEPORT_FRAMES / 2 || tp.t > TELEPORT_FRAMES * 0.75);
+    if (tp.t === Math.floor(TELEPORT_FRAMES / 2)) {
+      this.clearActors();
+      if (tp.to === 'arena') {
+        const at = this.level.boss!;
+        const sec = this.level.sectionAt(at.x, at.y - 1)!;
+        const camX = Math.round(this.bossRoomCamX(sec));
+        p.reset(camX + 60, at.y);
+        this.section = sec;
+        this.spawnBossInRoom(tp.kind!);
+        this.camY = sec.row * SCREEN_H;
+      } else {
+        const back = this.hubSpot ?? this.level.playerStart;
+        p.reset(back.x, back.y);
+        this.section = this.level.sectionAt(p.cx, p.cy)!;
+        this.arena = null;
+        this.followCamera();
+        playMusic(this, stageMusic(this.level.data));
+      }
+    }
+    if (tp.t >= TELEPORT_FRAMES) {
+      this.teleport = null;
+      p.sprite.setVisible(true);
+    }
   }
 
   /** A player shot is heading at `box` and is within `dist` px (Shade dodges these). */
@@ -810,6 +997,7 @@ export class GameScene extends Phaser.Scene {
 
   private startBossDeath(): void {
     this.bossDeathT = 1;
+    this.hitStop = 14;
     this.wind = 0;
     for (const s of this.shots) s.dead = true;
   }
@@ -840,10 +1028,90 @@ export class GameScene extends Phaser.Scene {
         this.boss = createBoss('shade', this, this.level.boss, this.bossRoom);
         return;
       }
+      // Miniboss: the camera unlocks, it leaves a big refill, and the stage goes on.
+      if (boss instanceof Miniboss) {
+        this.miniDefeated = true;
+        this.arena = null;
+        this.dropPickup(boss.cx - 10, boss.cy, 10, 0, 'hp_big', 12, 10);
+        if (this.unlocked.length > 1) this.dropPickup(boss.cx + 10, boss.cy, 0, 14, 'ammo_big', 12, 10);
+        playMusic(this, stageMusic(this.level.data));
+        return;
+      }
+      // Rematch room: back to the hub, with that capsule switched off.
+      if (this.capsules.length) {
+        const c = this.capsules.find((k) => k.kind === boss.kind && !k.done);
+        if (c) {
+          c.done = true;
+          c.sprite.setTexture('capsule_off');
+        }
+        this.player.heal(10);
+        this.teleport = { t: 0, to: 'hub' };
+        if (this.capsules.every((k) => k.done)) {
+          this.goalSprite?.setVisible(true);
+          this.flashLabel('THE WAY FORWARD IS OPEN');
+        }
+        return;
+      }
       this.bossDefeated = true;
       const reward = this.level.data.bossWeapon;
       if (reward) this.startWeaponGet(reward);
       else this.stageClear();
+    }
+  }
+
+  // --- armor parts ----------------------------------------------------------------
+
+  /** Flame Burst melts frozen blocks it touches. */
+  private meltBlocks(b: Box): void {
+    const c0 = Math.floor(b.x / TILE);
+    const c1 = Math.floor((b.x + b.w - 1) / TILE);
+    const r0 = Math.floor(b.y / TILE);
+    const r1 = Math.floor((b.y + b.h - 1) / TILE);
+    for (let r = r0; r <= r1; r++) {
+      for (let c = c0; c <= c1; c++) {
+        if (this.level.tileAt(c, r) !== Tile.Melt) continue;
+        this.level.setTile(c, r, Tile.Empty);
+        this.layer.removeTileAt(c, r);
+        this.burst(c * TILE + 8, r * TILE + 8, 'bubble_fx', 4);
+        sfx.flame();
+      }
+    }
+  }
+
+  private startPartGet(): void {
+    const u = this.upgradeItem!;
+    const part = this.level.data.upgrade!;
+    u.taken = true;
+    u.icon.setVisible(false);
+    u.sprite.setTexture('capsule_off');
+    recordPart(part);
+    const p = this.player;
+    p.setParts(loadSave().parts);
+    p.heal(p.maxHp);
+    if (part === 'helmet') for (const w of this.unlocked) p.ammo[w] = p.maxAmmo;
+    p.charge = 0;
+    p.vx = 0;
+    this.partGetT = 1;
+    sfx.clear();
+  }
+
+  /** The hero flashes white, then the part's name and what it does. */
+  private stepPartGet(): void {
+    const t = this.partGetT++;
+    const def = PARTS[this.level.data.upgrade!];
+    const p = this.player;
+    p.state = 'idle';
+    p.invuln = 0;
+    this.stepEffects();
+    if (t < 70) {
+      this.banner.setText(`${def.name} GET!`).setVisible(true);
+      if (t % 6 === 0) this.burst(p.cx, p.cy, 'spark', 3);
+    } else {
+      this.banner.setText(`${def.name}\n\n${def.blurb}`).setFontSize(12);
+    }
+    if (t >= 220) {
+      this.partGetT = 0;
+      this.banner.setFontSize(16).setVisible(false);
     }
   }
 
@@ -853,8 +1121,8 @@ export class GameScene extends Phaser.Scene {
     stopMusic();
     recordClear(this.stageId, id);
     this.unlocked = loadSave().weapons;
-    this.player.ammo[id] = MAX_AMMO;
-    this.player.heal(PLAYER_MAX_HP);
+    this.player.ammo[id] = this.player.maxAmmo;
+    this.player.heal(this.player.maxHp);
     this.player.charge = 0;
     for (const b of this.bullets) b.dead = true;
     this.weaponGetT = 1;
@@ -1000,7 +1268,10 @@ export class GameScene extends Phaser.Scene {
   }
 
   private followCamera(): void {
-    this.camX = this.arena ? this.arena.camX : this.cameraTargetX(this.section);
+    // Ease into an arena lock (minibosses lock mid-scroll) and back out of it.
+    const target = this.arena ? this.arena.camX : this.cameraTargetX(this.section);
+    const d = target - this.camX;
+    this.camX = Math.abs(d) <= 4 ? target : this.camX + Math.sign(d) * 4;
     this.camY = this.section.row * SCREEN_H;
   }
 
@@ -1105,7 +1376,9 @@ export class GameScene extends Phaser.Scene {
     playMusic(this, stageMusic(this.level.data)); // back to the stage track after a boss
     // Latest checkpoint the player has passed.
     this.player.reset(this.checkpoint.x, this.checkpoint.y);
+    this.teleport = null;
     this.section = this.level.sectionAt(this.player.cx, this.player.cy)!;
+    this.camX = this.cameraTargetX(this.section);
     this.followCamera();
     this.trySpawnBoss();
     this.readyTimer = 64;
@@ -1114,7 +1387,7 @@ export class GameScene extends Phaser.Scene {
   /** Where to go after leaving this stage. */
   private exitScene(cleared: boolean): string {
     if (this.stageId === 'finale') return cleared ? 'ending' : 'fortress';
-    if (this.stageId.startsWith('fortress')) return 'fortress';
+    if (getStage(this.stageId).theme === 'fortress') return 'fortress';
     return 'select';
   }
 
@@ -1142,16 +1415,17 @@ export class GameScene extends Phaser.Scene {
     const hp = p.hp;
     const bossHp = this.boss && this.boss.state !== 'dying' ? this.boss.barHp : -1;
     const ammo = p.weapon === 'buster' ? -1 : p.ammo[p.weapon];
-    const key = `${hp}|${bossHp}|${p.weapon}|${ammo}`;
+    const bossMax = this.boss?.maxHp ?? 0;
+    const key = `${hp}|${bossHp}|${bossMax}|${p.weapon}|${ammo}`;
     if (key === this.hudKey) return;
     this.hudKey = key;
     const g = this.hud;
     g.clear();
     // Bars left to right: life, equipped weapon's ammo (if any), boss.
     let x = 12;
-    this.drawBar(g, x, hp, PLAYER_MAX_HP, 0xfff1a8);
-    if (ammo >= 0) this.drawBar(g, (x += 12), ammo, MAX_AMMO, WEAPONS[p.weapon].colors.main);
-    if (bossHp >= 0) this.drawBar(g, (x += 12), bossHp, BOSS_MAX_HP, 0xff7050);
+    this.drawBar(g, x, hp, p.maxHp, 0xfff1a8);
+    if (ammo >= 0) this.drawBar(g, (x += 12), ammo, p.maxAmmo, WEAPONS[p.weapon].colors.main);
+    if (bossHp >= 0) this.drawBar(g, (x += 12), bossHp, bossMax, 0xff7050);
   }
 
   private drawBar(g: Phaser.GameObjects.Graphics, x: number, value: number, max: number, color: number): void {
@@ -1163,42 +1437,83 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Pause menu: weapon select (moving the cursor equips) plus EXIT STAGE. */
+  /** Q / E (L1 / R1): switch weapons without pausing. */
+  private cycleWeapon(): void {
+    const c = this.controls;
+    const dir = (c.justPressed('next') ? 1 : 0) - (c.justPressed('prev') ? 1 : 0);
+    if (dir === 0 || this.unlocked.length < 2 || !this.player.alive) return;
+    const i = this.unlocked.indexOf(this.player.weapon);
+    const next = this.unlocked[(i + dir + this.unlocked.length) % this.unlocked.length];
+    this.player.weapon = next;
+    this.player.charge = 0;
+    sfx.tick();
+    this.flashLabel(WEAPONS[next].name);
+  }
+
+  /** Short message under the health bars. */
+  private flashLabel(text: string): void {
+    this.weaponLabel.setText(text).setVisible(true);
+    this.weaponLabelT = 70;
+  }
+
+  /**
+   * Pause menu rows: every weapon (moving the cursor equips it), E-TANK
+   * (Z / X refills life), EXIT STAGE.
+   */
+  private get pauseRows(): number {
+    return this.unlocked.length + 2;
+  }
+
   private buildPauseMenu(): void {
     const layer = this.pauseLayer;
     layer.removeAll(true);
     const p = this.player;
     const style = { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0' };
     const rowH = 14;
-    const items = this.unlocked.length + 1;
-    const h = 70 + items * rowH;
+    const h = 82 + this.pauseRows * rowH;
     const top = VIEW_H / 2 - h / 2;
     const left = VIEW_W / 2 - 100;
     layer.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, 200, h, 0x000000, 0.88).setStrokeStyle(1, 0x5ef0c8));
     layer.add(this.add.text(VIEW_W / 2, top + 14, 'PAUSED', { ...style, fontSize: '16px' }).setOrigin(0.5));
+    // Armor parts found (dim = not found yet).
+    PART_ORDER.forEach((id, i) => {
+      layer.add(this.add.image(VIEW_W / 2 - 27 + i * 18, top + 32, `part_${id}`).setAlpha(p.has(id) ? 1 : 0.2));
+    });
     const bars = this.add.graphics();
     layer.add(bars);
     this.unlocked.forEach((id, i) => {
-      const y = top + 32 + i * rowH;
+      const y = top + 44 + i * rowH;
       const def = WEAPONS[id];
       const selected = i === this.pauseIndex;
       layer.add(this.add.text(left + 12, y, `${selected ? '>' : ' '} ${def.name}`, { ...style, color: selected ? '#fff1e0' : '#8a8fa8' }));
-      const value = def.cost === 0 ? MAX_AMMO : p.ammo[id];
-      for (let u = 0; u < MAX_AMMO; u++) {
+      const value = def.cost === 0 ? p.maxAmmo : p.ammo[id];
+      for (let u = 0; u < p.maxAmmo; u++) {
         bars.fillStyle(u < value ? def.colors.main : 0x3a3550, 1).fillRect(left + 120 + u * 2, y + 2, 1, 6);
       }
     });
-    const exitY = top + 32 + this.unlocked.length * rowH + 4;
-    const onExit = this.pauseIndex === this.unlocked.length;
+    const tanks = loadSave().tanks;
+    const tankRow = this.unlocked.length;
+    const tankY = top + 44 + tankRow * rowH + 4;
+    const onTank = this.pauseIndex === tankRow;
+    layer.add(this.add.text(left + 12, tankY, `${onTank ? '>' : ' '} E-TANK`, { ...style, color: onTank ? '#9ee8ff' : '#8a8fa8' }));
+    for (let i = 0; i < MAX_TANKS; i++) {
+      layer.add(this.add.image(left + 126 + i * 14, tankY + 4, 'etank').setAlpha(i < tanks ? 1 : 0.2));
+    }
+    const exitY = tankY + rowH;
+    const onExit = this.pauseIndex === tankRow + 1;
     layer.add(this.add.text(left + 12, exitY, `${onExit ? '>' : ' '} EXIT STAGE`, { ...style, color: onExit ? '#ff9a7a' : '#8a8fa8' }));
-    const hint = onExit ? 'Z / X to leave the stage' : WEAPONS[this.unlocked[this.pauseIndex]].blurb;
+    const hint = onExit
+      ? 'Z / X to leave the stage'
+      : onTank
+        ? tanks === 0 ? 'none left: find them in stages' : p.hp >= p.maxHp ? 'life is already full' : 'Z / X to refill your life'
+        : WEAPONS[this.unlocked[this.pauseIndex]].blurb;
     layer.add(this.add.text(VIEW_W / 2, top + h - 22, hint, { ...style, color: '#5ef0c8' }).setOrigin(0.5));
     layer.add(this.add.text(VIEW_W / 2, top + h - 10, 'UP/DOWN select   ENTER resume', { ...style, color: '#8a8fa8' }).setOrigin(0.5));
   }
 
   private stepPauseMenu(): void {
     const c = this.controls;
-    const count = this.unlocked.length + 1;
+    const count = this.pauseRows;
     const dir = (c.justPressed('down') ? 1 : 0) - (c.justPressed('up') ? 1 : 0);
     if (dir !== 0) {
       this.pauseIndex = (this.pauseIndex + dir + count) % count;
@@ -1210,7 +1525,17 @@ export class GameScene extends Phaser.Scene {
       sfx.tick();
       this.buildPauseMenu();
     }
-    if (this.pauseIndex === this.unlocked.length && (c.justPressed('jump') || c.justPressed('fire'))) {
+    const act = c.justPressed('jump') || c.justPressed('fire');
+    if (!act) return;
+    if (this.pauseIndex === this.unlocked.length) {
+      const tanks = loadSave().tanks;
+      if (tanks > 0 && this.player.hp < this.player.maxHp) {
+        setTanks(tanks - 1);
+        this.player.heal(this.player.maxHp);
+        sfx.pickup();
+        this.buildPauseMenu();
+      }
+    } else if (this.pauseIndex === this.unlocked.length + 1) {
       sfx.select();
       this.scene.start(this.exitScene(false));
     }

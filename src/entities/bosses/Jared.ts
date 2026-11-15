@@ -53,6 +53,10 @@ export class Jared extends Boss {
     sfx.enemyShot();
   }
 
+  protected introPose(): string {
+    return 'throw';
+  }
+
   protected pose(): string {
     return this.throwPose > 0 ? 'throw' : 'idle';
   }

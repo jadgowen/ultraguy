@@ -98,6 +98,10 @@ export class Scrap extends Boss {
     this.setMode(pick);
   }
 
+  protected introPose(): string {
+    return 'toss';
+  }
+
   protected pose(): string {
     if (this.mode === 'magnet' && this.t > 16) return 'magnet';
     if (this.mode === 'toss' && this.t % 26 < 12) return 'toss';

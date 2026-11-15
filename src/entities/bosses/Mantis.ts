@@ -119,6 +119,10 @@ export class Mantis extends Boss {
     this.setMode(pick);
   }
 
+  protected introPose(): string {
+    return 'throw';
+  }
+
   protected pose(): string {
     if (!this.grounded) return 'jump';
     if (this.mode === 'throw' && this.t >= 8) return 'throw';

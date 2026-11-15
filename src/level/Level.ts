@@ -1,4 +1,5 @@
 import { SCREEN_COLS, SCREEN_H, SCREEN_ROWS, SCREEN_W, TILE } from '../constants';
+import type { PartId } from '../parts';
 import type { WeaponId } from '../weapons';
 
 /**
@@ -10,10 +11,16 @@ import type { WeaponId } from '../weapons';
  *   L  lava (not solid; instant death)
  *   <  >  conveyor belt (solid; carries you left / right)
  *   ~  water (not solid; floaty jumps and slow falls)
+ *   F  fake wall (looks solid, drawn over sprites, but you walk through it)
+ *   &  frozen block (solid until Flame Burst melts it)
  *   D  boss door (solid; opens when the player walks into it from the left)
  *   P  player start              c  checkpoint       *  goal
  *   B  checkpoint that is also the "boss test" start
  *   X  boss (in the boss room)
+ *   M  miniboss (stage's `miniboss`; the camera locks around it until it's beaten)
+ *   E  energy tank (collectible)
+ *   U  upgrade capsule holding the stage's armor part (`upgrade`)
+ *   T  teleporter capsule (boss rematch room; left to right = REMATCH_ORDER)
  *
  * Enemies:
  *   w  walker    h  hopper     f  flyer      t  turret (shielded)
@@ -33,7 +40,7 @@ import type { WeaponId } from '../weapons';
  */
 
 export type BossStageId = 'foundry' | 'canopy' | 'glacier' | 'stratos' | 'powerplant' | 'caldera' | 'scrapyard' | 'reef';
-export type FortressStageId = 'fortress1' | 'fortress2' | 'fortress3' | 'finale';
+export type FortressStageId = 'fortress1' | 'fortress2' | 'fortress3' | 'gauntlet' | 'finale';
 export type StageId = BossStageId | FortressStageId | 'intro';
 
 export const ALL_STAGE_IDS: StageId[] = [
@@ -49,10 +56,12 @@ export const ALL_STAGE_IDS: StageId[] = [
   'fortress1',
   'fortress2',
   'fortress3',
+  'gauntlet',
   'finale',
 ];
 export type ThemeId = 'foundry' | 'jungle' | 'ice' | 'sky' | 'power' | 'volcano' | 'scrap' | 'water' | 'fortress' | 'city';
-export type BossKind = 'anvil' | 'mantis' | 'frostline' | 'gale' | 'volt' | 'magma' | 'scrap' | 'tide' | 'overlord' | 'shade' | 'jared';
+export type MiniKind = 'press' | 'toad' | 'mammoth' | 'kite' | 'dynamo' | 'crab' | 'crusher' | 'angler';
+export type BossKind = 'anvil' | 'mantis' | 'frostline' | 'gale' | 'volt' | 'magma' | 'scrap' | 'tide' | 'overlord' | 'shade' | 'jared' | MiniKind;
 
 export interface StageData {
   id: StageId;
@@ -63,6 +72,10 @@ export interface StageData {
   bossName?: string;
   /** Weapon earned by beating this stage's boss. */
   bossWeapon?: WeaponId;
+  /** Miniboss at the 'M' marker. */
+  miniboss?: MiniKind;
+  /** Armor part in the upgrade capsule ('U'). */
+  upgrade?: PartId;
   screens: Record<string, string[]>;
   layout: string[];
   /** Scenery drawn behind the sprites: images or text, in world pixels. */
@@ -95,7 +108,12 @@ export enum Tile {
   ConveyorL = 9,
   ConveyorR = 10,
   Water = 11,
+  Fake = 12,
+  Melt = 13,
 }
+
+/** Tileset frame for a frozen block. Fake walls use the solid frame (0). */
+export const MELT_INDEX = 12;
 
 /** Tileset frame for an electric barrier while it's switched off. */
 export const ELECTRIC_OFF_INDEX = 11;
@@ -179,9 +197,11 @@ const TILE_CHARS: Record<string, Tile> = {
   '<': Tile.ConveyorL,
   '>': Tile.ConveyorR,
   '~': Tile.Water,
+  F: Tile.Fake,
+  '&': Tile.Melt,
 };
 
-const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*']);
+const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U']);
 
 export class Level {
   readonly cols: number;
@@ -193,6 +213,10 @@ export class Level {
   playerStart: Point = { x: 32, y: 208 };
   goal: Point | null = null;
   boss: Point | null = null;
+  miniboss: Point | null = null;
+  readonly tanks: Point[] = [];
+  readonly teleporters: Point[] = [];
+  upgrade: Point | null = null;
   bossTestStart: Point | null = null;
   readonly doors: Door[] = [];
 
@@ -275,6 +299,10 @@ export class Level {
         } else if (ch === 'P') this.playerStart = { x: cx, y: bottom };
         else if (ch === 'c') this.checkpoints.push({ x: cx, y: bottom });
         else if (ch === '*') this.goal = { x: cx, y: bottom };
+        else if (ch === 'M') this.miniboss = { x: cx, y: bottom };
+        else if (ch === 'E') this.tanks.push({ x: cx, y: bottom });
+        else if (ch === 'T') this.teleporters.push({ x: cx, y: bottom });
+        else if (ch === 'U') this.upgrade = { x: cx, y: bottom };
         else if (ENEMY_CHARS[ch]) this.spawns.push({ kind: ENEMY_CHARS[ch], x: cx, y: bottom, alive: false, armed: true });
         else if (t === Tile.Empty && !MARKERS.has(ch)) throw new Error(`${where} row ${r}: unknown character "${ch}"`);
         this.tiles[gr * this.cols + gc] = t;
@@ -290,13 +318,13 @@ export class Level {
 
   isSolid(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    return t === Tile.Solid || t === Tile.Spike || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR;
+    return t === Tile.Solid || t === Tile.Spike || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR || t === Tile.Melt;
   }
 
   /** Ground an enemy is willing to walk on (not spikes). */
   isFloor(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    return t === Tile.Solid || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR || this.isPlatform(c, r);
+    return t === Tile.Solid || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR || t === Tile.Melt || this.isPlatform(c, r);
   }
 
   isLava(c: number, r: number): boolean {
@@ -353,7 +381,12 @@ export class Level {
 
   /** Tile indices for the main Phaser tilemap layer (-1 = empty). Water is drawn on its own layer. */
   tileIndexGrid(): number[][] {
-    return this.grid((t) => (t === Tile.Water ? -1 : t - 1));
+    return this.grid((t) => (t === Tile.Water || t === Tile.Fake ? -1 : t === Tile.Melt ? MELT_INDEX : t - 1));
+  }
+
+  /** Fake walls, drawn as solid wall on a layer over the sprites (so you vanish into them). */
+  fakeIndexGrid(): number[][] {
+    return this.grid((t) => (t === Tile.Fake ? 0 : -1));
   }
 
   /** Tile indices for the translucent water layer drawn over sprites. */

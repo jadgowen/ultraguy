@@ -102,6 +102,10 @@ export class Anvil extends Boss {
     return this.mode === 'crouch' && this.t % 6 < 3;
   }
 
+  protected introPose(): string {
+    return 'jump';
+  }
+
   protected pose(): string {
     if (this.state === 'drop' || this.mode === 'jump') return this.grounded ? 'idle' : 'jump';
     if (this.mode === 'shoot' && this.t >= 10) return 'shoot';

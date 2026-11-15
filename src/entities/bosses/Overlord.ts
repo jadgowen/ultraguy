@@ -58,6 +58,10 @@ export class Overlord extends Boss {
     this.timer = 0;
   }
 
+  protected introPose(): string {
+    return 'fire';
+  }
+
   protected pose(): string {
     return this.timer > (this.phase2 ? 50 : 70) ? 'fire' : 'idle';
   }

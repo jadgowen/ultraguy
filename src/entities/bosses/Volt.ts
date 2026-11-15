@@ -107,6 +107,10 @@ export class Volt extends Boss {
     this.setMode(pick);
   }
 
+  protected introPose(): string {
+    return 'cast';
+  }
+
   protected pose(): string {
     if (this.mode === 'orbs' || this.mode === 'strike') return 'cast';
     return 'idle';

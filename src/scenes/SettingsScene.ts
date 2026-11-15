@@ -1,23 +1,15 @@
 import Phaser from 'phaser';
+import { playMusic, setMusicLevel } from '../audio';
 import { VIEW_W } from '../constants';
-import { clearSave, loadSave } from '../save';
-import { sfx } from '../sfx';
+import { VOLUME_STEPS, loadSettings, updateSettings, volumeOf } from '../settings';
+import { setSfxLevel, sfx } from '../sfx';
 import { FONT, MenuScene } from './menu';
-import { playMusic } from '../audio';
 
-const CONTROLS = [
-  ['MOVE / CLIMB', 'ARROWS or WASD', 'D-PAD / STICK'],
-  ['JUMP', 'Z  SPACE  K', 'A'],
-  ['FIRE', 'X  J', 'B / X'],
-  ['CHARGE', 'hold FIRE, release', ''],
-  ['PAUSE / WEAPONS', 'ENTER  ESC  P', 'START'],
-];
+const ROWS = ['MUSIC', 'SOUND FX', 'CONTROLS', 'BACK'] as const;
 
-/** Controls reference and save management. */
+/** Settings: volume mixer (music / sound effects) and the way into key remapping. */
 export class SettingsScene extends MenuScene {
   private labels: Phaser.GameObjects.Text[] = [];
-  private progress!: Phaser.GameObjects.Text;
-  private confirmClear = false;
 
   constructor() {
     super('settings');
@@ -26,61 +18,61 @@ export class SettingsScene extends MenuScene {
   create(): void {
     this.initMenu();
     playMusic(this, 'title');
-    this.confirmClear = false;
     this.cameras.main.setBackgroundColor('#141626');
     const small = { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' };
-    this.add.text(VIEW_W / 2, 20, 'SETTINGS', { fontFamily: FONT, fontSize: '16px', color: '#f28c28' }).setOrigin(0.5);
+    this.add.text(VIEW_W / 2, 24, 'SETTINGS', { fontFamily: FONT, fontSize: '16px', color: '#f28c28' }).setOrigin(0.5);
+    this.add.text(VIEW_W / 2, 50, 'MIXER', { ...small, color: '#5ef0c8' }).setOrigin(0.5);
+    this.labels = this.list(VIEW_W / 2 - 110, 70, ROWS.map(() => ''));
+    this.refresh();
+    this.add.text(VIEW_W / 2, 200, 'LEFT/RIGHT change volume', small).setOrigin(0.5);
+    this.add.text(VIEW_W / 2, 214, 'UP/DOWN choose   ENTER / Z select   X back', small).setOrigin(0.5);
+  }
 
-    this.add.text(40, 42, 'CONTROLS', { ...small, color: '#5ef0c8' });
-    this.add.text(150, 42, 'KEYBOARD', small);
-    this.add.text(290, 42, 'GAMEPAD', small);
-    CONTROLS.forEach(([what, keys, pad], i) => {
-      const y = 56 + i * 13;
-      this.add.text(40, y, what, { ...small, color: '#fff1e0' });
-      this.add.text(150, y, keys, small);
-      this.add.text(290, y, pad, small);
+  private bar(level: number): string {
+    return '#'.repeat(level) + '-'.repeat(VOLUME_STEPS - level) + ` ${String(level * 10).padStart(3)}%`;
+  }
+
+  private refresh(): void {
+    const s = loadSettings();
+    this.labels[0].setText(`MUSIC      ${this.bar(s.music)}`);
+    this.labels[1].setText(`SOUND FX   ${this.bar(s.sfx)}`);
+    this.labels[2].setText('CONTROLS');
+    this.labels[3].setText('BACK');
+  }
+
+  private adjust(dir: number): void {
+    const row = ROWS[this.selected];
+    if (row !== 'MUSIC' && row !== 'SOUND FX') return;
+    const s = updateSettings((st) => {
+      if (row === 'MUSIC') st.music = Phaser.Math.Clamp(st.music + dir, 0, VOLUME_STEPS);
+      else st.sfx = Phaser.Math.Clamp(st.sfx + dir, 0, VOLUME_STEPS);
     });
-
-    this.add.text(40, 132, 'SAVE DATA', { ...small, color: '#5ef0c8' });
-    this.progress = this.add.text(150, 132, '', small);
-    this.updateProgress();
-
-    this.labels = this.list(VIEW_W / 2 - 40, 168, ['CLEAR SAVE', 'BACK']);
-    this.add.text(VIEW_W / 2, 222, 'UP/DOWN  ENTER / Z', small).setOrigin(0.5);
-  }
-
-  private updateProgress(): void {
-    const save = loadSave();
-    this.progress.setText(`${save.cleared.length}/4 stages cleared, ${save.weapons.length - 1} boss weapons`);
-  }
-
-  protected select(i: number): void {
-    super.select(i);
-    if (this.confirmClear) {
-      this.confirmClear = false;
-      this.labels[0]?.setText('CLEAR SAVE');
-    }
+    setMusicLevel(volumeOf(s.music));
+    setSfxLevel(volumeOf(s.sfx));
+    sfx.select(); // a sample at the new level
+    this.refresh();
   }
 
   protected tick(): boolean {
-    const back = this.controls.justPressed('fire');
-    if (!this.confirmed() && !back) return false;
-    if (back || this.selected === 1) {
+    const c = this.controls;
+    if (c.justPressed('left')) this.adjust(-1);
+    if (c.justPressed('right')) this.adjust(1);
+    if (c.justPressed('fire')) {
       sfx.select();
       this.scene.start('title');
       return true;
     }
-    if (!this.confirmClear) {
-      // Two-step confirm so a stray key press can't wipe progress.
-      this.confirmClear = true;
-      this.labels[0].setText('PRESS AGAIN TO CONFIRM').setColor('#ff9a7a');
-      sfx.tick();
-    } else {
-      clearSave();
-      this.confirmClear = false;
-      this.labels[0].setText('SAVE CLEARED').setColor('#fff1e0');
-      this.updateProgress();
+    if (!this.confirmed()) return false;
+    const row = ROWS[this.selected];
+    if (row === 'CONTROLS') {
       sfx.select();
+      this.scene.start('controls');
+      return true;
+    }
+    if (row === 'BACK') {
+      sfx.select();
+      this.scene.start('title');
+      return true;
     }
     return false;
   }

@@ -1113,7 +1113,11 @@ const ITEM_FRAMES = {
   hp_small: single('hpSmall', 8, 6),
   hp_big: single('hpBig', 12, 10),
   ammo_small: single('ammoSmall', 8, 6),
+  ammo_big: single('ammoBig', 12, 10),
+  etank: single('etank', 12, 10),
   goal: single('goal', 16, 16),
+  capsule_on: single('capsuleOn', 20, 30),
+  capsule_off: single('capsuleOff', 20, 30),
 };
 
 
@@ -1220,7 +1224,164 @@ const CHARACTER_FRAMES = {
   overlord_fire: single('overlordFire', 64, 84),
 };
 
-const FRAMES = { ...CHARACTER_FRAMES, ...SHOT_FRAMES, ...ITEM_FRAMES };
+
+// --- minibosses (one per boss stage, mid-stage) ---------------------------------
+
+/** PRESS TITAN (Foundry): a hydraulic walker with a press plate on its back. */
+function pressTitan(attack) {
+  const plate = attack ? 0 : 3;
+  return boxes(44, 40, [
+    [8, 30, 8, 7, 'g'], [28, 30, 8, 7, 'g'], [5, 36, 14, 4, 'G'], [25, 36, 14, 4, 'G'],
+    [10, 26, 4, 6, 'w'], [30, 26, 4, 6, 'w'],
+    [4, 10, 36, 18, 'O'], [4, 24, 36, 4, 'o'], [4, 10, 36, 2, 'Y'],
+    [6, 22, 4, 2, 'd'], [14, 22, 4, 2, 'd'], [22, 22, 4, 2, 'd'], [30, 22, 4, 2, 'd'],
+    [12, 13, 20, 7, 'd'], [17, 15, 10, 3, attack ? 'R' : 'Y'],
+    [19, plate + 4, 6, 10 - plate, 'g'], [0, plate, 44, 6, 'G'], [0, plate, 44, 1, 'w'],
+  ]);
+}
+
+/** BRIAR TOAD (Canopy): a thorny frog that hops and spits seeds. */
+function briarToad(attack) {
+  const mouth = attack ? [[30, 14, 14, 8, 'r'], [32, 16, 11, 4, 'R'], [33, 19, 8, 2, 'P']] : [[32, 17, 10, 2, 'e']];
+  return boxes(44, 32, [
+    [2, 21, 12, 9, 'e'], [30, 23, 10, 7, 'e'], [0, 29, 16, 3, 'E'], [28, 29, 14, 3, 'E'],
+    [8, 4, 3, 6, 'M'], [15, 1, 3, 8, 'M'], [22, 3, 3, 6, 'M'],
+    [6, 8, 32, 20, 'E'], [12, 20, 22, 8, 'N'], [26, 6, 16, 16, 'E'],
+    [30, 2, 7, 6, 'Y'], [33, 3, 3, 4, 'd'],
+    ...mouth,
+  ]);
+}
+
+/** TUSK MAMMOTH (Glacier): an armored mammoth that charges across the ice. */
+function tuskMammoth(attack) {
+  const trunk = attack ? [[43, 0, 4, 14, 'b']] : [[43, 12, 4, 16, 'b']];
+  return boxes(48, 36, [
+    [8, 26, 8, 10, 'b'], [28, 26, 8, 10, 'b'],
+    [6, 6, 32, 22, 'B'], [6, 22, 32, 6, 'b'], [6, 6, 32, 2, 'c'],
+    [10, 2, 4, 6, 'C'], [18, 0, 4, 8, 'C'], [26, 2, 4, 6, 'C'],
+    [30, 4, 16, 20, 'B'], [30, 4, 16, 2, 'c'], [36, 9, 4, 4, attack ? 'R' : 'Y'],
+    ...trunk,
+    [36, 20, 12, 3, 'W'],
+  ]);
+}
+
+/** STORM KITE (Stratos): a flying wing that drops lightning. */
+function stormKite(attack) {
+  const rod = attack ? 'W' : 'Y';
+  return boxes(44, 28, [
+    [0, 9, 44, 6, 'U'], [0, 13, 7, 4, 'u'], [37, 13, 7, 4, 'u'], [0, 9, 44, 1, 'C'],
+    [6, 15, 2, 7, rod], [36, 15, 2, 7, rod],
+    [14, 3, 16, 18, 'S'], [14, 3, 16, 2, 's'], [20, 21, 4, 7, 's'],
+    [18, 8, 8, 7, 'W'], [20, 10, 4, 4, attack ? 'R' : 'd'],
+  ]);
+}
+
+/** DYNAMO (Power Plant): a tesla tower on treads. */
+function dynamo(attack) {
+  return boxes(40, 40, [
+    [0, 32, 40, 8, 'g'], [3, 34, 6, 4, 'G'], [13, 34, 6, 4, 'G'], [23, 34, 6, 4, 'G'], [32, 34, 6, 4, 'G'],
+    [4, 20, 32, 12, 'y'], [4, 20, 32, 2, 'Y'],
+    [10, 22, 20, 8, 'd'], [13, 24, 4, 3, attack ? 'W' : 'C'], [23, 24, 4, 3, attack ? 'W' : 'C'],
+    [13, 5, 14, 16, 'G'], [10, 7, 20, 2, 'O'], [10, 12, 20, 2, 'O'], [10, 17, 20, 2, 'O'],
+    [14, 0, 12, 6, attack ? 'W' : 'C'], [16, 1, 4, 2, 'W'],
+  ]);
+}
+
+/** CINDER CRAB (Caldera): a lava crab that lobs fireballs. */
+function cinderCrab(attack) {
+  const cy = attack ? 0 : 6;
+  return boxes(46, 30, [
+    [10, 22, 3, 8, 'r'], [17, 22, 3, 8, 'r'], [26, 22, 3, 8, 'r'], [33, 22, 3, 8, 'r'],
+    [8, 8, 30, 14, 'R'], [8, 8, 30, 3, 'O'], [14, 12, 4, 3, 'Y'], [26, 12, 4, 3, 'Y'], [20, 16, 6, 2, attack ? 'Y' : 'r'],
+    [16, 3, 2, 6, 'r'], [28, 3, 2, 6, 'r'], [15, 0, 4, 4, 'W'], [27, 0, 4, 4, 'W'],
+    [0, cy, 9, 10, 'R'], [37, cy, 9, 10, 'R'], [0, cy, 9, 2, 'O'], [37, cy, 9, 2, 'O'],
+    [3, cy + 4, 3, 4, 'd'], [40, cy + 4, 3, 4, 'd'],
+  ]);
+}
+
+/** CRUSHER (Scrapyard): a junk tank with jaws. */
+function crusher(attack) {
+  const top = attack ? 4 : 9;
+  return boxes(48, 34, [
+    [0, 26, 48, 8, 'g'], [3, 28, 6, 4, 'G'], [13, 28, 6, 4, 'G'], [23, 28, 6, 4, 'G'], [33, 28, 6, 4, 'G'],
+    [10, 2, 5, 10, 'd'],
+    [4, 12, 34, 14, 'M'], [4, 12, 34, 2, 'T'], [8, 15, 10, 6, 'C'], [9, 16, 3, 2, 'W'], [22, 18, 12, 2, 'o'],
+    [38, top, 10, 8, 'G'], [38, top + 7, 10, 1, 'W'], [38, 18, 10, 8, 'G'], [38, 18, 10, 1, 'W'],
+  ]);
+}
+
+/** ANGLER (Reef): a deep-sea fish with a glowing lure. */
+function angler(attack) {
+  const mouth = attack ? [[30, 14, 14, 12, 'd'], [31, 14, 2, 3, 'W'], [36, 14, 2, 3, 'W'], [31, 23, 2, 3, 'W'], [36, 23, 2, 3, 'W']] : [[32, 18, 12, 5, 'd'], [33, 18, 2, 2, 'W'], [38, 18, 2, 2, 'W']];
+  return boxes(44, 32, [
+    [0, 10, 7, 14, 'b'], [0, 10, 3, 14, 'C'],
+    [4, 8, 34, 20, 'S'], [10, 20, 24, 8, 's'], [14, 4, 10, 5, 'b'],
+    [26, 1, 2, 9, 'b'], [26, 1, 8, 2, 'b'], [32, 0, 6, 6, attack ? 'W' : 'Y'],
+    [28, 11, 5, 5, 'W'], [30, 12, 2, 3, 'd'],
+    ...mouth,
+  ]);
+}
+
+/** Teleporter capsule for the boss rematch room. */
+function capsule(on) {
+  const glass = on ? 'C' : 'g';
+  return boxes(20, 30, [
+    [0, 24, 20, 6, 'G'], [0, 24, 20, 1, 'w'], [3, 4, 14, 20, glass], [5, 6, 2, 14, on ? 'W' : 'G'],
+    [0, 0, 20, 5, 'G'], [0, 0, 20, 1, 'w'], [8, 26, 4, 2, on ? 'V' : 'd'],
+  ]);
+}
+
+const MINI_ART = { press: pressTitan, toad: briarToad, mammoth: tuskMammoth, kite: stormKite, dynamo, crab: cinderCrab, crusher, angler };
+const MINI_SIZE = { press: [44, 40], toad: [44, 32], mammoth: [48, 36], kite: [44, 28], dynamo: [40, 40], crab: [46, 30], crusher: [48, 34], angler: [44, 32] };
+for (const [k, fn] of Object.entries(MINI_ART)) {
+  P[`${k}Idle`] = fn(false);
+  P[`${k}Attack`] = fn(true);
+}
+P.capsuleOn = capsule(true);
+P.capsuleOff = capsule(false);
+P.etank = [
+  '.KKKKKKKKKK.',
+  'KCCCCCCCCCbK',
+  'KBBWWWWWBBbK',
+  'KBBWBBBBBBbK',
+  'KBBWWWWBBBbK',
+  'KBBWBBBBBBbK',
+  'KBBWWWWWBBbK',
+  'KBBBBBBBBBbK',
+  'KbbbbbbbbbbK',
+  '.KKKKKKKKKK.',
+];
+P.ammoBig = [
+  '.KKKKKKKKKK.',
+  'KVccVVVVVVbK',
+  'KVcVVVVVVVbK',
+  'KVVVKKKKVVbK',
+  'KVVVKKKKVVbK',
+  'KVVVKKKKVVbK',
+  'KVVVKKKKVVbK',
+  'KVVVVVVVVVbK',
+  'KbbbbbbbbbbK',
+  '.KKKKKKKKKK.',
+];
+// Armor part icons (upgrade capsules and the pause menu), 14x14.
+P.partBlaster = boxes(14, 14, [[1, 4, 9, 6, 'O'], [1, 4, 9, 1, 'Y'], [1, 9, 9, 1, 'o'], [9, 3, 4, 8, 'G'], [10, 5, 3, 4, 'C'], [11, 6, 1, 2, 'W'], [3, 6, 4, 2, 'd']]);
+P.partBoots = boxes(14, 14, [[3, 1, 6, 8, 'O'], [3, 1, 6, 1, 'Y'], [3, 6, 6, 1, 'o'], [3, 8, 10, 4, 'O'], [3, 11, 10, 2, 'o'], [8, 9, 4, 1, 'Y'], [2, 3, 1, 5, 'V']]);
+P.partArmor = boxes(14, 14, [[2, 2, 10, 10, 'O'], [2, 2, 10, 1, 'Y'], [1, 2, 3, 4, 'o'], [10, 2, 3, 4, 'o'], [5, 5, 4, 4, 'V'], [6, 6, 2, 2, 'W'], [4, 11, 6, 2, 'o']]);
+P.partHelmet = boxes(14, 14, [[3, 1, 8, 2, 'O'], [2, 3, 10, 8, 'O'], [2, 3, 10, 1, 'Y'], [4, 6, 6, 3, 'C'], [5, 6, 2, 1, 'W'], [2, 10, 10, 2, 'o'], [6, 0, 2, 2, 'V']]);
+Object.assign(ITEM_FRAMES, {
+  part_blaster: single('partBlaster', 14, 14),
+  part_boots: single('partBoots', 14, 14),
+  part_armor: single('partArmor', 14, 14),
+  part_helmet: single('partHelmet', 14, 14),
+});
+
+const MINI_FRAMES = {};
+for (const [k, [w, h]] of Object.entries(MINI_SIZE)) {
+  MINI_FRAMES[`${k}_idle`] = single(`${k}Idle`, w, h);
+  MINI_FRAMES[`${k}_attack`] = single(`${k}Attack`, w, h);
+}
+
+const FRAMES = { ...CHARACTER_FRAMES, ...MINI_FRAMES, ...SHOT_FRAMES, ...ITEM_FRAMES };
 
 // --- render ----------------------------------------------------------------------
 
@@ -1269,6 +1430,7 @@ const rows = [
   pick(enemyNames.slice(10, 20)),
   pick(enemyNames.slice(20)),
   ...bossNames.map((b) => pick(Object.keys(CHARACTER_FRAMES).filter((n) => n.startsWith(`${b}_`)))),
+  pick(Object.keys(MINI_FRAMES)),
   pick(Object.keys(SHOT_FRAMES)),
   pick(Object.keys(ITEM_FRAMES)),
 ];

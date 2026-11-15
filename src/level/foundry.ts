@@ -1,3 +1,4 @@
+import { miniHall, SECRET_ROOM } from './rooms';
 import type { StageData } from './Level';
 
 // Legend is in Level.ts. Each screen is 16 columns x 15 rows.
@@ -11,6 +12,8 @@ const rows = (row: string, n: number): string[] => Array.from({ length: n }, () 
 const FLOOR = '################';
 const CEIL = '################';
 
+const hall = miniHall('#');
+
 export const FOUNDRY: StageData = {
   id: 'foundry',
   name: 'FOUNDRY',
@@ -18,8 +21,12 @@ export const FOUNDRY: StageData = {
   boss: 'anvil',
   bossName: 'ANVIL',
   bossWeapon: 'quake',
-  layout: ['ABabCcD.....IefjJK|LM', '......EFghiGH'],
+  layout: ['ABabCcDS......IefjJK|LM', '......EF12ghiGH'],
+  miniboss: 'press',
+  upgrade: 'blaster',
   screens: {
+    '1': hall.a,
+    '2': hall.b,
     A: [
       SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY,
       '..........###...',
@@ -68,11 +75,13 @@ export const FOUNDRY: StageData = {
       '...............#',
       '...............#',
       '...............#',
-      '...............#',
-      '.......t.......#',
+      '...............F',
+      '.......t.......F',
       '############H###',
       '############H###',
     ],
+    // Hidden room through D's fake wall: the UltraBlaster.
+    S: SECRET_ROOM,
     E: [
       '############H###',
       '#...........H..#',

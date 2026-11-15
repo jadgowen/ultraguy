@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { SKY, bossRoom, rows } from './rooms';
+import { bossRoom, miniHall, rows, SKY } from './rooms';
 
 // STRATOS (sky). Hop between cloud platforms ('C', one-way: jump up through
 // them) high above a bottomless drop, while bombers and lightning-throwing
@@ -9,6 +9,8 @@ import { SKY, bossRoom, rows } from './rooms';
 
 const room = bossRoom();
 
+const hall = miniHall('#');
+
 export const STRATOS: StageData = {
   id: 'stratos',
   name: 'STRATOS',
@@ -16,8 +18,12 @@ export const STRATOS: StageData = {
   boss: 'gale',
   bossName: 'GALE',
   bossWeapon: 'cyclone',
-  layout: ['AaBbCcDdEegF|XY'],
+  layout: ['AaBbCcDd12EegF|XY'],
+  miniboss: 'kite',
+  upgrade: 'armor',
   screens: {
+    '1': hall.a,
+    '2': hall.b,
     A: [
       ...rows(SKY, 12),
       '..P.............',
@@ -62,8 +68,8 @@ export const STRATOS: StageData = {
       ...rows(SKY, 5),
       '..........z.....',
       SKY,
-      SKY,
-      SKY,
+      '..............U.',
+      '.............CCC',
       '.....CCC........',
       SKY,
       'CCC.............',

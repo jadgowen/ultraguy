@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { SKY, bossRoom, rows } from './rooms';
+import { bossRoom, miniHall, rows, SKY } from './rooms';
 
 // POWER PLANT. Electric barriers ('Z') switch on and off every ~1.7 seconds:
 // wait for them to go dark, then run through. Tesla-coil zappers throw arcs
@@ -12,6 +12,8 @@ import { SKY, bossRoom, rows } from './rooms';
 const CEIL = '################';
 const room = bossRoom();
 
+const hall = miniHall('#');
+
 export const POWERPLANT: StageData = {
   id: 'powerplant',
   name: 'POWER PLANT',
@@ -19,8 +21,11 @@ export const POWERPLANT: StageData = {
   boss: 'volt',
   bossName: 'VOLT',
   bossWeapon: 'spark',
-  layout: ['ABCDE...KLMN|XY', '....FGHIJ'],
+  layout: ['ABCDE.....KLMN|XY', '....FG12HIJ'],
+  miniboss: 'dynamo',
   screens: {
+    '1': hall.a,
+    '2': hall.b,
     A: [CEIL, CEIL, ...rows(SKY, 8), '..........###...', SKY, '..P.........o...', CEIL, CEIL],
     // First barrier: wait for it to switch off.
     B: [CEIL, CEIL, ...rows(SKY, 7), '........###.....', '.........Z......', '.........Z......', '...k.....Z......', CEIL, CEIL],

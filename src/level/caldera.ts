@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { SKY, bossRoom, rows } from './rooms';
+import { bossRoom, miniHall, rows, SKY } from './rooms';
 
 // CALDERA. Down into a volcano. Lava ('L') is instant death; embers leap out
 // of it on a rhythm, and tough magma slugs crawl the ledges. Two ladders take
@@ -12,6 +12,8 @@ import { SKY, bossRoom, rows } from './rooms';
 const CEIL = '################';
 const room = bossRoom();
 
+const hall = miniHall('#');
+
 export const CALDERA: StageData = {
   id: 'caldera',
   name: 'CALDERA',
@@ -19,8 +21,11 @@ export const CALDERA: StageData = {
   boss: 'magma',
   bossName: 'MAGMA',
   bossWeapon: 'flame',
-  layout: ['ABCDE', '....FGHIJ', '........KLMN|XY'],
+  layout: ['ABCDE', '....FG12HIJ', '..........KLMN|XY'],
+  miniboss: 'crab',
   screens: {
+    '1': hall.a,
+    '2': hall.b,
     A: [...rows(SKY, 9), '..........##....', SKY, '......##........', '..P..........m..', CEIL, CEIL],
     B: [...rows(SKY, 12), '.......e........', '#####LLL########', CEIL],
     C: [...rows(SKY, 9), '...........f....', '.......##.......', SKY, '..c.............', '#####LL##LL#####', CEIL],

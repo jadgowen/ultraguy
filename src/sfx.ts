@@ -2,7 +2,20 @@
 // with the same name was loaded (see src/audio.ts / art/audio.mjs), in which
 // case the sample plays instead. Callers only use the names in `sfx`.
 
+import { loadSettings, volumeOf } from './settings';
+
 let ctx: AudioContext | null = null;
+
+/** Sound-effect level from the mixer (0..1). */
+let sfxLevel = volumeOf(loadSettings().sfx);
+
+export function setSfxLevel(level: number): void {
+  sfxLevel = level;
+}
+
+export function getSfxLevel(): number {
+  return sfxLevel;
+}
 
 /** Browsers need a user gesture before audio plays; call from a key press. */
 export function unlockAudio(): void {
@@ -11,7 +24,8 @@ export function unlockAudio(): void {
 }
 
 function tone(f0: number, f1: number, dur: number, type: OscillatorType = 'square', vol = 0.06): void {
-  if (!ctx) return;
+  if (!ctx || sfxLevel <= 0) return;
+  vol *= sfxLevel;
   const t = ctx.currentTime;
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -26,7 +40,8 @@ function tone(f0: number, f1: number, dur: number, type: OscillatorType = 'squar
 }
 
 function noise(dur: number, vol = 0.08): void {
-  if (!ctx) return;
+  if (!ctx || sfxLevel <= 0) return;
+  vol *= sfxLevel;
   const t = ctx.currentTime;
   const len = Math.floor(ctx.sampleRate * dur);
   const buf = ctx.createBuffer(1, len, ctx.sampleRate);

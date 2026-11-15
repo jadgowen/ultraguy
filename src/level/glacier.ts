@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { SKY, bossRoom, rows } from './rooms';
+import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
 
 // GLACIER (ice). Slippery ice floors ('I') keep you sliding after you let go,
 // icicles drop when you pass under them, and sliders skate straight at you.
@@ -10,6 +10,8 @@ import { SKY, bossRoom, rows } from './rooms';
 
 const room = bossRoom('I');
 
+const hall = miniHall('I');
+
 export const GLACIER: StageData = {
   id: 'glacier',
   name: 'GLACIER',
@@ -17,8 +19,12 @@ export const GLACIER: StageData = {
   boss: 'frostline',
   bossName: 'FROSTLINE',
   bossWeapon: 'frost',
-  layout: ['AaBbhC', '.....DcEdegF|XY'],
+  layout: ['AaBbhCS', '.....DcE12degF|XY'],
+  miniboss: 'mammoth',
+  upgrade: 'helmet',
   screens: {
+    '1': hall.a,
+    '2': hall.b,
     A: [
       ...rows(SKY, 9),
       '........#######.',
@@ -47,11 +53,13 @@ export const GLACIER: StageData = {
       ...rows('...............#', 9),
       '....#########..#',
       '....i...i......#',
-      '...............#',
-      '......p........#',
+      '...............&',
+      '......p........&',
       'IIIIIIIIIIIIH###',
       '############H###',
     ],
+    // Hidden room behind C's frozen blocks: the Helmet.
+    S: SECRET_ROOM,
     D: [
       '############H###',
       ...rows('#...........H..#', 9),

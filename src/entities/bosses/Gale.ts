@@ -139,6 +139,10 @@ export class Gale extends Boss {
     return this.mode === 'aim' && this.t % 6 < 3;
   }
 
+  protected introPose(): string {
+    return 'blow';
+  }
+
   protected pose(): string {
     if (this.mode === 'blow' || this.mode === 'tornado') return 'blow';
     if (this.mode === 'dive' || this.mode === 'aim') return 'dive';

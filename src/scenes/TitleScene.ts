@@ -1,7 +1,7 @@
 import { playMusic } from '../audio';
 import { VIEW_W } from '../constants';
 import { heroFrames } from '../heroSprites';
-import { ALL_BOSS_STAGES, hasStage } from '../level/stages';
+import { ALL_BOSS_STAGES } from '../level/stages';
 import { loadSave } from '../save';
 import { sfx, unlockAudio } from '../sfx';
 import { heroTexture } from '../weapons';
@@ -24,7 +24,7 @@ export class TitleScene extends MenuScene {
     this.add.text(VIEW_W / 2, 50, 'ULTRAGUY', { fontFamily: FONT, fontSize: '32px', color: '#f28c28', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.image(VIEW_W / 2, 104, heroTexture('buster'), heroFrames(this).idle_s).setScale(2);
 
-    // FORTRESS appears once all eight bosses are beaten.
+    // FORTRESS appears once all eight bosses are beaten (in the last-played slot).
     const save = loadSave();
     const fortressOpen = ALL_BOSS_STAGES.every((id) => save.cleared.includes(id));
     this.choices = fortressOpen ? ['start', 'fortress', 'settings'] : ['start', 'settings'];
@@ -41,12 +41,8 @@ export class TitleScene extends MenuScene {
     unlockAudio();
     sfx.select();
     const choice = this.choices[this.selected];
-    if (choice === 'start') {
-      // A new game opens with the intro stage; after that, boss select.
-      const introDone = loadSave().cleared.includes('intro');
-      if (!introDone && hasStage('intro')) this.scene.start('game', { stage: 'intro' });
-      else this.scene.start('select');
-    } else this.scene.start(choice);
+    // START goes to the save select (which starts the intro on a new game).
+    this.scene.start(choice === 'start' ? 'slots' : choice);
     return true;
   }
 }

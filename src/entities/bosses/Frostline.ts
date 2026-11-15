@@ -99,6 +99,10 @@ export class Frostline extends Boss {
     return this.mode === 'windup' && this.t % 6 < 3;
   }
 
+  protected introPose(): string {
+    return 'shoot';
+  }
+
   protected pose(): string {
     if (this.mode === 'windup' || this.mode === 'slide') return 'slide';
     if ((this.mode === 'volley' || this.mode === 'hail') && this.t >= 6) return 'shoot';

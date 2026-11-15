@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { SKY, bossRoom, rows, water } from './rooms';
+import { bossRoom, miniHall, rows, SKY, water } from './rooms';
 
 // REEF. Start on the beach, drop through a hole into the sea. Underwater
 // ('~') you fall slowly and jump much higher, which you need for the long
@@ -12,6 +12,8 @@ import { SKY, bossRoom, rows, water } from './rooms';
 const ROCK = '################';
 const room = bossRoom();
 
+const hall = miniHall('#', true);
+
 export const REEF: StageData = {
   id: 'reef',
   name: 'REEF',
@@ -19,8 +21,11 @@ export const REEF: StageData = {
   boss: 'tide',
   bossName: 'TIDE',
   bossWeapon: 'bubble',
-  layout: ['ABC', '..DEFGH', '......IJKLMN|XY'],
+  layout: ['ABC', '..DEFGH', '......IJK12LMN|XY'],
+  miniboss: 'angler',
   screens: {
+    '1': hall.a,
+    '2': hall.b,
     A: [...rows(SKY, 12), '..P.........w...', ROCK, ROCK],
     B: [...rows(SKY, 10), '......###.......', SKY, '...........w....', ROCK, ROCK],
     // Dive through the hole.
