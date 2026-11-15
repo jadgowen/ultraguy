@@ -11,7 +11,8 @@
     "sprites": "node art/hero.mjs && node art/sprites.mjs",
     "audio": "node art/audio.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy": "node scripts/deploy.mjs"
   },
   "dependencies": {
     "phaser": "^3.90.0"

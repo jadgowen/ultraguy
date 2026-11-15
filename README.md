@@ -46,6 +46,10 @@ has a mixer for music and sound-effect volume. Settings are shared by all save s
 
 Boss select: arrows pick a boss, Enter/Z starts the stage, X starts at the boss door (boss test), Backspace goes back.
 
+## Deploy
+Live at https://jadgowen.github.io/ultraguy/. `npm run deploy` builds (typecheck, tests, Vite) and
+force-pushes `dist/` to the `gh-pages` branch, which GitHub Pages serves.
+
 ## Tests
 `npm test` runs the Vitest suite in `tests/` (also part of `npm run build`):
 - every stage parses and its main path is reachable with no parts (a tile-grid reachability check);
