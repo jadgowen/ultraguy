@@ -1,10 +1,16 @@
-// Fixed internal resolution (NES-like). Scaled up by integer factors in main.ts.
-export const VIEW_W = 256;
-export const VIEW_H = 240;
-
 export const TILE = 16;
-export const SCREEN_COLS = VIEW_W / TILE; // 16
-export const SCREEN_ROWS = VIEW_H / TILE; // 15
+
+// Level "screens": the chunks stages are built from (16x15 tiles). Camera
+// sections and vertical transitions are measured in these.
+export const SCREEN_W = 256;
+export const SCREEN_H = 240;
+export const SCREEN_COLS = SCREEN_W / TILE; // 16
+export const SCREEN_ROWS = SCREEN_H / TILE; // 15
+
+// Internal render resolution: one screen tall, 16:9 wide (~26.7 tiles).
+// Scaled to fill the window with nearest-neighbor filtering (main.ts).
+export const VIEW_H = SCREEN_H;
+export const VIEW_W = Math.round((VIEW_H * 16) / 9); // 427
 
 // One simulation step = 1/60 s. All speeds below are in pixels per step.
 export const STEP_MS = 1000 / 60;

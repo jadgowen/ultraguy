@@ -1,15 +1,16 @@
 import type { StageData } from './Level';
 
 // Legend is in Level.ts. Each screen is 16 columns x 15 rows.
-// Layout:  row 0:  A B C D . . I J K
+// Layout:  row 0:  A B C D . . I J K | L M
 //          row 1:  . . . E F G H . .
-// Run right, climb down at D, run right underground, climb up at H, finish at K.
+// Run right, climb down at D, run right underground, climb up at H,
+// then through the boss door at the end of K into the boss room L-M.
 
 const SKY = '................';
 
 export const STAGE_1: StageData = {
   name: 'Foundry',
-  layout: ['ABCD..IJK', '...EFGH..'],
+  layout: ['ABCD..IJK|LM', '...EFGH..'],
   screens: {
     A: [
       SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY,
@@ -154,9 +155,34 @@ export const STAGE_1: StageData = {
       '...............#',
       '...............#',
       '...............#',
+      '...............D',
+      '...............D',
+      '....B..........D',
+      '################',
+      '################',
+    ],
+    // Boss room: two screens wide so it fills the 16:9 view.
+    L: [
+      '################',
+      '################',
+      SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY,
+      '################',
+      '################',
+    ],
+    M: [
+      '################',
+      '################',
       '...............#',
       '...............#',
-      '.......h.....*.#',
+      '...............#',
+      '...............#',
+      '...............#',
+      '...............#',
+      '...............#',
+      '...............#',
+      '...............#',
+      '...............#',
+      '........X......#',
       '################',
       '################',
     ],

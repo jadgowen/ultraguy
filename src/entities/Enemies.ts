@@ -184,6 +184,8 @@ export class Projectile {
   dead = false;
   deflected = false;
   life = 0;
+  dmg = 2; // damage to the player (enemy shots)
+  stopAtWalls = false; // most shots pass through walls; ground waves don't
   readonly sprite: Phaser.GameObjects.Image;
 
   constructor(

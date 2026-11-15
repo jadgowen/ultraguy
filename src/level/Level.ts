@@ -1,15 +1,20 @@
-import { SCREEN_COLS, SCREEN_ROWS, TILE, VIEW_H, VIEW_W } from '../constants';
+import { SCREEN_COLS, SCREEN_H, SCREEN_ROWS, SCREEN_W, TILE } from '../constants';
 
 /**
  * A stage is a grid of screens (16x15 tiles each). Each screen is ASCII art:
  *
  *   .  empty       #  solid      H  ladder     ^  spikes (solid, deadly)
+ *   D  boss door (solid; opens when the player walks into it from the left)
  *   P  player start              c  checkpoint *  goal
+ *   B  checkpoint that is also the "Boss test" start
+ *   X  boss (in the boss room)
  *   w  walker   h  hopper   f  flyer   t  turret (shielded)
  *
  * The layout places screens; '.' in the layout is an unused screen.
  * Each horizontal run of used screens is a camera "section": the camera
  * scrolls freely inside a section and does a locked transition between them.
+ * '|' in the layout splits a run into two sections without a gap (use it
+ * where a boss door separates two screens).
  */
 export interface StageData {
   name: string;
@@ -22,6 +27,14 @@ export enum Tile {
   Solid = 1,
   Ladder = 2,
   Spike = 3,
+  Door = 4,
+}
+
+/** A vertical boss-door column, rows r0..r1 inclusive. */
+export interface Door {
+  col: number;
+  r0: number;
+  r1: number;
 }
 
 export type EnemyKind = 'walker' | 'hopper' | 'flyer' | 'turret';
@@ -56,33 +69,57 @@ export class Level {
   readonly sections: Section[] = [];
   playerStart: Point = { x: 32, y: 208 };
   goal: Point | null = null;
+  boss: Point | null = null;
+  bossTestStart: Point | null = null;
+  readonly doors: Door[] = [];
 
   constructor(readonly data: StageData) {
-    const screensWide = Math.max(...data.layout.map((r) => r.length));
+    const screensWide = Math.max(...data.layout.map((r) => r.replace(/\|/g, '').length));
     const screensHigh = data.layout.length;
     this.cols = screensWide * SCREEN_COLS;
     this.rows = screensHigh * SCREEN_ROWS;
     this.tiles = new Uint8Array(this.cols * this.rows);
 
     data.layout.forEach((line, sy) => {
-      for (let sx = 0; sx < line.length; sx++) {
-        const id = line[sx];
-        if (id === '.') continue;
-        const screen = data.screens[id];
-        if (!screen) throw new Error(`Stage "${data.name}": unknown screen "${id}"`);
-        this.loadScreen(id, screen, sx, sy);
-      }
-      // Sections: runs of used screens in this row.
+      // Sections: runs of used screens in this row, also split at '|'.
+      let sx = 0;
       let start = -1;
-      for (let sx = 0; sx <= line.length; sx++) {
-        const used = sx < line.length && line[sx] !== '.';
-        if (used && start < 0) start = sx;
-        if (!used && start >= 0) {
-          this.sections.push({ row: sy, x0: start, x1: sx - 1 });
-          start = -1;
+      const close = () => {
+        if (start >= 0) this.sections.push({ row: sy, x0: start, x1: sx - 1 });
+        start = -1;
+      };
+      for (const id of line) {
+        if (id === '|') {
+          close();
+          continue;
         }
+        if (id === '.') close();
+        else {
+          const screen = data.screens[id];
+          if (!screen) throw new Error(`Stage "${data.name}": unknown screen "${id}"`);
+          this.loadScreen(id, screen, sx, sy);
+          if (start < 0) start = sx;
+        }
+        sx++;
       }
+      close();
     });
+    this.findDoors();
+  }
+
+  private findDoors(): void {
+    for (let c = 0; c < this.cols; c++) {
+      for (let r = 0; r < this.rows; r++) {
+        if (this.tileAt(c, r) !== Tile.Door || this.tileAt(c, r - 1) === Tile.Door) continue;
+        let r1 = r;
+        while (this.tileAt(c, r1 + 1) === Tile.Door) r1++;
+        this.doors.push({ col: c, r0: r, r1 });
+      }
+    }
+  }
+
+  setTile(c: number, r: number, t: Tile): void {
+    if (c >= 0 && c < this.cols && r >= 0 && r < this.rows) this.tiles[r * this.cols + c] = t;
   }
 
   private loadScreen(id: string, screen: string[], sx: number, sy: number): void {
@@ -99,6 +136,12 @@ export class Level {
         if (ch === '#') t = Tile.Solid;
         else if (ch === 'H') t = Tile.Ladder;
         else if (ch === '^') t = Tile.Spike;
+        else if (ch === 'D') t = Tile.Door;
+        else if (ch === 'X') this.boss = { x: cx, y: bottom };
+        else if (ch === 'B') {
+          this.bossTestStart = { x: cx, y: bottom };
+          this.checkpoints.push({ x: cx, y: bottom });
+        }
         else if (ch === 'P') this.playerStart = { x: cx, y: bottom };
         else if (ch === 'c') this.checkpoints.push({ x: cx, y: bottom });
         else if (ch === '*') this.goal = { x: cx, y: bottom };
@@ -116,12 +159,13 @@ export class Level {
 
   isSolid(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    return t === Tile.Solid || t === Tile.Spike;
+    return t === Tile.Solid || t === Tile.Spike || t === Tile.Door;
   }
 
   /** Solid ground an enemy is willing to walk on (not spikes). */
   isFloor(c: number, r: number): boolean {
-    return this.tileAt(c, r) === Tile.Solid || this.isLadderTop(c, r);
+    const t = this.tileAt(c, r);
+    return t === Tile.Solid || t === Tile.Door || this.isLadderTop(c, r);
   }
 
   isSpike(c: number, r: number): boolean {
@@ -137,8 +181,8 @@ export class Level {
   }
 
   sectionAt(px: number, py: number): Section | null {
-    const sx = Math.floor(px / VIEW_W);
-    const sy = Math.floor(py / VIEW_H);
+    const sx = Math.floor(px / SCREEN_W);
+    const sy = Math.floor(py / SCREEN_H);
     return this.sections.find((s) => s.row === sy && sx >= s.x0 && sx <= s.x1) ?? null;
   }
 

@@ -13,17 +13,10 @@ const game = new Phaser.Game({
   roundPixels: true,
   backgroundColor: '#000000',
   input: { gamepad: true },
-  scale: { mode: Phaser.Scale.NONE },
+  // Stretch to fill the window (exact on 16:9; letterboxed otherwise).
+  scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
   scene: [BootScene, TitleScene, GameScene],
 });
-
-// Integer scaling only, so every game pixel is the same size on screen.
-function fit(): void {
-  const k = Math.max(1, Math.floor(Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H)));
-  game.scale.setZoom(k);
-}
-window.addEventListener('resize', fit);
-fit();
 
 // Handy for debugging in the browser console.
 (window as unknown as { game: Phaser.Game }).game = game;

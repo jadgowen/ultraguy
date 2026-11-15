@@ -74,14 +74,26 @@ export function moveY(level: Level, b: Box, dy: number, oneWay: boolean): boolea
   return false;
 }
 
-/** True if a spike tile touches the box (inflated 1px vertically so standing on / bonking spikes counts). */
+/**
+ * Spike hitbox: inset from the tile sides, so standing at the edge of a ledge
+ * next to spikes (or brushing a corner on a jump) is safe. Spikes are solid,
+ * so the player can never overlap one; the box is grown 1px vertically to
+ * count standing on (or bonking) the spike as a touch.
+ */
+export const SPIKE_INSET_X = 4;
+
 export function touchesSpike(level: Level, b: Box): boolean {
-  const c0 = Math.floor(b.x / TILE);
-  const c1 = Math.floor((b.x + b.w - EPS) / TILE);
-  const r0 = Math.floor((b.y - 1) / TILE);
-  const r1 = Math.floor((b.y + b.h) / TILE);
+  const probe: Box = { x: b.x, y: b.y - 1, w: b.w, h: b.h + 2 };
+  const c0 = Math.floor(probe.x / TILE);
+  const c1 = Math.floor((probe.x + probe.w - EPS) / TILE);
+  const r0 = Math.floor(probe.y / TILE);
+  const r1 = Math.floor((probe.y + probe.h - EPS) / TILE);
   for (let r = r0; r <= r1; r++) {
-    for (let c = c0; c <= c1; c++) if (level.isSpike(c, r)) return true;
+    for (let c = c0; c <= c1; c++) {
+      if (!level.isSpike(c, r)) continue;
+      const hit: Box = { x: c * TILE + SPIKE_INSET_X, y: r * TILE, w: TILE - SPIKE_INSET_X * 2, h: TILE };
+      if (overlaps(probe, hit)) return true;
+    }
   }
   return false;
 }
