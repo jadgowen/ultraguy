@@ -37,9 +37,10 @@ export class Boss {
   private flash = 0;
   readonly sprite: Phaser.GameObjects.Image;
 
-  constructor(private g: GameScene, at: Point, roomTop: number) {
+  /** `dropFromY` is where it appears (top of the room); it falls to the floor. */
+  constructor(private g: GameScene, at: Point, dropFromY: number) {
     this.x = at.x - this.w / 2;
-    this.y = roomTop - this.h; // drops in from above the screen
+    this.y = dropFromY;
     this.sprite = g.add.image(0, 0, 'boss_idle').setOrigin(0.5, 1).setDepth(6);
   }
 

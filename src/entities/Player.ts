@@ -201,6 +201,15 @@ export class Player {
     if (this.g.firePlayerBullet(this.cx + this.facing * 12, this.y + 12, this.facing)) this.shootPose = 16;
   }
 
+  /** Scripted walk used by door transitions (no physics, no input). */
+  autoWalk(): void {
+    this.state = 'run';
+    this.facing = 1;
+    this.grounded = true;
+    this.vy = 0;
+    this.animT++;
+  }
+
   hurt(dmg: number, sourceX: number): void {
     if (this.invuln > 0 || this.state === 'dead') return;
     this.hp = Math.max(0, this.hp - dmg);

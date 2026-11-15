@@ -104,8 +104,14 @@ function drawHero(g: Phaser.GameObjects.Graphics, pose: HeroPose, shoot: boolean
 }
 
 export function generateTextures(scene: Phaser.Scene): void {
-  // Tileset: 0 solid, 1 ladder, 2 spike
-  make(scene, 'tiles', 48, 16, (g) => {
+  // Tileset: 0 solid, 1 ladder, 2 spike, 3 boss door
+  make(scene, 'tiles', 64, 16, (g) => {
+    rect(g, 0x4a3a5a, 48, 0, 16, 16);
+    rect(g, 0x232c3c, 48, 0, 2, 16);
+    rect(g, 0x232c3c, 62, 0, 2, 16);
+    for (let y = 1; y < 16; y += 4) rect(g, 0xb06ad8, 51, y, 10, 2);
+    rect(g, C.yellow, 55, 6, 2, 4);
+
     rect(g, 0x3e5068, 0, 0, 16, 16);
     rect(g, 0x6b85a6, 0, 0, 16, 2);
     rect(g, 0x6b85a6, 0, 0, 2, 16);
@@ -216,6 +222,60 @@ export function generateTextures(scene: Phaser.Scene): void {
     rect(g, C.orange, 0, 0, 4, 4);
     rect(g, C.white, 1, 1, 2, 2);
   });
+  // Boss "Anvil": 36x32, facing right.
+  type BossPose = 'idle' | 'jump' | 'shoot' | 'crouch';
+  const bossBody = 0x9c2f3f;
+  const plate = 0x8a8fa8;
+  const plateL = 0xc8ccd8;
+  const drawBoss = (g: Phaser.GameObjects.Graphics, pose: BossPose) => {
+    const dy = pose === 'crouch' ? 4 : 0;
+    const angry = pose === 'shoot' || pose === 'crouch';
+    if (pose === 'jump') {
+      rect(g, C.dark, 8, 24, 7, 4);
+      rect(g, C.dark, 21, 24, 7, 4);
+      rect(g, plate, 6, 27, 10, 3);
+      rect(g, plate, 20, 27, 10, 3);
+    } else {
+      rect(g, C.dark, 8, 24, 7, 6 - dy);
+      rect(g, C.dark, 21, 24, 7, 6 - dy);
+      rect(g, plate, 6, 29, 10, 3);
+      rect(g, plate, 20, 29, 10, 3);
+    }
+    rect(g, bossBody, 6, 10 + dy, 24, 15);
+    rect(g, plate, 10, 13 + dy, 16, 8);
+    rect(g, plateL, 10, 13 + dy, 16, 1);
+    rect(g, angry ? 0xff5050 : C.dark, 15, 16 + dy, 6, 3);
+    rect(g, plate, 2, dy, 32, 4);
+    rect(g, plateL, 2, dy, 32, 1);
+    rect(g, plate, 8, 4 + dy, 20, 6);
+    rect(g, C.dark, 8, 9 + dy, 20, 1);
+    rect(g, angry ? 0xff5050 : C.yellow, 20, 5 + dy, 6, 3);
+    if (pose === 'jump') {
+      rect(g, plate, 0, 2, 6, 8);
+      rect(g, plate, 30, 2, 6, 8);
+    } else if (pose === 'shoot') {
+      rect(g, plate, 0, 12, 6, 10);
+      rect(g, plate, 28, 14, 6, 6);
+      rect(g, C.dark, 33, 15, 3, 4);
+    } else {
+      rect(g, plate, 0, 12 + dy, 6, 10);
+      rect(g, plate, 30, 12 + dy, 6, 10);
+    }
+  };
+  for (const pose of ['idle', 'jump', 'shoot', 'crouch'] as BossPose[]) {
+    make(scene, `boss_${pose}`, 36, 32, (g) => drawBoss(g, pose));
+  }
+  make(scene, 'wave', 8, 12, (g) => {
+    rect(g, C.orange, 0, 4, 8, 8);
+    rect(g, C.yellow, 2, 0, 4, 6);
+    rect(g, C.white, 3, 7, 2, 4);
+  });
+  make(scene, 'bshot', 6, 6, (g) => {
+    rect(g, 0xff5050, 0, 1, 6, 4);
+    rect(g, 0xff5050, 1, 0, 4, 6);
+    rect(g, C.yellow, 2, 2, 2, 2);
+  });
+
   make(scene, 'pixel', 1, 1, (g) => rect(g, 0xffffff, 0, 0, 1, 1));
 
   // Starfield + distant skyline for the background (repeats).
