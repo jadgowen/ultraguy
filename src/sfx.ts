@@ -1,5 +1,6 @@
-// Tiny synthesized placeholder sound effects (WebAudio). Swap for jsfxr/ChipTone
-// files later; callers only use the names in `sfx`.
+// Sound effects. Each is synthesized with WebAudio, unless a generated sample
+// with the same name was loaded (see src/audio.ts / art/audio.mjs), in which
+// case the sample plays instead. Callers only use the names in `sfx`.
 
 let ctx: AudioContext | null = null;
 
@@ -39,7 +40,7 @@ function noise(dur: number, vol = 0.08): void {
   src.start(t);
 }
 
-export const sfx = {
+const synth = {
   shoot: () => tone(1200, 500, 0.06),
   hit: () => tone(300, 120, 0.08),
   deflect: () => tone(2000, 1800, 0.05, 'triangle', 0.08),
@@ -70,6 +71,12 @@ export const sfx = {
     tone(200, 80, 0.12, 'square', 0.08);
     noise(0.08, 0.06);
   },
+  flame: () => {
+    noise(0.18, 0.07);
+    tone(220, 90, 0.15, 'sawtooth', 0.04);
+  },
+  bubble: () => tone(400, 900, 0.08, 'sine', 0.07),
+  zap: () => tone(1800, 300, 0.12, 'sawtooth', 0.04),
   tick: () => tone(1500, 1500, 0.02, 'square', 0.03),
   clear: () => {
     tone(523, 523, 0.15);
@@ -77,3 +84,21 @@ export const sfx = {
     setTimeout(() => tone(784, 1046, 0.4), 300);
   },
 };
+
+/** Plays a loaded sample by name; returns false if there isn't one. */
+let samplePlayer: ((name: string) => boolean) | null = null;
+
+export function setSamplePlayer(fn: (name: string) => boolean): void {
+  samplePlayer = fn;
+}
+
+type Synth = typeof synth;
+
+export const sfx = Object.fromEntries(
+  Object.entries(synth).map(([name, play]) => [
+    name,
+    (...args: unknown[]) => {
+      if (!samplePlayer?.(name)) (play as (...a: unknown[]) => void)(...args);
+    },
+  ]),
+) as Synth;

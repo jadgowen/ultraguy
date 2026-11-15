@@ -24,3 +24,8 @@ export function bossRoom(floor = '#'): { left: string[]; right: string[] } {
     ],
   };
 }
+
+/** Underwater screen: every '.' becomes water ('~'). */
+export function water(screen: string[]): string[] {
+  return screen.map((r) => r.replace(/\./g, '~'));
+}

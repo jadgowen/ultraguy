@@ -7,6 +7,9 @@ import type { StageData } from './Level';
 // then through the boss door at the end of K into the boss room L-M.
 
 const SKY = '................';
+const rows = (row: string, n: number): string[] => Array.from({ length: n }, () => row);
+const FLOOR = '################';
+const CEIL = '################';
 
 export const FOUNDRY: StageData = {
   id: 'foundry',
@@ -15,7 +18,7 @@ export const FOUNDRY: StageData = {
   boss: 'anvil',
   bossName: 'ANVIL',
   bossWeapon: 'quake',
-  layout: ['ABCD..IJK|LM', '...EFGH..'],
+  layout: ['ABabCcD.....IefjJK|LM', '......EFghiGH'],
   screens: {
     A: [
       SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY, SKY,
@@ -43,6 +46,16 @@ export const FOUNDRY: StageData = {
       '####^^^^########',
       '################',
     ],
+    // --- added screens (longer stage) ---
+    a: [...rows(SKY, 8), '..........t.....', '.........###....', SKY, SKY, '...h............', '######...#######', '######...#######'],
+    b: [...rows(SKY, 6), '..........f.....', SKY, SKY, '..f.............', SKY, '.......##.......', '..c....##.......', FLOOR, FLOOR],
+    c: [...rows(SKY, 11), '......##........', '..w.............', '####^^^^^^######', FLOOR],
+    g: [...rows(CEIL, 6), ...rows(SKY, 4), '.........t......', '........###.....', '...h....###.....', FLOOR, FLOOR],
+    h: [...rows(CEIL, 6), SKY, '.....f..........', SKY, SKY, SKY, '.......##.......', SKY, '#####^^^^^^^####', FLOOR],
+    i: [...rows(CEIL, 6), SKY, SKY, '.........f......', SKY, SKY, SKY, '..w..........c..', '#######...######', '#######...######'],
+    e: [...rows(SKY, 7), '.....f.....f....', SKY, SKY, '..........###...', SKY, '...h............', FLOOR, FLOOR],
+    f: [...rows(SKY, 9), '............t...', '...........###..', '........######..', '.....#########..', FLOOR, FLOOR],
+    j: [...rows(SKY, 9), '.........f......', '........##......', SKY, '..c.............', '#####^^#########', FLOOR],
     D: [
       '...............#',
       '...............#',

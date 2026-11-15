@@ -3,6 +3,7 @@ import { VIEW_W } from '../constants';
 import { clearSave, loadSave } from '../save';
 import { sfx } from '../sfx';
 import { FONT, MenuScene } from './menu';
+import { playMusic } from '../audio';
 
 const CONTROLS = [
   ['MOVE / CLIMB', 'ARROWS or WASD', 'D-PAD / STICK'],
@@ -24,6 +25,7 @@ export class SettingsScene extends MenuScene {
 
   create(): void {
     this.initMenu();
+    playMusic(this, 'title');
     this.confirmClear = false;
     this.cameras.main.setBackgroundColor('#141626');
     const small = { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' };

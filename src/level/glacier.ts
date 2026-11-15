@@ -17,7 +17,7 @@ export const GLACIER: StageData = {
   boss: 'frostline',
   bossName: 'FROSTLINE',
   bossWeapon: 'frost',
-  layout: ['ABC', '..DEF|XY'],
+  layout: ['AaBbhC', '.....DcEdegF|XY'],
   screens: {
     A: [
       ...rows(SKY, 9),
@@ -35,6 +35,14 @@ export const GLACIER: StageData = {
       '#######...######',
     ],
     // Ladder down into the cave.
+    // --- added screens (longer stage) ---
+    a: [...rows(SKY, 8), '......#######...', '.......i...i....', SKY, SKY, '..p.............', 'IIIIIIIIIIIIIIII', '################'],
+    b: [...rows(SKY, 10), '.........III....', SKY, '...p............', 'IIIIII...IIIIIII', '######...#######'],
+    h: [...rows(SKY, 7), '..........f.....', SKY, SKY, '.......III......', SKY, '..c.........w...', 'IIIIIIIIIIIIIIII', '################'],
+    c: [...rows('################', 6), '....i.....i.....', ...rows(SKY, 5), '...........p....', 'IIIIIIIIIIIIIIII', '################'],
+    d: [...rows('################', 6), '......i.....i...', ...rows(SKY, 5), '..p.............', 'IIIIIII^^IIIIIII', '################'],
+    e: [...rows('################', 8), '....i......i....', ...rows(SKY, 3), '..c....p......p.', 'IIIIIIIIIIIIIIII', '################'],
+    g: [...rows('################', 6), '...i....i....i..', ...rows(SKY, 6), 'IIIIII..IIIIIIII', '######..########'],
     C: [
       ...rows('...............#', 9),
       '....#########..#',

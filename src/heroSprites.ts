@@ -20,34 +20,46 @@ export function heroFrames(scene: Phaser.Scene): Record<string, number> {
   return (scene.cache.json.get('hero_frames') as HeroFrameData).frames;
 }
 
-export function createHeroTextures(scene: Phaser.Scene): void {
+/** The hero's visor colors in the sheet (main, shade). */
+const VISOR = [0x5ef0c8, 0x2aa088];
+
+/** Copy the base hero sheet with exact colors swapped, as a new frame-cut texture. */
+function recolorHero(scene: Phaser.Scene, key: string, swap: Map<number, number>): void {
   const meta = scene.cache.json.get('hero_frames') as HeroFrameData;
   const src = scene.textures.get('hero_base').getSourceImage() as HTMLImageElement;
+  const canvas = document.createElement('canvas');
+  canvas.width = src.width;
+  canvas.height = src.height;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
+  ctx.drawImage(src, 0, 0);
+  const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] === 0) continue;
+    const to = swap.get((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
+    if (to === undefined) continue;
+    d[i] = (to >> 16) & 255;
+    d[i + 1] = (to >> 8) & 255;
+    d[i + 2] = to & 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  const tex = scene.textures.addCanvas(key, canvas)!;
+  const count = Math.floor(canvas.width / meta.frameWidth);
+  for (let i = 0; i < count; i++) tex.add(i, 0, i * meta.frameWidth, 0, meta.frameWidth, meta.frameHeight);
+}
+
+export function createHeroTextures(scene: Phaser.Scene): void {
   const keys = Object.keys(HERO_BASE_COLORS) as (keyof HeroColors)[];
-
   for (const id of WEAPON_ORDER) {
-    const canvas = document.createElement('canvas');
-    canvas.width = src.width;
-    canvas.height = src.height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
-    ctx.drawImage(src, 0, 0);
-
     const swap = new Map<number, number>();
     for (const k of keys) swap.set(HERO_BASE_COLORS[k], WEAPONS[id].colors[k]);
-    const img = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    const d = img.data;
-    for (let i = 0; i < d.length; i += 4) {
-      if (d[i + 3] === 0) continue;
-      const to = swap.get((d[i] << 16) | (d[i + 1] << 8) | d[i + 2]);
-      if (to === undefined) continue;
-      d[i] = (to >> 16) & 255;
-      d[i + 1] = (to >> 8) & 255;
-      d[i + 2] = to & 255;
-    }
-    ctx.putImageData(img, 0, 0);
-
-    const tex = scene.textures.addCanvas(heroTexture(id), canvas)!;
-    const count = Math.floor(canvas.width / meta.frameWidth);
-    for (let i = 0; i < count; i++) tex.add(i, 0, i * meta.frameWidth, 0, meta.frameWidth, meta.frameHeight);
+    recolorHero(scene, heroTexture(id), swap);
   }
+  // Shade, the final boss: a dark UltraGuy with a red visor.
+  const shade: HeroColors = { light: 0x7a6a9a, main: 0x4a3a6a, dark: 0x2a1a44, suit: 0x140c1c, suitLight: 0x2a2038 };
+  const swap = new Map<number, number>();
+  for (const k of keys) swap.set(HERO_BASE_COLORS[k], shade[k]);
+  swap.set(VISOR[0], 0xff3050);
+  swap.set(VISOR[1], 0xa01830);
+  recolorHero(scene, 'hero_shade', swap);
 }

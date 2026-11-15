@@ -31,6 +31,14 @@ export const PHYS = {
   // Ultra Gun charge: frames of holding fire for a half / full charge.
   chargeMid: 28,
   chargeFull: 72,
+  // Water: floaty jumps, slow falls.
+  waterGravity: 0.12,
+  waterMaxFall: 2.5,
+  waterJump: 4.3,
+  // Conveyor belts push you this much per step while you stand on them.
+  conveyor: 0.8,
+  // Live electric barriers.
+  electricDamage: 4,
 };
 
 export const PLAYER_MAX_HP = 28;

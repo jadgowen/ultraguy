@@ -113,3 +113,19 @@ export function standingOnIce(level: Level, b: Box): boolean {
   for (let c = c0; c <= c1; c++) if (level.isIce(c, row)) return true;
   return false;
 }
+
+/** True if a tile matching `pred` overlaps the box shrunk by `inset` on every side. */
+export function touchesTile(b: Box, pred: (c: number, r: number) => boolean, inset = 2): boolean {
+  const c0 = Math.floor((b.x + inset) / TILE);
+  const c1 = Math.floor((b.x + b.w - inset - EPS) / TILE);
+  const r0 = Math.floor((b.y + inset) / TILE);
+  const r1 = Math.floor((b.y + b.h - inset - EPS) / TILE);
+  for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) if (pred(c, r)) return true;
+  return false;
+}
+
+/** Conveyor push under the box's feet: -1, 0 or 1. */
+export function conveyorUnder(level: Level, b: Box): number {
+  const row = Math.floor((b.y + b.h + 0.5) / TILE);
+  return level.conveyorAt(Math.floor((b.x + b.w / 2) / TILE), row);
+}

@@ -1,0 +1,41 @@
+{
+  "music": {
+    "title": "music_title.mp3",
+    "select": "music_select.mp3",
+    "intro": "music_intro.mp3",
+    "foundry": "music_foundry.mp3",
+    "canopy": "music_canopy.mp3",
+    "glacier": "music_glacier.mp3",
+    "stratos": "music_stratos.mp3",
+    "powerplant": "music_powerplant.mp3",
+    "caldera": "music_caldera.mp3",
+    "fortress": "music_fortress.mp3",
+    "finalboss": "music_finalboss.mp3",
+    "ending": "music_ending.mp3",
+    "scrapyard": "music_scrapyard.mp3",
+    "reef": "music_reef.mp3",
+    "boss": "music_boss.mp3"
+  },
+  "sfx": {
+    "shoot": "sfx_shoot.mp3",
+    "chargeShot": "sfx_chargeShot.mp3",
+    "hit": "sfx_hit.mp3",
+    "weakHit": "sfx_weakHit.mp3",
+    "deflect": "sfx_deflect.mp3",
+    "enemyDie": "sfx_enemyDie.mp3",
+    "hurt": "sfx_hurt.mp3",
+    "die": "sfx_die.mp3",
+    "pickup": "sfx_pickup.mp3",
+    "enemyShot": "sfx_enemyShot.mp3",
+    "select": "sfx_select.mp3",
+    "clear": "sfx_clear.mp3",
+    "quake": "sfx_quake.mp3",
+    "thorn": "sfx_thorn.mp3",
+    "freeze": "sfx_freeze.mp3",
+    "cyclone": "sfx_cyclone.mp3",
+    "flame": "sfx_flame.mp3",
+    "bubble": "sfx_bubble.mp3",
+    "zap": "sfx_zap.mp3",
+    "wind": "sfx_wind.mp3"
+  }
+}

@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
+import { playMusic, stageMusic, stopMusic } from '../audio';
 import { PHYS, PLAYER_MAX_HP, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
 import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
 import { Player } from '../entities/Player';
-import { BOSS_MAX_HP, Boss, createBoss } from '../entities/bosses';
+import { BOSS_MAX_HP, Boss, Room, createBoss } from '../entities/bosses';
 import { Controls } from '../input';
-import { Door, Level, Point, Section, StageId, Tile } from '../level/Level';
-import { STAGES } from '../level/stages';
+import { Door, ELECTRIC_OFF_INDEX, Level, Point, Section, StageId, Tile } from '../level/Level';
+import { getStage } from '../level/stages';
 import { THEMES } from '../level/themes';
 import { Box, moveY, overlaps } from '../physics';
 import { loadSave, recordClear } from '../save';
@@ -16,6 +17,8 @@ const TRANSITION_FRAMES = 64;
 const DOOR_PAN_FRAMES = 80;
 const DOOR_TILE_FRAMES = 5; // frames per door tile opening/closing
 const DOOR_TILE_INDEX = Tile.Door - 1;
+const ELECTRIC_ON_INDEX = Tile.Electric - 1;
+const ELECTRIC_PERIOD = 100;
 
 /** Damage a boss takes from its weakness weapon. */
 const WEAKNESS_DAMAGE = 4;
@@ -42,6 +45,10 @@ export interface ShotOptions {
   spin?: number;
   /** Remove after this many steps. */
   life?: number;
+  /** Falls, then rolls along the floor until it hits a wall. */
+  rolls?: boolean;
+  /** Falls and bounces along the floor. */
+  bounces?: boolean;
 }
 
 interface Transition {
@@ -86,8 +93,12 @@ export class GameScene extends Phaser.Scene {
   controls!: Controls;
   level!: Level;
   player!: Player;
-  /** Horizontal push applied to the player this step (Gale's gusts). */
+  /** Horizontal push applied to the player this step (Gale's gusts, Scrap's magnet). */
   wind = 0;
+  /** Electric barriers ('Z' tiles) are live. They switch every ELECTRIC_PERIOD steps. */
+  electricOn = true;
+  private electricT = 0;
+  private electricTiles: { c: number; r: number }[] = [];
 
   private stageId: StageId = 'foundry';
   private bullets: Projectile[] = [];
@@ -97,6 +108,14 @@ export class GameScene extends Phaser.Scene {
   private effects: Effect[] = [];
 
   private boss: Boss | null = null;
+  /**
+   * During a boss fight the camera locks to the room's center and the fight
+   * happens inside the visible part of the room (rooms are wider than the view).
+   */
+  private arena: { camX: number; left: number; right: number } | null = null;
+  /** The current boss room (kept for the final boss's second phase). */
+  private bossRoom: Room | null = null;
+  private shadeRing: Phaser.GameObjects.Image | null = null;
   private bossDefeated = false;
   private bossDeathT = 0;
   /** Weapons earned so far (from the save). */
@@ -136,6 +155,9 @@ export class GameScene extends Phaser.Scene {
     this.pickups = [];
     this.effects = [];
     this.boss = null;
+    this.arena = null;
+    this.bossRoom = null;
+    this.shadeRing = null;
     this.bossDefeated = false;
     this.bossDeathT = 0;
     this.weaponGetT = 0;
@@ -149,7 +171,7 @@ export class GameScene extends Phaser.Scene {
     this.hudKey = '';
     this.goalSprite = null;
 
-    const stage = STAGES[this.stageId];
+    const stage = getStage(this.stageId);
     this.level = new Level(stage);
     const start = data?.bossTest && this.level.bossTestStart ? this.level.bossTestStart : this.level.playerStart;
     this.checkpoint = { ...start };
@@ -161,6 +183,23 @@ export class GameScene extends Phaser.Scene {
     const map = this.make.tilemap({ data: this.level.tileIndexGrid(), tileWidth: TILE, tileHeight: TILE });
     const tileset = map.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
     this.layer = map.createLayer(0, tileset, 0, 0)!.setDepth(0);
+    // Water sits on its own translucent layer drawn over the sprites.
+    if (this.level.findTiles(Tile.Water).length) {
+      const waterMap = this.make.tilemap({ data: this.level.waterIndexGrid(), tileWidth: TILE, tileHeight: TILE });
+      const waterSet = waterMap.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
+      waterMap.createLayer(0, waterSet, 0, 0)!.setDepth(15).setAlpha(0.4);
+    }
+    this.electricTiles = this.level.findTiles(Tile.Electric);
+    this.electricOn = true;
+    this.electricT = 0;
+
+    // Scenery (intro storefront and store interior, etc.).
+    for (const d of stage.decor ?? []) {
+      const depth = d.depth ?? 1;
+      if (d.rect) this.add.rectangle(d.x, d.y, d.rect.w, d.rect.h, d.rect.fill).setOrigin(0).setDepth(depth);
+      if (d.tex) this.add.image(d.x, d.y, d.tex).setOrigin(0).setDepth(depth);
+      if (d.text) this.add.text(d.x, d.y, d.text, { fontFamily: 'monospace', fontSize: `${d.size ?? 8}px`, color: d.color ?? '#ffffff' }).setDepth(depth + 0.1);
+    }
 
     if (this.level.goal) {
       this.goalSprite = this.add.image(this.level.goal.x, this.level.goal.y, 'goal').setOrigin(0.5, 1).setDepth(4);
@@ -178,6 +217,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(60);
     this.pauseLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(70).setVisible(false);
 
+    playMusic(this, stageMusic(stage));
     this.respawn();
   }
 
@@ -198,7 +238,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.clearTimer > 0) {
       this.stepEffects();
-      if (--this.clearTimer === 0) this.scene.start('select');
+      if (--this.clearTimer === 0) this.scene.start(this.exitScene(true));
       return;
     }
     if (this.readyTimer > 0) {
@@ -236,8 +276,12 @@ export class GameScene extends Phaser.Scene {
       return;
     }
     if (this.boss?.inIntro) {
-      // Player is frozen while the boss drops in and its health bar fills.
+      // Player is frozen while the boss drops in and its health bar fills;
+      // the boss's name is shown meanwhile.
       this.boss.step();
+      const name = this.boss.kind === 'shade' ? 'SHADE' : this.level.data.bossName;
+      if (name) this.banner.setText(name).setVisible(this.boss.state === 'fill');
+      if (!this.boss.inIntro) this.banner.setVisible(false);
       return;
     }
 
@@ -248,6 +292,7 @@ export class GameScene extends Phaser.Scene {
       return;
     }
 
+    this.stepElectric();
     for (const e of this.enemies) e.step();
     this.wind = 0; // the boss sets it again if it's blowing
     this.boss?.step();
@@ -295,6 +340,14 @@ export class GameScene extends Phaser.Scene {
   fireWeapon(charge = 0): boolean {
     const p = this.player;
     const def = WEAPONS[p.weapon];
+    // Spark Ring: firing again throws the ring that's circling you.
+    const ring = this.bullets.find((b) => b.weapon === 'spark' && b.state === 0);
+    if (def.id === 'spark' && ring) {
+      ring.state = 1;
+      ring.vx = p.facing * 4;
+      sfx.thorn();
+      return true;
+    }
     if (this.bullets.filter((b) => b.weapon === def.id).length >= def.maxOnScreen) return false;
     if (p.ammo[def.id] < def.cost) return false;
     p.ammo[def.id] -= def.cost;
@@ -328,6 +381,37 @@ export class GameScene extends Phaser.Scene {
         b.pierce = true;
         b.maxLife = 240;
         sfx.cyclone();
+        break;
+      case 'spark':
+        b = new Projectile(this, p.cx - 14, p.cy - 14, 28, 28, 0, 0, 'sparkring');
+        b.pierce = true;
+        b.spin = 0.25;
+        b.maxLife = 420;
+        sfx.freeze();
+        break;
+      case 'flame':
+        b = new Projectile(this, 0, p.y + 3, 28, 16, 0, 0, 'flamejet');
+        b.pierce = true;
+        b.state = f;
+        b.maxLife = 18;
+        sfx.flame();
+        break;
+      case 'saw': {
+        // Aim with the d-pad (8 ways); no direction held = straight ahead.
+        const c = this.controls;
+        let ax = (c.isDown('right') ? 1 : 0) - (c.isDown('left') ? 1 : 0);
+        const ay = (c.isDown('down') ? 1 : 0) - (c.isDown('up') ? 1 : 0);
+        if (ax === 0 && ay === 0) ax = f;
+        const d = Math.hypot(ax, ay);
+        b = new Projectile(this, p.cx - 5, muzzleY - 5, 10, 10, (ax / d) * 5, (ay / d) * 5, 'sawblade');
+        b.spin = 0.5;
+        sfx.thorn();
+        break;
+      }
+      case 'bubble':
+        b = new Projectile(this, muzzleX - 6, muzzleY - 6, 12, 12, f * 2, -1.5, 'pbubble');
+        b.maxLife = 220;
+        sfx.bubble();
         break;
       default:
         if (charge === 2) {
@@ -381,6 +465,29 @@ export class GameScene extends Phaser.Scene {
           b.y += Math.sin(b.life * 0.15) * 0.6;
           b.sprite.setTexture(`cyclone${Math.floor(b.life / 4) % 2}`);
           break;
+        case 'spark':
+          if (b.state === 0) {
+            // Circle with the player until thrown.
+            b.x = p.cx - b.w / 2;
+            b.y = p.cy - b.h / 2;
+            b.life++;
+            if (!p.alive || p.weapon !== 'spark') b.dead = true;
+          } else b.step();
+          break;
+        case 'flame':
+          // Stays in front of the player for its short life.
+          b.x = b.state > 0 ? p.cx + 4 : p.cx - 4 - b.w;
+          b.y = p.y + 3;
+          b.life++;
+          b.sprite.setAlpha(1 - b.life / 24);
+          break;
+        case 'bubble':
+          b.life++;
+          b.vy = Math.min(b.vy + 0.18, 4);
+          b.x += b.vx;
+          if (this.hitsWall(b)) b.vx = -b.vx;
+          if (moveY(this.level, b, b.vy, true)) b.vy = b.vy > 0 ? -3.6 : 0; // bounce
+          break;
         default:
           b.step();
       }
@@ -401,6 +508,11 @@ export class GameScene extends Phaser.Scene {
     s.ax = o.ax ?? 0;
     s.spin = o.spin ?? 0;
     s.maxLife = o.life ?? 0;
+    if (o.rolls) {
+      s.rolls = true;
+      s.stopAtWalls = true;
+    }
+    s.bounces = !!o.bounces;
     s.sprite.setFlipX(o.vx < 0);
     this.shots.push(s);
     return s;
@@ -411,13 +523,30 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Ground wave that travels along the floor until it hits a wall. */
-  fireGroundWave(x: number, floorY: number, dir: 1 | -1): void {
-    const s = this.spawnEnemyShot({ x, y: floorY - 12, w: 8, h: 12, vx: dir * 2.5, vy: 0, tex: 'wave', dmg: 3 });
+  fireGroundWave(x: number, floorY: number, dir: 1 | -1, tex = 'wave'): void {
+    const s = this.spawnEnemyShot({ x, y: floorY - 12, w: 8, h: 12, vx: dir * 2.5, vy: 0, tex, dmg: 3 });
     s.stopAtWalls = true;
   }
 
   private stepShots(): void {
     for (const s of this.shots) {
+      if (s.bounces) {
+        s.life++;
+        s.vy = Math.min(s.vy + 0.18, 4);
+        s.x += s.vx;
+        if (this.hitsWall(s)) s.vx = -s.vx;
+        if (moveY(this.level, s, s.vy, true)) s.vy = s.vy > 0 ? -3.6 : 0;
+        if (s.maxLife && s.life > s.maxLife) s.dead = true;
+        continue;
+      }
+      if (s.rolls) {
+        s.life++;
+        s.x += s.vx;
+        s.vy = Math.min(s.vy + PHYS.gravity, PHYS.maxFall);
+        if (moveY(this.level, s, s.vy, true)) s.vy = 0;
+        if (this.hitsWall(s)) s.dead = true;
+        continue;
+      }
       s.vx += s.ax;
       s.vy = Math.min(s.vy + s.ay, PHYS.maxFall);
       s.step();
@@ -435,6 +564,16 @@ export class GameScene extends Phaser.Scene {
     return this.level.isSolid(Math.floor(front / TILE), Math.floor((s.y + s.h / 2) / TILE));
   }
 
+  /** Electric barriers switch on and off on a fixed rhythm. */
+  private stepElectric(): void {
+    if (!this.electricTiles.length) return;
+    if (++this.electricT < ELECTRIC_PERIOD) return;
+    this.electricT = 0;
+    this.electricOn = !this.electricOn;
+    for (const { c, r } of this.electricTiles) this.layer.putTileAt(this.electricOn ? ELECTRIC_ON_INDEX : ELECTRIC_OFF_INDEX, c, r);
+    if (this.electricOn) sfx.zap();
+  }
+
   /** Camera shake; `px` is roughly the shake size in game pixels. */
   shake(px: number): void {
     this.cameras.main.shake(200, px / VIEW_W);
@@ -449,6 +588,11 @@ export class GameScene extends Phaser.Scene {
     for (const b of this.bullets) {
       if (b.deflected || b.dead) continue;
 
+      if (boss && boss.state === 'fight' && boss.blocksShots() && overlaps(b, boss)) {
+        b.deflect();
+        sfx.deflect();
+        continue;
+      }
       if (boss && boss.state === 'fight' && overlaps(b, boss) && !b.hitTargets.has(boss)) {
         // Shots pass through the boss during its brief post-hit invincibility.
         if (boss.vulnerable) {
@@ -485,6 +629,17 @@ export class GameScene extends Phaser.Scene {
         else {
           b.dead = true;
           break;
+        }
+      }
+    }
+
+    // Spark Ring swats enemy shots out of the air.
+    for (const b of this.bullets) {
+      if (b.weapon !== 'spark' || b.dead) continue;
+      for (const s of this.shots) {
+        if (!s.dead && overlaps(b, s)) {
+          s.dead = true;
+          this.burst(s.cx, s.cy, 'spark', 3);
         }
       }
     }
@@ -603,15 +758,54 @@ export class GameScene extends Phaser.Scene {
 
   private trySpawnBoss(): void {
     const at = this.level.boss;
-    if (!at || this.boss || this.bossDefeated) return;
+    const kind = this.level.data.boss;
+    if (!at || !kind || this.boss || this.bossDefeated) return;
     const sec = this.section;
     if (this.level.sectionAt(at.x, at.y - 1) !== sec) return;
-    this.boss = createBoss(this.level.data.boss, this, at, {
-      left: sec.x0 * SCREEN_W + TILE,
-      right: (sec.x1 + 1) * SCREEN_W - TILE,
+    const camX = Math.round(this.bossRoomCamX(sec));
+    this.arena = { camX, left: camX + 8, right: camX + VIEW_W - 8 };
+    this.camX = camX;
+    this.bossRoom = {
+      left: this.arena.left,
+      right: this.arena.right,
       top: sec.row * SCREEN_H + 2 * TILE, // under the room's 2-tile ceiling
       floor: at.y,
+    };
+    this.boss = createBoss(kind, this, at, this.bossRoom);
+    playMusic(this, kind === 'overlord' ? 'finalboss' : 'boss');
+  }
+
+  /** A player shot is heading at `box` and is within `dist` px (Shade dodges these). */
+  playerShotNear(box: Box, dist: number): boolean {
+    const cx = box.x + box.w / 2;
+    return this.bullets.some((b) => {
+      const dx = cx - b.cx;
+      return Math.abs(dx) < dist && Math.sign(dx) === Math.sign(b.vx) && b.cy > box.y - 8 && b.cy < box.y + box.h + 8;
     });
+  }
+
+  /** Spark Ring circling Shade while its shield is up. */
+  drawShadeRing(owner: Box | null): void {
+    if (!owner) {
+      this.shadeRing?.setVisible(false);
+      return;
+    }
+    this.shadeRing ??= this.add.image(0, 0, 'sparkring').setDepth(9);
+    this.shadeRing.setVisible(true).setPosition(Math.round(owner.x + owner.w / 2), Math.round(owner.y + owner.h / 2));
+    this.shadeRing.rotation += 0.25;
+  }
+
+  /** Camera position that centers a boss room in the view. */
+  private bossRoomCamX(sec: Section): number {
+    const left = sec.x0 * SCREEN_W;
+    const right = (sec.x1 + 1) * SCREEN_W;
+    return (left + right) / 2 - VIEW_W / 2;
+  }
+
+  /** True if this section holds the stage's boss. */
+  private isBossSection(sec: Section): boolean {
+    const at = this.level.boss;
+    return !!at && this.level.sectionAt(at.x, at.y - 1) === sec;
   }
 
   private startBossDeath(): void {
@@ -639,15 +833,24 @@ export class GameScene extends Phaser.Scene {
     } else if (t === 170) {
       boss.destroy();
       this.boss = null;
-      this.bossDefeated = true;
       this.bossDeathT = 0;
-      this.startWeaponGet(this.level.data.bossWeapon);
+      this.drawShadeRing(null);
+      // The final boss has a second phase: Shade drops in once the machine is gone.
+      if (boss.kind === 'overlord' && this.level.boss && this.bossRoom) {
+        this.boss = createBoss('shade', this, this.level.boss, this.bossRoom);
+        return;
+      }
+      this.bossDefeated = true;
+      const reward = this.level.data.bossWeapon;
+      if (reward) this.startWeaponGet(reward);
+      else this.stageClear();
     }
   }
 
   // --- weapon get ---------------------------------------------------------------
 
   private startWeaponGet(id: WeaponId): void {
+    stopMusic();
     recordClear(this.stageId, id);
     this.unlocked = loadSave().weapons;
     this.player.ammo[id] = MAX_AMMO;
@@ -661,7 +864,7 @@ export class GameScene extends Phaser.Scene {
   /** Hero flashes between old and new colors, then shows the weapon name. */
   private stepWeaponGet(): void {
     const t = this.weaponGetT++;
-    const id = this.level.data.bossWeapon;
+    const id = this.level.data.bossWeapon!;
     const p = this.player;
     p.state = 'idle';
     p.invuln = 0;
@@ -692,14 +895,17 @@ export class GameScene extends Phaser.Scene {
       const next = this.level.sectionAt((d.col + 1) * TILE + TILE / 2, p.cy);
       if (!next || next === this.section) continue;
       this.clearActors();
-      const endX = (d.col + 1) * TILE + 12;
+      // Walk in past the door (into the visible arena, for a boss room).
+      const endX = this.isBossSection(next) ? Math.round(this.bossRoomCamX(next)) + 16 : (d.col + 1) * TILE + 12;
       this.doorSeq = {
         door: d,
         next,
         phase: 'open',
         t: 0,
         fromX: this.camX,
-        toX: Phaser.Math.Clamp(endX + p.w / 2 - VIEW_W / 2, next.x0 * SCREEN_W, (next.x1 + 1) * SCREEN_W - VIEW_W),
+        toX: this.isBossSection(next)
+          ? Math.round(this.bossRoomCamX(next))
+          : Phaser.Math.Clamp(endX + p.w / 2 - VIEW_W / 2, next.x0 * SCREEN_W, (next.x1 + 1) * SCREEN_W - VIEW_W),
         startX: p.x,
         endX,
       };
@@ -767,9 +973,9 @@ export class GameScene extends Phaser.Scene {
     const top = sec.row * SCREEN_H;
     const bottom = top + SCREEN_H;
 
-    // The player can't leave the section sideways.
-    const minX = sec.x0 * SCREEN_W;
-    const maxX = (sec.x1 + 1) * SCREEN_W - p.w;
+    // The player can't leave the section sideways (or the arena, in a boss fight).
+    const minX = this.arena ? this.arena.left : sec.x0 * SCREEN_W;
+    const maxX = (this.arena ? this.arena.right : (sec.x1 + 1) * SCREEN_W) - p.w;
     if (p.x < minX || p.x > maxX) {
       p.x = Phaser.Math.Clamp(p.x, minX, maxX);
       p.vx = 0;
@@ -794,7 +1000,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   private followCamera(): void {
-    this.camX = this.cameraTargetX(this.section);
+    this.camX = this.arena ? this.arena.camX : this.cameraTargetX(this.section);
     this.camY = this.section.row * SCREEN_H;
   }
 
@@ -888,12 +1094,15 @@ export class GameScene extends Phaser.Scene {
     this.effects = [];
     this.boss?.destroy();
     this.boss = null;
+    this.arena = null;
+    this.drawShadeRing(null);
     this.bossDeathT = 0;
     this.wind = 0;
     for (const s of this.level.spawns) {
       s.alive = false;
       s.armed = true;
     }
+    playMusic(this, stageMusic(this.level.data)); // back to the stage track after a boss
     // Latest checkpoint the player has passed.
     this.player.reset(this.checkpoint.x, this.checkpoint.y);
     this.section = this.level.sectionAt(this.player.cx, this.player.cy)!;
@@ -902,8 +1111,17 @@ export class GameScene extends Phaser.Scene {
     this.readyTimer = 64;
   }
 
+  /** Where to go after leaving this stage. */
+  private exitScene(cleared: boolean): string {
+    if (this.stageId === 'finale') return cleared ? 'ending' : 'fortress';
+    if (this.stageId.startsWith('fortress')) return 'fortress';
+    return 'select';
+  }
+
   private stageClear(): void {
     if (this.clearTimer > 0) return;
+    recordClear(this.stageId);
+    stopMusic();
     this.clearTimer = 200;
     this.banner.setText('STAGE CLEAR').setVisible(true);
     this.goalSprite?.setVisible(false);
@@ -994,7 +1212,7 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.pauseIndex === this.unlocked.length && (c.justPressed('jump') || c.justPressed('fire'))) {
       sfx.select();
-      this.scene.start('select');
+      this.scene.start(this.exitScene(false));
     }
   }
 }

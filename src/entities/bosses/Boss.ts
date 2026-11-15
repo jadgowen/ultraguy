@@ -45,8 +45,8 @@ export abstract class Boss {
     readonly kind: BossKind,
     readonly w: number,
     readonly h: number,
-    /** Takes heavy damage from this weapon. */
-    readonly weakness: WeaponId,
+    /** Takes heavy damage from this weapon (null: no weakness). */
+    readonly weakness: WeaponId | null,
     at: Point,
     protected room: Room,
   ) {
@@ -72,11 +72,16 @@ export abstract class Boss {
   }
   /** Can be damaged right now. */
   get vulnerable(): boolean {
-    return this.state === 'fight' && this.invuln === 0 && !this.untouchable();
+    return this.state === 'fight' && this.invuln === 0 && !this.untouchable() && !this.blocksShots();
   }
   /** Touching it hurts. */
   get harmful(): boolean {
     return this.state === 'fight' && !this.untouchable();
+  }
+
+  /** Override: shots bounce off instead of passing through (e.g. a shield). */
+  blocksShots(): boolean {
+    return false;
   }
 
   /** Override for phases where the boss can't be touched or hit (e.g. vanished). */
@@ -97,7 +102,15 @@ export abstract class Boss {
   protected physics(): { wall: boolean; landed: boolean } {
     const L = this.g.level;
     this.vy = Math.min(this.vy + PHYS.gravity, PHYS.maxFall);
-    const wall = moveX(L, this, this.vx);
+    let wall = moveX(L, this, this.vx);
+    // The arena edges act as walls.
+    if (this.x < this.room.left) {
+      this.x = this.room.left;
+      wall = true;
+    } else if (this.x + this.w > this.room.right) {
+      this.x = this.room.right - this.w;
+      wall = true;
+    }
     const falling = this.vy > 0;
     const hit = moveY(L, this, this.vy, false);
     const was = this.grounded;

@@ -16,7 +16,7 @@ export const STRATOS: StageData = {
   boss: 'gale',
   bossName: 'GALE',
   bossWeapon: 'cyclone',
-  layout: ['ABCDEF|XY'],
+  layout: ['AaBbCcDdEegF|XY'],
   screens: {
     A: [
       ...rows(SKY, 12),
@@ -71,6 +71,13 @@ export const STRATOS: StageData = {
       '...........#####',
       '...........#####',
     ],
+    // --- added screens (longer stage); each joins its neighbors at the same height ---
+    a: [SKY, SKY, SKY, '...........b....', ...rows(SKY, 5), '......CCC.......', SKY, '...CCC.....CCC..', SKY, 'CC..............', SKY],
+    b: [...rows(SKY, 5), '........z.......', ...rows(SKY, 6), '.....c..........', 'CCC.####...CC.CC', '....####........'],
+    c: [SKY, SKY, SKY, '....b...........', ...rows(SKY, 6), 'CC..........CC..', SKY, '....CCC..CCC....', SKY, SKY],
+    d: [...rows(SKY, 5), '.......z........', SKY, SKY, SKY, '.....CCC........', SKY, 'CCC.......CCC...', SKY, SKY, SKY],
+    e: [...rows(SKY, 4), '..........b.....', ...rows(SKY, 5), SKY, '.....CCC........', '..c.............', '####.......#####', '####.......#####'],
+    g: [...rows(SKY, 6), '........f.......', SKY, SKY, SKY, '.........CCC....', SKY, '....CCC.........', 'CC...........###', '.............###'],
     F: [
       ...rows('...............#', 10),
       '...............D',

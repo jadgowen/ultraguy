@@ -6,6 +6,10 @@ import type { WeaponId } from '../weapons';
  *
  *   .  empty       #  solid      H  ladder / vine    ^  spikes (solid, deadly)
  *   I  ice (solid, slippery)     C  cloud (one-way platform: stand on it, jump up through it)
+ *   Z  electric barrier (toggles on/off; hurts while on)
+ *   L  lava (not solid; instant death)
+ *   <  >  conveyor belt (solid; carries you left / right)
+ *   ~  water (not solid; floaty jumps and slow falls)
  *   D  boss door (solid; opens when the player walks into it from the left)
  *   P  player start              c  checkpoint       *  goal
  *   B  checkpoint that is also the "boss test" start
@@ -16,6 +20,10 @@ import type { WeaponId } from '../weapons';
  *   l  lurker (camouflaged)    s  spitter plant
  *   p  slider (ice)            i  icicle (hangs, drops when you pass under)
  *   b  bomber (drops eggs)     z  sparker (cloud rider, drops lightning)
+ *   k  zapper (coil, arcs both ways)   o  roller (ball that rolls at you)
+ *   e  ember (leaps out of lava)       m  magma slug
+ *   g  grinder (rolling saw)           j  junkbot (throws scrap)
+ *   u  puffer (fish)                   q  clam (shielded, spits pearls)
  *
  * The layout places screens; '.' in the layout is an unused screen.
  * Each horizontal run of used screens is a camera "section": the camera
@@ -24,20 +32,54 @@ import type { WeaponId } from '../weapons';
  * where a boss door separates two screens).
  */
 
-export type StageId = 'foundry' | 'canopy' | 'glacier' | 'stratos';
-export type ThemeId = 'foundry' | 'jungle' | 'ice' | 'sky';
-export type BossKind = 'anvil' | 'mantis' | 'frostline' | 'gale';
+export type BossStageId = 'foundry' | 'canopy' | 'glacier' | 'stratos' | 'powerplant' | 'caldera' | 'scrapyard' | 'reef';
+export type FortressStageId = 'fortress1' | 'fortress2' | 'fortress3' | 'finale';
+export type StageId = BossStageId | FortressStageId | 'intro';
+
+export const ALL_STAGE_IDS: StageId[] = [
+  'intro',
+  'foundry',
+  'canopy',
+  'glacier',
+  'stratos',
+  'powerplant',
+  'caldera',
+  'scrapyard',
+  'reef',
+  'fortress1',
+  'fortress2',
+  'fortress3',
+  'finale',
+];
+export type ThemeId = 'foundry' | 'jungle' | 'ice' | 'sky' | 'power' | 'volcano' | 'scrap' | 'water' | 'fortress' | 'city';
+export type BossKind = 'anvil' | 'mantis' | 'frostline' | 'gale' | 'volt' | 'magma' | 'scrap' | 'tide' | 'overlord' | 'shade' | 'jared';
 
 export interface StageData {
   id: StageId;
   name: string;
   theme: ThemeId;
-  boss: BossKind;
-  bossName: string;
+  /** Boss behind the door (fortress stages 1-3 have none: they end at a goal capsule). */
+  boss?: BossKind;
+  bossName?: string;
   /** Weapon earned by beating this stage's boss. */
-  bossWeapon: WeaponId;
+  bossWeapon?: WeaponId;
   screens: Record<string, string[]>;
   layout: string[];
+  /** Scenery drawn behind the sprites: images or text, in world pixels. */
+  decor?: Decor[];
+}
+
+export interface Decor {
+  x: number;
+  y: number;
+  tex?: string;
+  text?: string;
+  /** A plain filled rectangle (w x h in `fill` color). */
+  rect?: { w: number; h: number; fill: number };
+  color?: string;
+  size?: number;
+  /** Draw order; default 1 (above tiles, behind sprites). Bosses are 6, the hero 10. */
+  depth?: number;
 }
 
 export enum Tile {
@@ -48,7 +90,15 @@ export enum Tile {
   Door = 4,
   Ice = 5,
   Cloud = 6,
+  Electric = 7,
+  Lava = 8,
+  ConveyorL = 9,
+  ConveyorR = 10,
+  Water = 11,
 }
+
+/** Tileset frame for an electric barrier while it's switched off. */
+export const ELECTRIC_OFF_INDEX = 11;
 
 /** A vertical boss-door column, rows r0..r1 inclusive. */
 export interface Door {
@@ -57,7 +107,25 @@ export interface Door {
   r1: number;
 }
 
-export type EnemyKind = 'walker' | 'hopper' | 'flyer' | 'turret' | 'lurker' | 'spitter' | 'slider' | 'icicle' | 'bomber' | 'sparker';
+export type EnemyKind =
+  | 'walker'
+  | 'hopper'
+  | 'flyer'
+  | 'turret'
+  | 'lurker'
+  | 'spitter'
+  | 'slider'
+  | 'icicle'
+  | 'bomber'
+  | 'sparker'
+  | 'zapper'
+  | 'roller'
+  | 'ember'
+  | 'slug'
+  | 'grinder'
+  | 'junkbot'
+  | 'puffer'
+  | 'clam';
 
 export interface Spawn {
   kind: EnemyKind;
@@ -89,6 +157,14 @@ const ENEMY_CHARS: Record<string, EnemyKind> = {
   i: 'icicle',
   b: 'bomber',
   z: 'sparker',
+  k: 'zapper',
+  o: 'roller',
+  e: 'ember',
+  m: 'slug',
+  g: 'grinder',
+  j: 'junkbot',
+  u: 'puffer',
+  q: 'clam',
 };
 
 const TILE_CHARS: Record<string, Tile> = {
@@ -98,6 +174,11 @@ const TILE_CHARS: Record<string, Tile> = {
   D: Tile.Door,
   I: Tile.Ice,
   C: Tile.Cloud,
+  Z: Tile.Electric,
+  L: Tile.Lava,
+  '<': Tile.ConveyorL,
+  '>': Tile.ConveyorR,
+  '~': Tile.Water,
 };
 
 const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*']);
@@ -146,7 +227,17 @@ export class Level {
       }
       close();
     });
+    this.fillMarkersInWater();
     this.findDoors();
+  }
+
+  /** Cells holding an enemy or marker are empty; if they sit in water, make them water too. */
+  private markerCells: { c: number; r: number }[] = [];
+  private fillMarkersInWater(): void {
+    for (const { c, r } of this.markerCells) {
+      const near = [this.tileAt(c - 1, r), this.tileAt(c + 1, r), this.tileAt(c, r - 1), this.tileAt(c, r + 1)];
+      if (near.includes(Tile.Water)) this.tiles[r * this.cols + c] = Tile.Water;
+    }
   }
 
   private findDoors(): void {
@@ -176,6 +267,7 @@ export class Level {
         const cx = gc * TILE + TILE / 2;
         const bottom = (gr + 1) * TILE;
         const t = TILE_CHARS[ch] ?? Tile.Empty;
+        if (!(ch in TILE_CHARS) && ch !== '.') this.markerCells.push({ c: gc, r: gr });
         if (ch === 'X') this.boss = { x: cx, y: bottom };
         else if (ch === 'B') {
           this.bossTestStart = { x: cx, y: bottom };
@@ -198,13 +290,38 @@ export class Level {
 
   isSolid(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    return t === Tile.Solid || t === Tile.Spike || t === Tile.Door || t === Tile.Ice;
+    return t === Tile.Solid || t === Tile.Spike || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR;
   }
 
   /** Ground an enemy is willing to walk on (not spikes). */
   isFloor(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    return t === Tile.Solid || t === Tile.Door || t === Tile.Ice || this.isPlatform(c, r);
+    return t === Tile.Solid || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR || this.isPlatform(c, r);
+  }
+
+  isLava(c: number, r: number): boolean {
+    return this.tileAt(c, r) === Tile.Lava;
+  }
+
+  isWater(c: number, r: number): boolean {
+    return this.tileAt(c, r) === Tile.Water;
+  }
+
+  isElectric(c: number, r: number): boolean {
+    return this.tileAt(c, r) === Tile.Electric;
+  }
+
+  /** Conveyor push at a tile: -1, 0 or 1. */
+  conveyorAt(c: number, r: number): number {
+    const t = this.tileAt(c, r);
+    return t === Tile.ConveyorL ? -1 : t === Tile.ConveyorR ? 1 : 0;
+  }
+
+  /** All tiles of one type (e.g. electric barriers to toggle). */
+  findTiles(type: Tile): { c: number; r: number }[] {
+    const out: { c: number; r: number }[] = [];
+    for (let r = 0; r < this.rows; r++) for (let c = 0; c < this.cols; c++) if (this.tiles[r * this.cols + c] === type) out.push({ c, r });
+    return out;
   }
 
   isSpike(c: number, r: number): boolean {
@@ -234,12 +351,21 @@ export class Level {
     return this.sections.find((s) => s.row === sy && sx >= s.x0 && sx <= s.x1) ?? null;
   }
 
-  /** Tile indices for a Phaser tilemap (-1 = empty). */
+  /** Tile indices for the main Phaser tilemap layer (-1 = empty). Water is drawn on its own layer. */
   tileIndexGrid(): number[][] {
+    return this.grid((t) => (t === Tile.Water ? -1 : t - 1));
+  }
+
+  /** Tile indices for the translucent water layer drawn over sprites. */
+  waterIndexGrid(): number[][] {
+    return this.grid((t) => (t === Tile.Water ? Tile.Water - 1 : -1));
+  }
+
+  private grid(index: (t: Tile) => number): number[][] {
     const out: number[][] = [];
     for (let r = 0; r < this.rows; r++) {
       const row: number[] = [];
-      for (let c = 0; c < this.cols; c++) row.push(this.tiles[r * this.cols + c] - 1);
+      for (let c = 0; c < this.cols; c++) row.push(index(this.tiles[r * this.cols + c] as Tile));
       out.push(row);
     }
     return out;

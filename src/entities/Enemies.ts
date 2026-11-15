@@ -366,6 +366,198 @@ class Sparker extends Enemy {
   }
 }
 
+// --- power plant -------------------------------------------------------------------
+
+/** Tesla coil: charges up (glows), then throws arcs both ways along the floor. */
+class Zapper extends Enemy {
+  private timer = 40;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 14, 16, 'zapper0');
+    this.hp = 3;
+  }
+  protected update(): void {
+    this.timer++;
+    const charging = this.timer > 90;
+    if (this.timer === 120) {
+      for (const dir of [-1, 1]) {
+        this.g.spawnEnemyShot({ x: this.cx - 5, y: this.y + 6, w: 10, h: 6, vx: dir * 2.4, vy: 0, tex: 'arc', dmg: 3, life: 60 });
+      }
+      sfx.zap();
+      this.timer = 0;
+    }
+    this.sprite.setTexture(charging && this.timer % 4 < 2 ? 'zapper1' : 'zapper0');
+  }
+}
+
+/** Steel ball: waits, then rolls at you, gathering speed and bouncing off walls. */
+class Roller extends Enemy {
+  private rolling = false;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 14, 14, 'roller0');
+    this.hp = 2;
+  }
+  protected update(): void {
+    if (!this.rolling && Math.abs(this.g.player.cx - this.cx) < 150) {
+      this.rolling = true;
+      this.vx = 0.4 * this.towardPlayer();
+    }
+    if (this.rolling && Math.abs(this.vx) < 2.4) this.vx += Math.sign(this.vx) * 0.04;
+    if (this.physics()) this.vx = -this.vx * 0.8;
+  }
+  render(): void {
+    super.render();
+    this.sprite.setOrigin(0.5, 0.5).setPosition(Math.round(this.cx), Math.round(this.cy));
+    this.sprite.rotation += this.vx * 0.15;
+  }
+}
+
+// --- caldera -----------------------------------------------------------------------
+
+/** Fireball that hides in the lava and leaps out at intervals. Can't be destroyed. */
+class Ember extends Enemy {
+  private wait = 30;
+  private homeY: number;
+  private airborne = false;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 12, 12, 'ember0');
+    this.homeY = this.y;
+    this.dmg = 3;
+  }
+  shielded(): boolean {
+    return true;
+  }
+  harmful(): boolean {
+    return this.airborne;
+  }
+  protected update(): void {
+    if (!this.airborne) {
+      if (--this.wait <= 0) {
+        this.airborne = true;
+        this.vy = -6;
+      }
+    } else {
+      this.vy = Math.min(this.vy + PHYS.gravity, PHYS.maxFall);
+      this.y += this.vy;
+      if (this.y >= this.homeY && this.vy > 0) {
+        this.y = this.homeY;
+        this.airborne = false;
+        this.wait = 70 + Math.floor(Math.random() * 40);
+      }
+    }
+    this.sprite.setTexture(`ember${Math.floor(this.t / 4) % 2}`);
+    this.sprite.setFlipY(this.vy > 0);
+  }
+  render(): void {
+    super.render();
+    this.sprite.setVisible(this.airborne);
+  }
+}
+
+/** Slow, tough magma slug. */
+class Slug extends Enemy {
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 18, 10, 'slug0');
+    this.hp = 4;
+    this.dmg = 4;
+    this.vx = 0.35 * this.towardPlayer();
+  }
+  protected update(): void {
+    if (this.physics()) this.vx = -this.vx;
+    this.turnAtLedge();
+    this.sprite.setTexture(`slug${Math.floor(this.t / 14) % 2}`);
+    this.sprite.setFlipX(this.vx < 0);
+  }
+}
+
+// --- scrapyard ---------------------------------------------------------------------
+
+/** Rolling saw blade: runs along floors, reverses at walls, drops off ledges. */
+class Grinder extends Enemy {
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 14, 14, 'grinder');
+    this.hp = 3;
+    this.vx = 1.4 * this.towardPlayer();
+  }
+  protected update(): void {
+    if (this.physics()) this.vx = -this.vx;
+  }
+  render(): void {
+    super.render();
+    this.sprite.setOrigin(0.5, 0.5).setPosition(Math.round(this.cx), Math.round(this.cy));
+    this.sprite.rotation += this.vx * 0.25;
+  }
+}
+
+/** Junk robot that shuffles toward you and lobs scrap. */
+class Junkbot extends Enemy {
+  private timer = 30;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 16, 18, 'junkbot0');
+    this.hp = 4;
+  }
+  protected update(): void {
+    const p = this.g.player;
+    this.timer++;
+    this.vx = this.timer > 70 ? 0 : 0.3 * this.towardPlayer();
+    this.physics();
+    this.turnAtLedge();
+    if (this.timer === 90 && Math.abs(p.cx - this.cx) < 180) {
+      const vy = -4;
+      const airtime = (2 * -vy) / PHYS.gravity;
+      const vx = Phaser.Math.Clamp((p.cx - this.cx) / airtime, -2.4, 2.4);
+      this.g.spawnEnemyShot({ x: this.cx - 4, y: this.y, w: 8, h: 8, vx, vy, tex: 'scrap', dmg: 3, gravity: true, spin: 0.3 });
+      sfx.enemyShot();
+    }
+    if (this.timer >= 110) this.timer = 0;
+    this.sprite.setTexture(this.timer > 80 && this.timer < 96 ? 'junkbot1' : 'junkbot0');
+    this.sprite.setFlipX(this.towardPlayer() < 0);
+  }
+}
+
+// --- reef --------------------------------------------------------------------------
+
+/** Pufferfish that drifts toward you and puffs up when close. */
+class Puffer extends Enemy {
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 14, 12, 'puffer0');
+    this.hp = 2;
+    this.y = s.y - TILE / 2 - this.h / 2;
+  }
+  protected update(): void {
+    const p = this.g.player;
+    const dx = p.cx - this.cx;
+    const dy = p.cy - this.cy;
+    const d = Math.max(1, Math.hypot(dx, dy));
+    this.x += (dx / d) * 0.5;
+    this.y += (dy / d) * 0.5 + Math.sin(this.t * 0.1) * 0.2;
+    this.sprite.setTexture(d < 48 ? 'puffer1' : 'puffer0');
+    this.sprite.setFlipX(dx < 0);
+  }
+}
+
+/** Clam: shielded while shut; opens to spit three pearls. */
+class Clam extends Enemy {
+  private timer = 30;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 16, 12, 'clam0');
+    this.hp = 3;
+  }
+  shielded(): boolean {
+    return this.timer < 80;
+  }
+  protected update(): void {
+    this.timer++;
+    if (this.timer === 96) {
+      for (const vx of [-1.4, 0, 1.4]) {
+        this.g.spawnEnemyShot({ x: this.cx - 3, y: this.y, w: 6, h: 6, vx, vy: -3.2, tex: 'pearl', dmg: 2, gravity: true });
+      }
+      sfx.bubble();
+    }
+    if (this.timer >= 130) this.timer = 0;
+    this.sprite.setTexture(this.timer >= 80 ? 'clam1' : 'clam0');
+  }
+}
+
 export function createEnemy(g: GameScene, s: Spawn): Enemy {
   const ctor: Record<EnemyKind, new (g: GameScene, s: Spawn) => Enemy> = {
     walker: Walker,
@@ -378,6 +570,14 @@ export function createEnemy(g: GameScene, s: Spawn): Enemy {
     icicle: Icicle,
     bomber: Bomber,
     sparker: Sparker,
+    zapper: Zapper,
+    roller: Roller,
+    ember: Ember,
+    slug: Slug,
+    grinder: Grinder,
+    junkbot: Junkbot,
+    puffer: Puffer,
+    clam: Clam,
   };
   return new ctor[s.kind](g, s);
 }
@@ -390,6 +590,8 @@ export class Projectile {
   dmg = 2; // damage to the player (enemy shots)
   stopAtWalls = false; // most shots pass through walls; ground waves don't
   diesOnSolid = false; // lobbed shots break when they hit the ground
+  rolls = false; // falls, then rolls along the floor until it hits a wall
+  bounces = false; // falls and bounces along the floor (and off walls)
   /** Sprite rotation per step (radians), for spinning shots. */
   spin = 0;
   /** Acceleration per step (gravity, boomerang pull). */
@@ -402,6 +604,8 @@ export class Projectile {
   power = 1; // damage to enemies
   /** Charge level for Ultra Gun shots (0 = normal). */
   charge = 0;
+  /** Weapon-specific state (spark ring: 0 orbiting / 1 thrown; flame: facing). */
+  state = 0;
   pierce = false; // keeps going after a hit (hits each target once)
   ignoresShield = false;
   hasGravity = false;

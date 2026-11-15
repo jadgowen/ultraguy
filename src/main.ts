@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { VIEW_H, VIEW_W } from './constants';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
+import { EndingScene } from './scenes/EndingScene';
+import { FortressScene } from './scenes/FortressScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { StageSelectScene } from './scenes/StageSelectScene';
 import { TitleScene } from './scenes/TitleScene';
@@ -17,7 +19,7 @@ const game = new Phaser.Game({
   input: { gamepad: true },
   // Stretch to fill the window (exact on 16:9; letterboxed otherwise).
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, TitleScene, SettingsScene, StageSelectScene, GameScene],
+  scene: [BootScene, TitleScene, SettingsScene, StageSelectScene, FortressScene, GameScene, EndingScene],
 });
 
 // Handy for debugging in the browser console.

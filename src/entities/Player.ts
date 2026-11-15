@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { PHYS, PLAYER_MAX_HP, TILE } from '../constants';
-import { moveX, moveY, standingOnIce, touchesSpike } from '../physics';
+import { conveyorUnder, moveX, moveY, standingOnIce, touchesSpike, touchesTile } from '../physics';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 import { heroFrames } from '../heroSprites';
@@ -93,7 +93,17 @@ export class Player {
     }
 
     if (this.alive) this.updateCharge();
-    if (this.alive && this.invuln === 0 && touchesSpike(this.g.level, this)) this.die(true);
+    const L = this.g.level;
+    if (this.alive && this.invuln === 0 && touchesSpike(L, this)) this.die(true);
+    if (this.alive && touchesTile(this, (c, r) => L.isLava(c, r), 4)) this.die(true);
+    if (this.alive && this.g.electricOn && touchesTile(this, (c, r) => L.isElectric(c, r), 3)) {
+      this.hurt(PHYS.electricDamage, this.cx - this.facing);
+    }
+  }
+
+  /** Center of the body is in a water tile. */
+  get inWater(): boolean {
+    return this.g.level.isWater(Math.floor(this.cx / TILE), Math.floor(this.cy / TILE));
   }
 
   /** 0 = none, 1 = half, 2 = full. */
@@ -140,7 +150,7 @@ export class Player {
     }
 
     if (c.justPressed('jump') && this.grounded) {
-      this.vy = -PHYS.jump;
+      this.vy = this.inWater ? -PHYS.waterJump : -PHYS.jump;
       this.grounded = false;
     }
     // Variable jump height: letting go of jump kills upward speed.
@@ -213,8 +223,11 @@ export class Player {
 
   private applyMotion(): void {
     const L = this.g.level;
-    this.vy = Math.min(this.vy + PHYS.gravity, PHYS.maxFall);
-    if (moveX(L, this, this.vx + this.g.wind)) this.vx = 0;
+    const water = this.inWater;
+    this.vy = Math.min(this.vy + (water ? PHYS.waterGravity : PHYS.gravity), water ? PHYS.waterMaxFall : PHYS.maxFall);
+    if (water && Math.random() < 0.03) this.g.burst(this.cx + this.facing * 4, this.y + 4, 'bubble_fx', 1);
+    const belt = this.grounded ? conveyorUnder(L, this) * PHYS.conveyor : 0;
+    if (moveX(L, this, this.vx + this.g.wind + belt)) this.vx = 0;
     const falling = this.vy > 0;
     const wasGrounded = this.grounded;
     const hit = moveY(L, this, this.vy, true);

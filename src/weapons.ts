@@ -3,7 +3,7 @@
  * weapons are earned by beating bosses and use ammo (MAX_AMMO units, like HP).
  * Each weapon recolors the hero (`colors`), the classic way to show what's equipped.
  */
-export type WeaponId = 'buster' | 'quake' | 'thorn' | 'frost' | 'cyclone';
+export type WeaponId = 'buster' | 'quake' | 'thorn' | 'frost' | 'cyclone' | 'spark' | 'flame' | 'saw' | 'bubble';
 
 export interface WeaponDef {
   id: WeaponId;
@@ -93,10 +93,50 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
     power: 3,
     blurb: 'big tornado, pierces',
   },
+  // From Volt: a ring of sparks that circles you, blocking shots; fire again to launch it.
+  spark: {
+    id: 'spark',
+    name: 'SPARK RING',
+    colors: { light: 0xfffbc8, main: 0xf8e040, dark: 0xb89a10, suit: 0x3a2a6a, suitLight: 0x5a4a9a },
+    cost: 3,
+    maxOnScreen: 1,
+    power: 2,
+    blurb: 'shield, fire again to throw',
+  },
+  // From Magma: a short, wide burst of fire right in front of you.
+  flame: {
+    id: 'flame',
+    name: 'FLAME BURST',
+    colors: { light: 0xffd0a0, main: 0xff7038, dark: 0xc03818, suit: 0x3a1a1a, suitLight: 0x6a2a2a },
+    cost: 1,
+    maxOnScreen: 1,
+    power: 3,
+    blurb: 'short range, heavy damage',
+  },
+  // From Scrap: a spinning blade you can aim in 8 directions.
+  saw: {
+    id: 'saw',
+    name: 'SAW BLADE',
+    colors: { light: 0xe0d0c0, main: 0xb08a68, dark: 0x7a5a3a, suit: 0x2a2a2a, suitLight: 0x4a4a4a },
+    cost: 1,
+    maxOnScreen: 3,
+    power: 1,
+    blurb: 'aim with the d-pad',
+  },
+  // From Tide: a bubble that bounces along the ground.
+  bubble: {
+    id: 'bubble',
+    name: 'BUBBLE BOMB',
+    colors: { light: 0xd8f0ff, main: 0x5ab0f0, dark: 0x2a70b8, suit: 0x1a4a5a, suitLight: 0x2a6a7a },
+    cost: 1,
+    maxOnScreen: 2,
+    power: 2,
+    blurb: 'bounces along the floor',
+  },
 };
 
 /** Display order in the pause menu. */
-export const WEAPON_ORDER: WeaponId[] = ['buster', 'quake', 'thorn', 'frost', 'cyclone'];
+export const WEAPON_ORDER: WeaponId[] = ['buster', 'quake', 'thorn', 'frost', 'cyclone', 'spark', 'flame', 'saw', 'bubble'];
 
 /** Texture key of the hero sheet recolored for this weapon. */
 export function heroTexture(id: WeaponId): string {
