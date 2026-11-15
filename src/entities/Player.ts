@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { PHYS, PLAYER_MAX_HP, TILE } from '../constants';
-import { moveX, moveY, touchesSpike } from '../physics';
+import { moveX, moveY, standingOnIce, touchesSpike } from '../physics';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 import { heroFrames } from '../heroSprites';
@@ -25,6 +25,10 @@ export class Player {
   hp = PLAYER_MAX_HP;
   invuln = 0;
   shootPose = 0;
+  /** Frames the fire button has been held (Ultra Gun only). */
+  charge = 0;
+  /** Keep horizontal momentum in the air after leaving ice. */
+  private airSlide = false;
   weapon: WeaponId = 'buster';
   /** Ammo per weapon; kept across deaths, like the classics. */
   readonly ammo = Object.fromEntries(WEAPON_ORDER.map((w) => [w, MAX_AMMO])) as Record<WeaponId, number>;
@@ -63,7 +67,8 @@ export class Player {
     this.state = 'idle';
     this.grounded = true;
     this.hp = PLAYER_MAX_HP;
-    this.invuln = this.shootPose = this.hurtTimer = this.deadTimer = 0;
+    this.invuln = this.shootPose = this.hurtTimer = this.deadTimer = this.charge = 0;
+    this.airSlide = false;
     this.sprite.setVisible(true);
   }
 
@@ -87,7 +92,31 @@ export class Player {
         this.updateNormal();
     }
 
+    if (this.alive) this.updateCharge();
     if (this.alive && this.invuln === 0 && touchesSpike(this.g.level, this)) this.die(true);
+  }
+
+  /** 0 = none, 1 = half, 2 = full. */
+  get chargeLevel(): number {
+    return this.charge >= PHYS.chargeFull ? 2 : this.charge >= PHYS.chargeMid ? 1 : 0;
+  }
+
+  /** Hold fire to charge the Ultra Gun; release to fire the charged blast. */
+  private updateCharge(): void {
+    const c = this.g.controls;
+    if (this.weapon !== 'buster') {
+      this.charge = 0;
+      return;
+    }
+    if (c.isDown('fire')) {
+      this.charge++;
+      if (this.charge === PHYS.chargeMid) sfx.charge(1);
+      if (this.charge === PHYS.chargeFull) sfx.charge(2);
+    } else {
+      const level = this.chargeLevel;
+      this.charge = 0;
+      if (level > 0 && this.g.fireWeapon(level)) this.shootPose = 16;
+    }
   }
 
   // --- states -------------------------------------------------------------
@@ -117,7 +146,18 @@ export class Player {
     // Variable jump height: letting go of jump kills upward speed.
     if (!c.isDown('jump') && this.vy < 0) this.vy = 0;
 
-    this.vx = dir * PHYS.run; // no acceleration: full speed or stopped
+    const target = dir * PHYS.run;
+    const onIce = this.grounded && standingOnIce(L, this);
+    if (onIce) {
+      // Ice: ease toward the target speed, so you keep sliding after letting go.
+      this.vx += Phaser.Math.Clamp(target - this.vx, -PHYS.iceAccel, PHYS.iceAccel);
+      this.airSlide = true;
+    } else if (this.grounded) {
+      this.vx = target; // no acceleration: full speed or stopped
+      this.airSlide = false;
+    } else if (dir !== 0 || !this.airSlide) {
+      this.vx = target; // full air control, except a slide carries into a jump
+    }
     this.applyMotion();
 
     this.state = this.grounded ? (dir !== 0 ? 'run' : 'idle') : this.vy < 0 ? 'jump' : 'fall';
@@ -174,7 +214,7 @@ export class Player {
   private applyMotion(): void {
     const L = this.g.level;
     this.vy = Math.min(this.vy + PHYS.gravity, PHYS.maxFall);
-    moveX(L, this, this.vx);
+    if (moveX(L, this, this.vx + this.g.wind)) this.vx = 0;
     const falling = this.vy > 0;
     const wasGrounded = this.grounded;
     const hit = moveY(L, this, this.vy, true);
@@ -280,5 +320,13 @@ export class Player {
     this.sprite.setPosition(Math.round(this.cx), Math.round(this.bottom));
     // Flicker while invincible (but stay solid during the knockback pose).
     this.sprite.setVisible(this.state === 'hurt' || this.invuln === 0 || this.invuln % 4 < 2);
+
+    // Charging glow: cyan flicker at half charge, gold/white strobe at full.
+    const level = this.chargeLevel;
+    const f = this.animT;
+    if (level === 2 && f % 4 < 2) this.sprite.setTintFill(f % 8 < 4 ? 0xffe14a : 0xffffff);
+    else if (level === 1 && f % 6 < 2) this.sprite.setTint(0x8af0ff);
+    else this.sprite.clearTint();
+    if (level === 2 && f % 5 === 0) this.g.burst(this.cx + (Math.random() - 0.5) * 16, this.cy + (Math.random() - 0.5) * 18, 'spark', 1);
   }
 }

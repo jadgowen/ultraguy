@@ -57,6 +57,19 @@ export const sfx = {
     noise(0.15, 0.08);
     tone(160, 60, 0.15, 'square', 0.06);
   },
+  wind: () => noise(0.35, 0.05),
+  charge: (level: number) => tone(level > 1 ? 900 : 500, level > 1 ? 1800 : 900, 0.12, 'triangle', 0.05),
+  chargeShot: () => {
+    tone(300, 1400, 0.12, 'sawtooth', 0.06);
+    noise(0.1, 0.05);
+  },
+  freeze: () => tone(2400, 1200, 0.1, 'triangle', 0.06),
+  thorn: () => tone(700, 1100, 0.06, 'triangle', 0.05),
+  cyclone: () => noise(0.25, 0.06),
+  weakHit: () => {
+    tone(200, 80, 0.12, 'square', 0.08);
+    noise(0.08, 0.06);
+  },
   tick: () => tone(1500, 1500, 0.02, 'square', 0.03),
   clear: () => {
     tone(523, 523, 0.15);

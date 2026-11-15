@@ -29,7 +29,7 @@ export function createHeroTextures(scene: Phaser.Scene): void {
     const canvas = document.createElement('canvas');
     canvas.width = src.width;
     canvas.height = src.height;
-    const ctx = canvas.getContext('2d')!;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true })!;
     ctx.drawImage(src, 0, 0);
 
     const swap = new Map<number, number>();

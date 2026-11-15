@@ -8,8 +8,12 @@ import type { StageData } from './Level';
 
 const SKY = '................';
 
-export const STAGE_1: StageData = {
-  name: 'Foundry',
+export const FOUNDRY: StageData = {
+  id: 'foundry',
+  name: 'FOUNDRY',
+  theme: 'foundry',
+  boss: 'anvil',
+  bossName: 'ANVIL',
   bossWeapon: 'quake',
   layout: ['ABCD..IJK|LM', '...EFGH..'],
   screens: {

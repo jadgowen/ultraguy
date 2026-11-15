@@ -1,25 +1,47 @@
 import Phaser from 'phaser';
 import { PHYS, PLAYER_MAX_HP, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
-import { BOSS_MAX_HP, Boss } from '../entities/Boss';
 import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
 import { Player } from '../entities/Player';
+import { BOSS_MAX_HP, Boss, createBoss } from '../entities/bosses';
 import { Controls } from '../input';
-import { Door, Level, Point, Section, Tile } from '../level/Level';
-import { STAGE_1 } from '../level/stage1';
+import { Door, Level, Point, Section, StageId, Tile } from '../level/Level';
+import { STAGES } from '../level/stages';
+import { THEMES } from '../level/themes';
 import { Box, moveY, overlaps } from '../physics';
-import { loadSave, unlockWeapon } from '../save';
+import { loadSave, recordClear } from '../save';
 import { sfx } from '../sfx';
 import { MAX_AMMO, WEAPONS, WeaponId } from '../weapons';
 
 const TRANSITION_FRAMES = 64;
 const DOOR_PAN_FRAMES = 80;
 const DOOR_TILE_FRAMES = 5; // frames per door tile opening/closing
-
 const DOOR_TILE_INDEX = Tile.Door - 1;
 
+/** Damage a boss takes from its weakness weapon. */
+const WEAKNESS_DAMAGE = 4;
+
 export interface GameSceneData {
+  stage: StageId;
   /** Start at the checkpoint just before the boss door. */
   bossTest?: boolean;
+}
+
+export interface ShotOptions {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  vx: number;
+  vy: number;
+  tex: string;
+  dmg?: number;
+  /** Falls, and breaks on the ground. */
+  gravity?: boolean;
+  /** Horizontal acceleration (boomerangs). */
+  ax?: number;
+  spin?: number;
+  /** Remove after this many steps. */
+  life?: number;
 }
 
 interface Transition {
@@ -64,7 +86,10 @@ export class GameScene extends Phaser.Scene {
   controls!: Controls;
   level!: Level;
   player!: Player;
+  /** Horizontal push applied to the player this step (Gale's gusts). */
+  wind = 0;
 
+  private stageId: StageId = 'foundry';
   private bullets: Projectile[] = [];
   private enemies: Enemy[] = [];
   private shots: Projectile[] = [];
@@ -83,6 +108,7 @@ export class GameScene extends Phaser.Scene {
   private camY = 0;
   private acc = 0;
   private paused = false;
+  private pauseIndex = 0;
   private transition: Transition | null = null;
   private doorSeq: DoorSequence | null = null;
   private checkpoint!: Point;
@@ -101,8 +127,9 @@ export class GameScene extends Phaser.Scene {
     super('game');
   }
 
-  create(data: GameSceneData = {}): void {
+  create(data: GameSceneData): void {
     // Scene instances are reused on restart, so reset all state here.
+    this.stageId = data?.stage ?? 'foundry';
     this.bullets = [];
     this.enemies = [];
     this.shots = [];
@@ -112,6 +139,7 @@ export class GameScene extends Phaser.Scene {
     this.bossDefeated = false;
     this.bossDeathT = 0;
     this.weaponGetT = 0;
+    this.wind = 0;
     this.unlocked = loadSave().weapons;
     this.acc = 0;
     this.paused = false;
@@ -121,15 +149,17 @@ export class GameScene extends Phaser.Scene {
     this.hudKey = '';
     this.goalSprite = null;
 
-    this.level = new Level(STAGE_1);
-    const start = data.bossTest && this.level.bossTestStart ? this.level.bossTestStart : this.level.playerStart;
+    const stage = STAGES[this.stageId];
+    this.level = new Level(stage);
+    const start = data?.bossTest && this.level.bossTestStart ? this.level.bossTestStart : this.level.playerStart;
     this.checkpoint = { ...start };
 
-    this.cameras.main.setBackgroundColor('#141626');
-    this.bg = this.add.tileSprite(0, 0, VIEW_W, VIEW_H, 'bg').setOrigin(0).setScrollFactor(0).setDepth(-10);
+    const theme = THEMES[stage.theme];
+    this.cameras.main.setBackgroundColor(theme.sky);
+    this.bg = this.add.tileSprite(0, 0, VIEW_W, VIEW_H, `bg_${stage.theme}`).setOrigin(0).setScrollFactor(0).setDepth(-10);
 
     const map = this.make.tilemap({ data: this.level.tileIndexGrid(), tileWidth: TILE, tileHeight: TILE });
-    const tileset = map.addTilesetImage('tiles', 'tiles', TILE, TILE, 0, 0)!;
+    const tileset = map.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
     this.layer = map.createLayer(0, tileset, 0, 0)!.setDepth(0);
 
     if (this.level.goal) {
@@ -141,7 +171,7 @@ export class GameScene extends Phaser.Scene {
 
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(50);
     this.banner = this.add
-      .text(VIEW_W / 2, VIEW_H / 2 - 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#fff1e0' })
+      .text(VIEW_W / 2, VIEW_H / 2 - 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#fff1e0', stroke: '#000000', strokeThickness: 3 })
       .setOrigin(0.5)
       .setAlign('center')
       .setScrollFactor(0)
@@ -168,7 +198,7 @@ export class GameScene extends Phaser.Scene {
 
     if (this.clearTimer > 0) {
       this.stepEffects();
-      if (--this.clearTimer === 0) this.scene.start('title');
+      if (--this.clearTimer === 0) this.scene.start('select');
       return;
     }
     if (this.readyTimer > 0) {
@@ -185,7 +215,10 @@ export class GameScene extends Phaser.Scene {
     const cutscene = this.transition || this.doorSeq || this.boss?.inIntro || this.bossDeathT > 0;
     if (this.controls.justPressed('start') && !cutscene && this.player.alive) {
       this.paused = !this.paused;
-      if (this.paused) this.buildPauseMenu();
+      if (this.paused) {
+        this.pauseIndex = Math.max(0, this.unlocked.indexOf(this.player.weapon));
+        this.buildPauseMenu();
+      }
       this.pauseLayer.setVisible(this.paused);
       sfx.select();
     }
@@ -216,6 +249,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     for (const e of this.enemies) e.step();
+    this.wind = 0; // the boss sets it again if it's blowing
     this.boss?.step();
     this.stepBullets();
     this.stepShots();
@@ -239,7 +273,10 @@ export class GameScene extends Phaser.Scene {
     this.boss?.render();
     for (const b of this.bullets) b.render();
     for (const s of this.shots) s.render();
-    for (const k of this.pickups) k.sprite.setVisible(k.life < 240 || k.life % 6 < 3).setPosition(Math.round(k.x), Math.round(k.y));
+    for (const k of this.pickups) {
+      k.render();
+      k.sprite.setVisible(k.life < 240 || k.life % 6 < 3);
+    }
     if (this.readyTimer > 0) this.player.sprite.setVisible(false);
 
     const cam = this.cameras.main;
@@ -248,48 +285,148 @@ export class GameScene extends Phaser.Scene {
     this.drawHud();
   }
 
-  // --- combat -----------------------------------------------------------------
+  // --- weapons ----------------------------------------------------------------
 
   /**
-   * Fire the player's equipped weapon. Returns false (no shot) when that
-   * weapon's on-screen limit is reached or it's out of ammo.
+   * Fire the player's equipped weapon (`charge` 1-2 for Ultra Gun charge
+   * blasts). Returns false when the weapon's on-screen limit is reached or
+   * it's out of ammo.
    */
-  fireWeapon(): boolean {
+  fireWeapon(charge = 0): boolean {
     const p = this.player;
     const def = WEAPONS[p.weapon];
     if (this.bullets.filter((b) => b.weapon === def.id).length >= def.maxOnScreen) return false;
     if (p.ammo[def.id] < def.cost) return false;
     p.ammo[def.id] -= def.cost;
 
+    const f = p.facing;
+    const muzzleX = p.cx + f * 12;
+    const muzzleY = p.y + 12;
     let b: Projectile;
-    if (def.id === 'quake') {
-      // Starts at the feet; if fired in the air it falls to the floor first.
-      b = new Projectile(this, p.cx + p.facing * 6 - 4, p.bottom - 12, 8, 12, p.facing * 3, 0, 'pwave');
-      b.pierce = true;
-      b.ignoresShield = true;
-      b.hasGravity = true;
-      b.stopAtWalls = true;
-      b.sprite.setFlipX(p.facing < 0);
-      sfx.quake();
-    } else {
-      b = new Projectile(this, p.cx + p.facing * 12 - 3, p.y + 10, 6, 4, p.facing * PHYS.bulletSpeed, 0, 'bullet');
-      sfx.shoot();
+    switch (def.id) {
+      case 'quake':
+        // Starts at the feet; if fired in the air it falls to the floor first.
+        b = new Projectile(this, p.cx + f * 6 - 4, p.bottom - 12, 8, 12, f * 3, 0, 'pwave');
+        b.pierce = true;
+        b.ignoresShield = true;
+        b.stopAtWalls = true;
+        sfx.quake();
+        break;
+      case 'thorn':
+        b = new Projectile(this, muzzleX - 5, muzzleY - 5, 10, 10, f * 4, 0, 'thorn');
+        b.pierce = true;
+        b.spin = 0.45 * f;
+        b.maxLife = 160;
+        sfx.thorn();
+        break;
+      case 'frost':
+        b = new Projectile(this, muzzleX - 6, muzzleY - 3, 12, 6, f * 5.5, 0, 'frost');
+        sfx.freeze();
+        break;
+      case 'cyclone':
+        b = new Projectile(this, muzzleX - 9 + f * 4, p.bottom - 24, 18, 22, f * 1.8, 0, 'cyclone0');
+        b.pierce = true;
+        b.maxLife = 240;
+        sfx.cyclone();
+        break;
+      default:
+        if (charge === 2) {
+          b = new Projectile(this, muzzleX - 11 + f * 4, muzzleY - 7, 22, 14, f * 5, 0, 'charge2');
+          b.pierce = true;
+          b.power = 3;
+          sfx.chargeShot();
+        } else if (charge === 1) {
+          b = new Projectile(this, muzzleX - 5, muzzleY - 4, 10, 8, f * 4.5, 0, 'charge1');
+          b.power = 2;
+          sfx.chargeShot();
+        } else {
+          b = new Projectile(this, muzzleX - 3, muzzleY - 2, 6, 4, f * PHYS.bulletSpeed, 0, 'bullet');
+          sfx.shoot();
+        }
+        b.charge = charge;
     }
     b.weapon = def.id;
-    b.power = def.power;
+    if (def.id !== 'buster') b.power = def.power;
+    b.sprite.setFlipX(f < 0);
     this.bullets.push(b);
     return true;
   }
 
   private stepBullets(): void {
+    const p = this.player;
     for (const b of this.bullets) {
-      if (b.hasGravity) {
-        b.life++;
-        b.x += b.vx;
-        b.vy = Math.min(b.vy + PHYS.gravity, PHYS.maxFall);
-        if (moveY(this.level, b, b.vy, true)) b.vy = 0;
-      } else b.step();
+      switch (b.weapon) {
+        case 'quake':
+          b.life++;
+          b.x += b.vx;
+          b.vy = Math.min(b.vy + PHYS.gravity, PHYS.maxFall);
+          if (moveY(this.level, b, b.vy, true)) b.vy = 0;
+          break;
+        case 'thorn': {
+          // Flies out, slows, then homes back to the player (who catches it).
+          if (b.life < 18) b.vx -= Math.sign(b.vx) * 0.2;
+          else {
+            const dx = p.cx - b.cx;
+            const dy = p.cy - b.cy;
+            const d = Math.max(1, Math.hypot(dx, dy));
+            b.vx = (dx / d) * 4;
+            b.vy = (dy / d) * 4;
+            if (overlaps(b, p)) b.dead = true;
+          }
+          b.step();
+          break;
+        }
+        case 'cyclone':
+          b.step();
+          b.y += Math.sin(b.life * 0.15) * 0.6;
+          b.sprite.setTexture(`cyclone${Math.floor(b.life / 4) % 2}`);
+          break;
+        default:
+          b.step();
+      }
       if (b.stopAtWalls && this.hitsWall(b)) b.dead = true;
+      if (b.maxLife && b.life > b.maxLife) b.dead = true;
+    }
+  }
+
+  // --- enemy shots ------------------------------------------------------------
+
+  spawnEnemyShot(o: ShotOptions): Projectile {
+    const s = new Projectile(this, o.x, o.y, o.w, o.h, o.vx, o.vy, o.tex);
+    s.dmg = o.dmg ?? 2;
+    if (o.gravity) {
+      s.ay = PHYS.gravity;
+      s.diesOnSolid = true;
+    }
+    s.ax = o.ax ?? 0;
+    s.spin = o.spin ?? 0;
+    s.maxLife = o.life ?? 0;
+    s.sprite.setFlipX(o.vx < 0);
+    this.shots.push(s);
+    return s;
+  }
+
+  fireEnemyShot(x: number, y: number, vx: number, vy: number): void {
+    this.spawnEnemyShot({ x: x - 2, y: y - 2, w: 4, h: 4, vx, vy, tex: 'eshot' });
+  }
+
+  /** Ground wave that travels along the floor until it hits a wall. */
+  fireGroundWave(x: number, floorY: number, dir: 1 | -1): void {
+    const s = this.spawnEnemyShot({ x, y: floorY - 12, w: 8, h: 12, vx: dir * 2.5, vy: 0, tex: 'wave', dmg: 3 });
+    s.stopAtWalls = true;
+  }
+
+  private stepShots(): void {
+    for (const s of this.shots) {
+      s.vx += s.ax;
+      s.vy = Math.min(s.vy + s.ay, PHYS.maxFall);
+      s.step();
+      if (s.stopAtWalls && this.hitsWall(s)) s.dead = true;
+      if (s.maxLife && s.life > s.maxLife) s.dead = true;
+      if (s.diesOnSolid && s.vy > 0 && this.level.isSolid(Math.floor(s.cx / TILE), Math.floor((s.y + s.h) / TILE))) {
+        s.dead = true;
+        this.burst(s.cx, s.y + s.h, 'spark', 4);
+      }
     }
   }
 
@@ -298,54 +435,37 @@ export class GameScene extends Phaser.Scene {
     return this.level.isSolid(Math.floor(front / TILE), Math.floor((s.y + s.h / 2) / TILE));
   }
 
-  fireEnemyShot(x: number, y: number, vx: number, vy: number): void {
-    this.shots.push(new Projectile(this, x - 2, y - 2, 4, 4, vx, vy, 'eshot'));
-  }
-
-  fireBossShot(x: number, y: number, vx: number, vy: number): void {
-    const s = new Projectile(this, x - 3, y - 3, 6, 6, vx, vy, 'bshot');
-    s.dmg = 3;
-    this.shots.push(s);
-  }
-
-  /** Ground wave that travels along the floor until it hits a wall. */
-  fireGroundWave(x: number, floorY: number, dir: 1 | -1): void {
-    const s = new Projectile(this, x, floorY - 12, 8, 12, dir * 2.5, 0, 'wave');
-    s.dmg = 3;
-    s.stopAtWalls = true;
-    this.shots.push(s);
-  }
-
   /** Camera shake; `px` is roughly the shake size in game pixels. */
   shake(px: number): void {
     this.cameras.main.shake(200, px / VIEW_W);
   }
 
-  private stepShots(): void {
-    for (const s of this.shots) {
-      s.step();
-      if (s.stopAtWalls && this.hitsWall(s)) s.dead = true;
-    }
-  }
+  // --- collisions ---------------------------------------------------------------
 
   private collide(): void {
     const p = this.player;
     const boss = this.boss;
-    const bossActive = boss && boss.state !== 'dying';
 
     for (const b of this.bullets) {
       if (b.deflected || b.dead) continue;
-      if (bossActive && overlaps(b, boss) && !b.hitTargets.has(boss)) {
+
+      if (boss && boss.state === 'fight' && overlaps(b, boss) && !b.hitTargets.has(boss)) {
         // Shots pass through the boss during its brief post-hit invincibility.
         if (boss.vulnerable) {
-          boss.hit(b.power);
-          sfx.hit();
+          const weak = b.weapon === boss.weakness;
+          const dmg = weak ? WEAKNESS_DAMAGE : b.weapon === 'buster' ? b.power : 1;
+          boss.hit(dmg, weak);
+          if (weak) {
+            sfx.weakHit();
+            this.shake(3);
+          } else sfx.hit();
           if (b.pierce) b.hitTargets.add(boss);
           else b.dead = true;
-          if (boss.state === 'dying') this.startBossDeath();
+          if (boss.hp === 0) this.startBossDeath();
         }
         if (!b.pierce) continue;
       }
+
       for (const e of this.enemies) {
         if (e.hp <= 0 || b.hitTargets.has(e) || !overlaps(b, e)) continue;
         if (e.shielded() && !b.ignoresShield) {
@@ -357,6 +477,10 @@ export class GameScene extends Phaser.Scene {
         e.flash = 8;
         sfx.hit();
         if (e.hp <= 0) this.killEnemy(e);
+        else if (b.weapon === 'frost') {
+          e.frozen = 180;
+          sfx.freeze();
+        }
         if (b.pierce) b.hitTargets.add(e);
         else {
           b.dead = true;
@@ -366,11 +490,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     if (!p.alive) return;
-    for (const e of this.enemies) if (e.hp > 0 && overlaps(p, e)) p.hurt(e.dmg, e.cx);
-    if (bossActive && overlaps(p, boss)) p.hurt(4, boss.cx);
+    for (const e of this.enemies) if (e.hp > 0 && e.harmful() && overlaps(p, e)) p.hurt(e.dmg, e.cx);
+    if (boss && boss.harmful && overlaps(p, boss)) p.hurt(4, boss.cx);
     for (const s of this.shots) {
       if (!s.dead && overlaps(p, s) && p.invuln === 0) {
-        p.hurt(s.dmg, s.x + s.w / 2);
+        p.hurt(s.dmg, s.cx);
         s.dead = true;
       }
     }
@@ -404,7 +528,7 @@ export class GameScene extends Phaser.Scene {
     this.pickups.push(k);
   }
 
-  /** Ammo goes to the equipped weapon, or the emptiest one if the cannon is equipped. */
+  /** Ammo goes to the equipped weapon, or the emptiest one if the Ultra Gun is equipped. */
   private refillAmmo(n: number): void {
     const p = this.player;
     let target: WeaponId | undefined = p.weapon !== 'buster' ? p.weapon : undefined;
@@ -424,6 +548,8 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // --- effects ------------------------------------------------------------------
+
   playerBurst(cx: number, cy: number, tex = 'shard'): void {
     for (let i = 0; i < 14; i++) {
       const a = (i / 14) * Math.PI * 2;
@@ -431,6 +557,23 @@ export class GameScene extends Phaser.Scene {
       this.addEffect(cx, cy, Math.cos(a) * sp, Math.sin(a) * sp - 2, 0.12, 90, false, tex);
     }
     this.addEffect(cx, cy, 0, 0, 0, 20, true);
+  }
+
+  /** A few small particles flying out from a point. */
+  burst(x: number, y: number, tex: string, n: number): void {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const sp = 0.5 + Math.random();
+      this.addEffect(x, y, Math.cos(a) * sp, Math.sin(a) * sp - 0.5, 0.05, 20, false, tex);
+    }
+  }
+
+  /** Wind streak blowing across the screen in direction `dir`. */
+  windStreak(dir: number): void {
+    const x = dir > 0 ? -10 : VIEW_W + 10;
+    const y = 30 + Math.random() * (VIEW_H - 60);
+    const sprite = this.add.image(x, y, 'windline').setDepth(19).setScrollFactor(0).setAlpha(0.7);
+    this.effects.push({ sprite, vx: dir * 7, vy: 0, gravity: 0, life: 70, maxLife: 70, grow: false });
   }
 
   private addEffect(x: number, y: number, vx: number, vy: number, gravity: number, life: number, grow: boolean, tex = 'boom'): void {
@@ -456,22 +599,28 @@ export class GameScene extends Phaser.Scene {
     });
   }
 
-  // --- boss -------------------------------------------------------------------
+  // --- boss ---------------------------------------------------------------------
 
   private trySpawnBoss(): void {
     const at = this.level.boss;
     if (!at || this.boss || this.bossDefeated) return;
-    if (this.level.sectionAt(at.x, at.y - 1) !== this.section) return;
-    // Appears just under the room's 2-tile ceiling and drops to the floor.
-    this.boss = new Boss(this, at, this.section.row * SCREEN_H + 2 * TILE);
+    const sec = this.section;
+    if (this.level.sectionAt(at.x, at.y - 1) !== sec) return;
+    this.boss = createBoss(this.level.data.boss, this, at, {
+      left: sec.x0 * SCREEN_W + TILE,
+      right: (sec.x1 + 1) * SCREEN_W - TILE,
+      top: sec.row * SCREEN_H + 2 * TILE, // under the room's 2-tile ceiling
+      floor: at.y,
+    });
   }
 
   private startBossDeath(): void {
     this.bossDeathT = 1;
+    this.wind = 0;
     for (const s of this.shots) s.dead = true;
   }
 
-  /** Chain of explosions, then a burst, then STAGE CLEAR. */
+  /** Chain of explosions, then a burst, then the weapon get. */
   private stepBossDeath(): void {
     const boss = this.boss;
     if (!boss || this.bossDeathT === 0) return;
@@ -492,19 +641,18 @@ export class GameScene extends Phaser.Scene {
       this.boss = null;
       this.bossDefeated = true;
       this.bossDeathT = 0;
-      const reward = this.level.data.bossWeapon;
-      if (reward) this.startWeaponGet(reward);
-      else this.stageClear();
+      this.startWeaponGet(this.level.data.bossWeapon);
     }
   }
 
-  // --- weapon get -------------------------------------------------------------
+  // --- weapon get ---------------------------------------------------------------
 
   private startWeaponGet(id: WeaponId): void {
-    unlockWeapon(id);
-    if (!this.unlocked.includes(id)) this.unlocked.push(id);
+    recordClear(this.stageId, id);
+    this.unlocked = loadSave().weapons;
     this.player.ammo[id] = MAX_AMMO;
     this.player.heal(PLAYER_MAX_HP);
+    this.player.charge = 0;
     for (const b of this.bullets) b.dead = true;
     this.weaponGetT = 1;
     sfx.clear();
@@ -513,7 +661,7 @@ export class GameScene extends Phaser.Scene {
   /** Hero flashes between old and new colors, then shows the weapon name. */
   private stepWeaponGet(): void {
     const t = this.weaponGetT++;
-    const id = this.level.data.bossWeapon!;
+    const id = this.level.data.bossWeapon;
     const p = this.player;
     p.state = 'idle';
     p.invuln = 0;
@@ -532,7 +680,7 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  // --- doors ------------------------------------------------------------------
+  // --- doors --------------------------------------------------------------------
 
   /** Walking right into a boss door opens it. */
   private checkDoors(): void {
@@ -555,6 +703,7 @@ export class GameScene extends Phaser.Scene {
         startX: p.x,
         endX,
       };
+      p.charge = 0;
       return;
     }
   }
@@ -602,6 +751,7 @@ export class GameScene extends Phaser.Scene {
       if (seq.t >= (height + 1) * DOOR_TILE_FRAMES) {
         this.doorSeq = null;
         this.player.state = 'idle';
+        this.player.vx = 0;
         for (const s of this.level.spawns) s.armed = true;
         this.trySpawnBoss();
       }
@@ -620,7 +770,10 @@ export class GameScene extends Phaser.Scene {
     // The player can't leave the section sideways.
     const minX = sec.x0 * SCREEN_W;
     const maxX = (sec.x1 + 1) * SCREEN_W - p.w;
-    p.x = Phaser.Math.Clamp(p.x, minX, maxX);
+    if (p.x < minX || p.x > maxX) {
+      p.x = Phaser.Math.Clamp(p.x, minX, maxX);
+      p.vx = 0;
+    }
 
     if (p.cy > bottom || p.cy < top) {
       const next = this.level.sectionAt(p.cx, p.cy);
@@ -693,7 +846,8 @@ export class GameScene extends Phaser.Scene {
 
   private cull(): void {
     const view: Box = { x: this.camX - 24, y: this.camY - 24, w: VIEW_W + 48, h: VIEW_H + 48 };
-    const tight: Box = { x: this.camX, y: this.camY, w: VIEW_W, h: VIEW_H };
+    // Shots may briefly go above the screen (lobbed seeds, deflected bullets).
+    const tight: Box = { x: this.camX, y: this.camY - 64, w: VIEW_W, h: VIEW_H + 64 };
 
     this.enemies = this.enemies.filter((e) => {
       const gone = e.hp <= 0 || !overlaps(e, view);
@@ -735,6 +889,7 @@ export class GameScene extends Phaser.Scene {
     this.boss?.destroy();
     this.boss = null;
     this.bossDeathT = 0;
+    this.wind = 0;
     for (const s of this.level.spawns) {
       s.alive = false;
       s.armed = true;
@@ -790,42 +945,56 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** Pause menu = weapon select. Up/down switches the equipped weapon live. */
+  /** Pause menu: weapon select (moving the cursor equips) plus EXIT STAGE. */
   private buildPauseMenu(): void {
     const layer = this.pauseLayer;
     layer.removeAll(true);
     const p = this.player;
     const style = { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0' };
-    const rowH = 16;
-    const h = 56 + this.unlocked.length * rowH;
+    const rowH = 14;
+    const items = this.unlocked.length + 1;
+    const h = 70 + items * rowH;
     const top = VIEW_H / 2 - h / 2;
-    const left = VIEW_W / 2 - 90;
-    layer.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, 180, h, 0x000000, 0.85).setStrokeStyle(1, 0x5ef0c8));
+    const left = VIEW_W / 2 - 100;
+    layer.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, 200, h, 0x000000, 0.88).setStrokeStyle(1, 0x5ef0c8));
     layer.add(this.add.text(VIEW_W / 2, top + 14, 'PAUSED', { ...style, fontSize: '16px' }).setOrigin(0.5));
     const bars = this.add.graphics();
     layer.add(bars);
     this.unlocked.forEach((id, i) => {
-      const y = top + 34 + i * rowH;
+      const y = top + 32 + i * rowH;
       const def = WEAPONS[id];
-      const selected = id === p.weapon;
+      const selected = i === this.pauseIndex;
       layer.add(this.add.text(left + 12, y, `${selected ? '>' : ' '} ${def.name}`, { ...style, color: selected ? '#fff1e0' : '#8a8fa8' }));
-      // Ammo bar (unlimited for the arm cannon).
       const value = def.cost === 0 ? MAX_AMMO : p.ammo[id];
       for (let u = 0; u < MAX_AMMO; u++) {
-        bars.fillStyle(u < value ? def.colors.main : 0x3a3550, 1).fillRect(left + 108 + u * 2, y + 2, 1, 6);
+        bars.fillStyle(u < value ? def.colors.main : 0x3a3550, 1).fillRect(left + 120 + u * 2, y + 2, 1, 6);
       }
     });
-    layer.add(this.add.text(VIEW_W / 2, top + h - 12, 'UP/DOWN select   ENTER resume', { ...style, color: '#8a8fa8' }).setOrigin(0.5));
+    const exitY = top + 32 + this.unlocked.length * rowH + 4;
+    const onExit = this.pauseIndex === this.unlocked.length;
+    layer.add(this.add.text(left + 12, exitY, `${onExit ? '>' : ' '} EXIT STAGE`, { ...style, color: onExit ? '#ff9a7a' : '#8a8fa8' }));
+    const hint = onExit ? 'Z / X to leave the stage' : WEAPONS[this.unlocked[this.pauseIndex]].blurb;
+    layer.add(this.add.text(VIEW_W / 2, top + h - 22, hint, { ...style, color: '#5ef0c8' }).setOrigin(0.5));
+    layer.add(this.add.text(VIEW_W / 2, top + h - 10, 'UP/DOWN select   ENTER resume', { ...style, color: '#8a8fa8' }).setOrigin(0.5));
   }
 
   private stepPauseMenu(): void {
     const c = this.controls;
+    const count = this.unlocked.length + 1;
     const dir = (c.justPressed('down') ? 1 : 0) - (c.justPressed('up') ? 1 : 0);
-    if (dir === 0 || this.unlocked.length < 2) return;
-    const i = this.unlocked.indexOf(this.player.weapon);
-    this.player.weapon = this.unlocked[(i + dir + this.unlocked.length) % this.unlocked.length];
-    sfx.tick();
-    this.buildPauseMenu();
+    if (dir !== 0) {
+      this.pauseIndex = (this.pauseIndex + dir + count) % count;
+      const w = this.unlocked[this.pauseIndex];
+      if (w) {
+        this.player.weapon = w;
+        this.player.charge = 0;
+      }
+      sfx.tick();
+      this.buildPauseMenu();
+    }
+    if (this.pauseIndex === this.unlocked.length && (c.justPressed('jump') || c.justPressed('fire'))) {
+      sfx.select();
+      this.scene.start('select');
+    }
   }
-
 }

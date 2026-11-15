@@ -1,15 +1,21 @@
-import type { WeaponId } from '../weapons';
 import { SCREEN_COLS, SCREEN_H, SCREEN_ROWS, SCREEN_W, TILE } from '../constants';
+import type { WeaponId } from '../weapons';
 
 /**
  * A stage is a grid of screens (16x15 tiles each). Each screen is ASCII art:
  *
- *   .  empty       #  solid      H  ladder     ^  spikes (solid, deadly)
+ *   .  empty       #  solid      H  ladder / vine    ^  spikes (solid, deadly)
+ *   I  ice (solid, slippery)     C  cloud (one-way platform: stand on it, jump up through it)
  *   D  boss door (solid; opens when the player walks into it from the left)
- *   P  player start              c  checkpoint *  goal
- *   B  checkpoint that is also the "Boss test" start
+ *   P  player start              c  checkpoint       *  goal
+ *   B  checkpoint that is also the "boss test" start
  *   X  boss (in the boss room)
- *   w  walker   h  hopper   f  flyer   t  turret (shielded)
+ *
+ * Enemies:
+ *   w  walker    h  hopper     f  flyer      t  turret (shielded)
+ *   l  lurker (camouflaged)    s  spitter plant
+ *   p  slider (ice)            i  icicle (hangs, drops when you pass under)
+ *   b  bomber (drops eggs)     z  sparker (cloud rider, drops lightning)
  *
  * The layout places screens; '.' in the layout is an unused screen.
  * Each horizontal run of used screens is a camera "section": the camera
@@ -17,10 +23,19 @@ import { SCREEN_COLS, SCREEN_H, SCREEN_ROWS, SCREEN_W, TILE } from '../constants
  * '|' in the layout splits a run into two sections without a gap (use it
  * where a boss door separates two screens).
  */
+
+export type StageId = 'foundry' | 'canopy' | 'glacier' | 'stratos';
+export type ThemeId = 'foundry' | 'jungle' | 'ice' | 'sky';
+export type BossKind = 'anvil' | 'mantis' | 'frostline' | 'gale';
+
 export interface StageData {
+  id: StageId;
   name: string;
+  theme: ThemeId;
+  boss: BossKind;
+  bossName: string;
   /** Weapon earned by beating this stage's boss. */
-  bossWeapon?: WeaponId;
+  bossWeapon: WeaponId;
   screens: Record<string, string[]>;
   layout: string[];
 }
@@ -31,6 +46,8 @@ export enum Tile {
   Ladder = 2,
   Spike = 3,
   Door = 4,
+  Ice = 5,
+  Cloud = 6,
 }
 
 /** A vertical boss-door column, rows r0..r1 inclusive. */
@@ -40,7 +57,7 @@ export interface Door {
   r1: number;
 }
 
-export type EnemyKind = 'walker' | 'hopper' | 'flyer' | 'turret';
+export type EnemyKind = 'walker' | 'hopper' | 'flyer' | 'turret' | 'lurker' | 'spitter' | 'slider' | 'icicle' | 'bomber' | 'sparker';
 
 export interface Spawn {
   kind: EnemyKind;
@@ -61,7 +78,29 @@ export interface Point {
   y: number;
 }
 
-const ENEMY_CHARS: Record<string, EnemyKind> = { w: 'walker', h: 'hopper', f: 'flyer', t: 'turret' };
+const ENEMY_CHARS: Record<string, EnemyKind> = {
+  w: 'walker',
+  h: 'hopper',
+  f: 'flyer',
+  t: 'turret',
+  l: 'lurker',
+  s: 'spitter',
+  p: 'slider',
+  i: 'icicle',
+  b: 'bomber',
+  z: 'sparker',
+};
+
+const TILE_CHARS: Record<string, Tile> = {
+  '#': Tile.Solid,
+  H: Tile.Ladder,
+  '^': Tile.Spike,
+  D: Tile.Door,
+  I: Tile.Ice,
+  C: Tile.Cloud,
+};
+
+const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*']);
 
 export class Level {
   readonly cols: number;
@@ -126,29 +165,26 @@ export class Level {
   }
 
   private loadScreen(id: string, screen: string[], sx: number, sy: number): void {
-    if (screen.length !== SCREEN_ROWS) throw new Error(`Screen "${id}" needs ${SCREEN_ROWS} rows, has ${screen.length}`);
+    const where = `Stage "${this.data.name}" screen "${id}"`;
+    if (screen.length !== SCREEN_ROWS) throw new Error(`${where} needs ${SCREEN_ROWS} rows, has ${screen.length}`);
     screen.forEach((row, r) => {
-      if (row.length !== SCREEN_COLS) throw new Error(`Screen "${id}" row ${r} needs ${SCREEN_COLS} chars, has ${row.length}`);
+      if (row.length !== SCREEN_COLS) throw new Error(`${where} row ${r} needs ${SCREEN_COLS} chars, has ${row.length}`);
       for (let c = 0; c < SCREEN_COLS; c++) {
         const ch = row[c];
         const gc = sx * SCREEN_COLS + c;
         const gr = sy * SCREEN_ROWS + r;
         const cx = gc * TILE + TILE / 2;
         const bottom = (gr + 1) * TILE;
-        let t = Tile.Empty;
-        if (ch === '#') t = Tile.Solid;
-        else if (ch === 'H') t = Tile.Ladder;
-        else if (ch === '^') t = Tile.Spike;
-        else if (ch === 'D') t = Tile.Door;
-        else if (ch === 'X') this.boss = { x: cx, y: bottom };
+        const t = TILE_CHARS[ch] ?? Tile.Empty;
+        if (ch === 'X') this.boss = { x: cx, y: bottom };
         else if (ch === 'B') {
           this.bossTestStart = { x: cx, y: bottom };
           this.checkpoints.push({ x: cx, y: bottom });
-        }
-        else if (ch === 'P') this.playerStart = { x: cx, y: bottom };
+        } else if (ch === 'P') this.playerStart = { x: cx, y: bottom };
         else if (ch === 'c') this.checkpoints.push({ x: cx, y: bottom });
         else if (ch === '*') this.goal = { x: cx, y: bottom };
         else if (ENEMY_CHARS[ch]) this.spawns.push({ kind: ENEMY_CHARS[ch], x: cx, y: bottom, alive: false, armed: true });
+        else if (t === Tile.Empty && !MARKERS.has(ch)) throw new Error(`${where} row ${r}: unknown character "${ch}"`);
         this.tiles[gr * this.cols + gc] = t;
       }
     });
@@ -162,17 +198,21 @@ export class Level {
 
   isSolid(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    return t === Tile.Solid || t === Tile.Spike || t === Tile.Door;
+    return t === Tile.Solid || t === Tile.Spike || t === Tile.Door || t === Tile.Ice;
   }
 
-  /** Solid ground an enemy is willing to walk on (not spikes). */
+  /** Ground an enemy is willing to walk on (not spikes). */
   isFloor(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    return t === Tile.Solid || t === Tile.Door || this.isLadderTop(c, r);
+    return t === Tile.Solid || t === Tile.Door || t === Tile.Ice || this.isPlatform(c, r);
   }
 
   isSpike(c: number, r: number): boolean {
     return this.tileAt(c, r) === Tile.Spike;
+  }
+
+  isIce(c: number, r: number): boolean {
+    return this.tileAt(c, r) === Tile.Ice;
   }
 
   isLadder(c: number, r: number): boolean {
@@ -181,6 +221,11 @@ export class Level {
 
   isLadderTop(c: number, r: number): boolean {
     return this.isLadder(c, r) && !this.isLadder(c, r - 1);
+  }
+
+  /** One-way platforms: ladder tops and clouds. */
+  isPlatform(c: number, r: number): boolean {
+    return this.tileAt(c, r) === Tile.Cloud || this.isLadderTop(c, r);
   }
 
   sectionAt(px: number, py: number): Section | null {

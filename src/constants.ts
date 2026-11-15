@@ -26,6 +26,11 @@ export const PHYS = {
   hurtFrames: 24, // loss of control after a hit
   invulnFrames: 90, // flashing invincibility after a hit
   knockback: 0.6,
+  // Ice: speed changes by at most this much per step, so you slide.
+  iceAccel: 0.035,
+  // Ultra Gun charge: frames of holding fire for a half / full charge.
+  chargeMid: 28,
+  chargeFull: 72,
 };
 
 export const PLAYER_MAX_HP = 28;

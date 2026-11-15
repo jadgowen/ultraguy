@@ -27,6 +27,7 @@ export class Controls {
   // than one step is never lost.
   private latched = new Set<Action>();
   private pressed = new Set<Action>();
+  private released = new Set<Action>();
 
   constructor(private scene: Phaser.Scene, bindings: Record<Action, number[]> = DEFAULT_KEYS) {
     const kb = scene.input.keyboard!;
@@ -71,6 +72,8 @@ export class Controls {
       if ((this.held.has(a) && !this.prev.has(a)) || this.latched.has(a)) this.pressed.add(a);
     }
     this.latched.clear();
+    this.released.clear();
+    for (const a of this.prev) if (!this.held.has(a)) this.released.add(a);
   }
 
   isDown(a: Action): boolean {
@@ -79,5 +82,9 @@ export class Controls {
 
   justPressed(a: Action): boolean {
     return this.pressed.has(a);
+  }
+
+  justReleased(a: Action): boolean {
+    return this.released.has(a);
   }
 }

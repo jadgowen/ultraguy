@@ -42,7 +42,7 @@ export function moveX(level: Level, b: Box, dx: number): boolean {
 }
 
 /**
- * Move vertically against solid tiles. Ladder tops act as one-way platforms
+ * Move vertically against solid tiles. Ladder tops and clouds act as one-way platforms
  * when `oneWay` is set (you can stand on them, but climb/jump through).
  * Returns true if blocked.
  */
@@ -56,7 +56,7 @@ export function moveY(level: Level, b: Box, dy: number, oneWay: boolean): boolea
     const row = Math.floor((b.y + b.h - EPS) / TILE);
     for (let c = c0; c <= c1; c++) {
       const solid = level.isSolid(c, row);
-      const platform = oneWay && level.isLadderTop(c, row) && prevBottom <= row * TILE + EPS;
+      const platform = oneWay && level.isPlatform(c, row) && prevBottom <= row * TILE + EPS;
       if (solid || platform) {
         b.y = row * TILE - b.h;
         return true;
@@ -75,15 +75,22 @@ export function moveY(level: Level, b: Box, dy: number, oneWay: boolean): boolea
 }
 
 /**
- * Spike hitbox: inset from the tile sides, so standing at the edge of a ledge
- * next to spikes (or brushing a corner on a jump) is safe. Spikes are solid,
- * so the player can never overlap one; the box is grown 1px vertically to
- * count standing on (or bonking) the spike as a touch.
+ * Spike hitbox, forgiving on both sides so a jump over a spike pit isn't
+ * decided by a pixel:
+ *  - the deadly part of each spike tile is inset SPIKE_INSET_X from its sides;
+ *  - the body checked against spikes is the player's box minus BODY_INSET_X on
+ *    each side, so toes can overhang spikes on takeoff and landing.
+ * Spikes are solid, so the player can never overlap one; the probe is grown
+ * 1px vertically to count standing on (or bonking) a spike as a touch.
+ *
+ * Worked example: a 3-tile (48px) pit needs 46px of travel to clear; a full
+ * running jump covers ~53.6px.
  */
 export const SPIKE_INSET_X = 4;
+export const SPIKE_BODY_INSET_X = 3;
 
 export function touchesSpike(level: Level, b: Box): boolean {
-  const probe: Box = { x: b.x, y: b.y - 1, w: b.w, h: b.h + 2 };
+  const probe: Box = { x: b.x + SPIKE_BODY_INSET_X, y: b.y - 1, w: b.w - SPIKE_BODY_INSET_X * 2, h: b.h + 2 };
   const c0 = Math.floor(probe.x / TILE);
   const c1 = Math.floor((probe.x + probe.w - EPS) / TILE);
   const r0 = Math.floor(probe.y / TILE);
@@ -95,5 +102,14 @@ export function touchesSpike(level: Level, b: Box): boolean {
       if (overlaps(probe, hit)) return true;
     }
   }
+  return false;
+}
+
+/** True if the box is standing on at least one ice tile. */
+export function standingOnIce(level: Level, b: Box): boolean {
+  const row = Math.floor((b.y + b.h + 0.5) / TILE);
+  const c0 = Math.floor(b.x / TILE);
+  const c1 = Math.floor((b.x + b.w - EPS) / TILE);
+  for (let c = c0; c <= c1; c++) if (level.isIce(c, row)) return true;
   return false;
 }
