@@ -42,3 +42,9 @@ export const PHYS = {
 };
 
 export const PLAYER_MAX_HP = 28;
+
+/**
+ * Testing shortcuts (boss test from boss select). On in the dev server
+ * (`npm run dev`), off in builds, so the hosted game doesn't have them.
+ */
+export const DEV_TOOLS = import.meta.env.DEV;

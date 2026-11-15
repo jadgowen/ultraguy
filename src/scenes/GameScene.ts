@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { playMusic, stageMusic, stopMusic } from '../audio';
-import { PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
+import { DEV_TOOLS, PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
 import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
 import { Player } from '../entities/Player';
 import { Boss, Miniboss, Room, createBoss } from '../entities/bosses';
@@ -209,7 +209,7 @@ export class GameScene extends Phaser.Scene {
 
     const stage = getStage(this.stageId);
     this.level = new Level(stage);
-    const start = data?.bossTest && this.level.bossTestStart ? this.level.bossTestStart : this.level.playerStart;
+    const start = DEV_TOOLS && data?.bossTest && this.level.bossTestStart ? this.level.bossTestStart : this.level.playerStart;
     this.checkpoint = { ...start };
 
     const theme = THEMES[stage.theme];

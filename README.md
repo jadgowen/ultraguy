@@ -44,7 +44,7 @@ its built-in synthesized sound effects. Regenerate one item with `npm run audio 
 Keys can be remapped in Settings -> Controls (ESC cancels; ESC and Backspace can't be bound). Settings also
 has a mixer for music and sound-effect volume. Settings are shared by all save slots.
 
-Boss select: arrows pick a boss, Enter/Z starts the stage, X starts at the boss door (boss test), Backspace goes back.
+Boss select: arrows pick a boss, Enter/Z starts the stage, X starts at the boss door (boss test; only in the dev server, not in builds), Backspace goes back.
 
 ## Deploy
 Live at https://jadgowen.github.io/ultraguy/. `npm run deploy` builds (typecheck, tests, Vite) and

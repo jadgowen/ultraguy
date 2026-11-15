@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW_H, VIEW_W } from '../constants';
+import { DEV_TOOLS, VIEW_H, VIEW_W } from '../constants';
 import { heroFrames } from '../heroSprites';
 import type { BossStageId } from '../level/Level';
 import { ALL_BOSS_STAGES, BOSS_STAGES, STAGE_GRID } from '../level/stages';
@@ -73,7 +73,8 @@ export class StageSelectScene extends MenuScene {
         .setOrigin(0.5, 0);
     });
 
-    this.add.text(VIEW_W / 2, VIEW_H - 10, 'ARROWS choose   ENTER/Z start   X boss test   BKSP back', small).setOrigin(0.5);
+    const hint = DEV_TOOLS ? 'ARROWS choose   ENTER/Z start   X boss test   BKSP back' : 'ARROWS choose   ENTER/Z start   BKSP back';
+    this.add.text(VIEW_W / 2, VIEW_H - 10, hint, small).setOrigin(0.5);
     this.launchText = this.add
       .text(VIEW_W / 2, VIEW_H / 2, '', { fontFamily: FONT, fontSize: '16px', color: '#fff1e0', backgroundColor: '#000000', align: 'center', padding: { x: 8, y: 6 } })
       .setOrigin(0.5)
@@ -131,7 +132,7 @@ export class StageSelectScene extends MenuScene {
       return false;
     }
     if (this.confirmed()) this.launch(id, false);
-    else if (c.justPressed('fire')) this.launch(id, true);
+    else if (DEV_TOOLS && c.justPressed('fire')) this.launch(id, true); // boss test: dev server only
     return false;
   }
 
