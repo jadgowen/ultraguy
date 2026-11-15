@@ -3,7 +3,8 @@ import { PHYS, PLAYER_MAX_HP, TILE } from '../constants';
 import { moveX, moveY, touchesSpike } from '../physics';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
-import { MAX_AMMO, WEAPON_ORDER, WeaponId, heroPrefix } from '../weapons';
+import { heroFrames } from '../heroSprites';
+import { MAX_AMMO, WEAPON_ORDER, WeaponId, heroTexture } from '../weapons';
 
 export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'climb' | 'hurt' | 'dead';
 
@@ -34,9 +35,11 @@ export class Player {
   private climbT = 0;
   private ladderCol = 0;
   readonly sprite: Phaser.GameObjects.Image;
+  private readonly frames: Record<string, number>;
 
   constructor(private g: GameScene) {
-    this.sprite = g.add.image(0, 0, 'p_idle').setOrigin(0.5, 1).setDepth(10);
+    this.frames = heroFrames(g);
+    this.sprite = g.add.image(0, 0, heroTexture('buster'), this.frames.idle).setOrigin(0.5, 1).setDepth(10);
   }
 
   get cx(): number {
@@ -248,33 +251,31 @@ export class Player {
 
   render(): void {
     if (this.state === 'dead') return;
-    const s = this.shootPose > 0;
-    let key: string;
+    const s = this.shootPose > 0 ? '_s' : '';
+    let name: string;
     let flip = this.facing < 0;
     switch (this.state) {
       case 'hurt':
-        key = 'p_hurt';
+        name = 'hurt';
         break;
       case 'climb':
-        if (s) key = 'p_jump_s';
+        if (s) name = 'climb_s';
         else {
-          key = 'p_climb';
-          flip = Math.floor(this.climbT / 8) % 2 === 1;
+          name = 'climb';
+          flip = Math.floor(this.climbT / 8) % 2 === 1; // climbing "animation" = mirror
         }
         break;
       case 'jump':
       case 'fall':
-        key = s ? 'p_jump_s' : 'p_jump';
+        name = `jump${s}`;
         break;
-      case 'run': {
-        const cycle = ['run1', 'run2', 'run3', 'run2'][Math.floor(this.animT / 7) % 4];
-        key = `p_${cycle}${s ? '_s' : ''}`;
+      case 'run':
+        name = ['run1', 'run2', 'run3', 'run2'][Math.floor(this.animT / 7) % 4] + s;
         break;
-      }
       default:
-        key = s ? 'p_idle_s' : 'p_idle';
+        name = `idle${s}`;
     }
-    this.sprite.setTexture(heroPrefix(this.weapon) + key);
+    this.sprite.setTexture(heroTexture(this.weapon), this.frames[name]);
     this.sprite.setFlipX(flip);
     this.sprite.setPosition(Math.round(this.cx), Math.round(this.bottom));
     // Flicker while invincible (but stay solid during the knockback pose).

@@ -1,0 +1,19 @@
+{
+  "frameWidth": 24,
+  "frameHeight": 24,
+  "frames": {
+    "idle": 0,
+    "idle_s": 1,
+    "run1": 2,
+    "run2": 3,
+    "run3": 4,
+    "run1_s": 5,
+    "run2_s": 6,
+    "run3_s": 7,
+    "jump": 8,
+    "jump_s": 9,
+    "climb": 10,
+    "climb_s": 11,
+    "hurt": 12
+  }
+}

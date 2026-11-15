@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import { WEAPONS, WEAPON_ORDER, heroPrefix } from './weapons';
 
 /**
  * Placeholder art drawn with rectangles at boot. Every texture key here can be
@@ -35,75 +34,6 @@ function rect(g: Phaser.GameObjects.Graphics, color: number, x: number, y: numbe
   g.fillRect(x, y, w, h);
 }
 
-type HeroPose = 'idle' | 'run1' | 'run2' | 'run3' | 'jump' | 'climb' | 'hurt';
-
-/** Hero frame, 24x24, facing right, body centered so flipX mirrors cleanly. */
-function drawHero(g: Phaser.GameObjects.Graphics, pose: HeroPose, shoot: boolean, pal: { main: number; dark: number }): void {
-  const o = 4; // body x offset inside the 24px frame
-  const back = pose === 'climb';
-
-  // Helmet
-  rect(g, pal.main, o + 4, 1, 8, 8);
-  rect(g, C.dark, o + 7, 0, 2, 2);
-  if (!back) rect(g, pose === 'hurt' ? C.white : C.visor, o + 8, 3, 4, 3);
-  rect(g, C.dark, o + 4, 8, 8, 1);
-
-  // Torso
-  rect(g, pal.main, o + 3, 9, 10, 7);
-  rect(g, C.dark, o + 3, 14, 10, 2);
-  if (!back) rect(g, C.visor, o + 7, 10, 2, 2);
-
-  // Arms
-  if (shoot) {
-    rect(g, pal.dark, o + 1, 9, 3, 6);
-    rect(g, pal.dark, o + 12, 10, 5, 3);
-    rect(g, C.gray, o + 16, 9, 4, 5);
-    rect(g, C.dark, o + 19, 10, 1, 3);
-  } else if (pose === 'climb') {
-    rect(g, pal.dark, o + 1, 3, 3, 7);
-    rect(g, pal.dark, o + 12, 9, 3, 6);
-  } else if (pose === 'hurt') {
-    rect(g, pal.dark, o + 0, 4, 3, 6);
-    rect(g, pal.dark, o + 13, 4, 3, 6);
-  } else if (pose === 'jump') {
-    rect(g, pal.dark, o + 1, 9, 3, 5);
-    rect(g, pal.dark, o + 12, 4, 3, 7);
-  } else {
-    rect(g, pal.dark, o + 1, 9, 3, 6);
-    rect(g, pal.dark, o + 12, 9, 3, 6);
-  }
-
-  // Legs
-  const leg = (x: number, h: number, bootX: number, bootY: number, bootW: number) => {
-    rect(g, C.dark, o + x, 16, 3, h);
-    rect(g, pal.main, o + bootX, bootY, bootW, 3);
-  };
-  switch (pose) {
-    case 'run1':
-      leg(3, 5, 1, 20, 4);
-      leg(10, 5, 11, 21, 5);
-      break;
-    case 'run2':
-      leg(6, 6, 5, 21, 6);
-      break;
-    case 'run3':
-      leg(4, 6, 3, 21, 4);
-      leg(9, 4, 10, 19, 5);
-      break;
-    case 'jump':
-      leg(3, 4, 2, 19, 4);
-      leg(10, 3, 10, 18, 5);
-      break;
-    case 'climb':
-      leg(4, 7, 3, 21, 4);
-      leg(9, 4, 9, 18, 4);
-      break;
-    default:
-      leg(4, 6, 3, 21, 5);
-      leg(9, 6, 9, 21, 5);
-  }
-}
-
 export function generateTextures(scene: Phaser.Scene): void {
   // Tileset: 0 solid, 1 ladder, 2 spike, 3 boss door
   make(scene, 'tiles', 64, 16, (g) => {
@@ -132,17 +62,6 @@ export function generateTextures(scene: Phaser.Scene): void {
     g.fillTriangle(36, 16, 36, 4, 40, 16);
     g.fillTriangle(44, 16, 44, 4, 48, 16);
   });
-
-  const poses: HeroPose[] = ['idle', 'run1', 'run2', 'run3', 'jump', 'climb', 'hurt'];
-  // One recolored set of hero frames per weapon (prefix '' for the arm cannon).
-  for (const w of WEAPON_ORDER) {
-    const pre = heroPrefix(w);
-    const pal = WEAPONS[w].colors;
-    for (const p of poses) {
-      make(scene, `${pre}p_${p}`, 24, 24, (g) => drawHero(g, p, false, pal));
-      if (p !== 'climb' && p !== 'hurt') make(scene, `${pre}p_${p}_s`, 24, 24, (g) => drawHero(g, p, true, pal));
-    }
-  }
 
   make(scene, 'bullet', 6, 4, (g) => {
     rect(g, C.yellow, 0, 1, 6, 2);

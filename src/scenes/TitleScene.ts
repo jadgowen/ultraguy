@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
 import { STEP_MS, VIEW_H, VIEW_W } from '../constants';
 import { Controls } from '../input';
+import { heroFrames } from '../heroSprites';
 import { clearSave, loadSave } from '../save';
+import { heroTexture } from '../weapons';
 import { sfx, unlockAudio } from '../sfx';
 import type { GameSceneData } from './GameScene';
 
@@ -33,7 +35,7 @@ export class TitleScene extends Phaser.Scene {
 
     const font = 'monospace';
     this.add.text(VIEW_W / 2, 50, 'ULTRAGUY', { fontFamily: font, fontSize: '32px', color: '#f28c28', fontStyle: 'bold' }).setOrigin(0.5);
-    this.add.image(VIEW_W / 2, 100, 'p_idle_s').setScale(2);
+    this.add.image(VIEW_W / 2, 100, heroTexture('buster'), heroFrames(this).idle_s).setScale(2);
 
     this.items = OPTIONS.map((o, i) =>
       this.add.text(VIEW_W / 2 - 30, 136 + i * 14, o.label, { fontFamily: font, fontSize: '12px', color: '#fff1e0' }),

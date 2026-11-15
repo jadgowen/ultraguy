@@ -8,7 +8,8 @@ export type WeaponId = 'buster' | 'quake';
 export interface WeaponDef {
   id: WeaponId;
   name: string;
-  colors: { main: number; dark: number };
+  /** Hero recolor: armor ramp (light/main/dark) and undersuit (suit/suitLight). */
+  colors: HeroColors;
   /** Ammo units used per shot (0 = unlimited). */
   cost: number;
   /** Max shots of this weapon on screen at once. */
@@ -17,13 +18,33 @@ export interface WeaponDef {
   power: number;
 }
 
+export interface HeroColors {
+  light: number;
+  main: number;
+  dark: number;
+  suit: number;
+  suitLight: number;
+}
+
+/**
+ * The colors public/assets/hero.png is drawn in (must match art/hero.mjs).
+ * Weapons recolor the sheet by swapping these exact values.
+ */
+export const HERO_BASE_COLORS: HeroColors = {
+  light: 0xffc070,
+  main: 0xf28c28,
+  dark: 0xb85a1a,
+  suit: 0x2b2540,
+  suitLight: 0x4a4068,
+};
+
 export const MAX_AMMO = 28;
 
 export const WEAPONS: Record<WeaponId, WeaponDef> = {
   buster: {
     id: 'buster',
     name: 'ARM CANNON',
-    colors: { main: 0xf28c28, dark: 0xb85a1a },
+    colors: HERO_BASE_COLORS,
     cost: 0,
     maxOnScreen: 3,
     power: 1,
@@ -33,7 +54,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
   quake: {
     id: 'quake',
     name: 'QUAKE WAVE',
-    colors: { main: 0xc8ccd8, dark: 0x9c2f3f },
+    colors: { light: 0xf4f6fb, main: 0xc8ccd8, dark: 0x8a8fa8, suit: 0x9c2f3f, suitLight: 0xc8505f },
     cost: 2,
     maxOnScreen: 1,
     power: 2,
@@ -43,7 +64,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
 /** Display order in the pause menu. */
 export const WEAPON_ORDER: WeaponId[] = ['buster', 'quake'];
 
-/** Texture key prefix for the hero recolored for this weapon. */
-export function heroPrefix(id: WeaponId): string {
-  return id === 'buster' ? '' : `${id}_`;
+/** Texture key of the hero sheet recolored for this weapon. */
+export function heroTexture(id: WeaponId): string {
+  return `hero_${id}`;
 }
