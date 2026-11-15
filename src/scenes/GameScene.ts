@@ -7,7 +7,9 @@ import { Controls } from '../input';
 import { Door, Level, Point, Section, Tile } from '../level/Level';
 import { STAGE_1 } from '../level/stage1';
 import { Box, moveY, overlaps } from '../physics';
+import { loadSave, unlockWeapon } from '../save';
 import { sfx } from '../sfx';
+import { MAX_AMMO, WEAPONS, WeaponId } from '../weapons';
 
 const TRANSITION_FRAMES = 64;
 const DOOR_PAN_FRAMES = 80;
@@ -45,6 +47,7 @@ interface DoorSequence {
 
 interface Pickup extends Projectile {
   heal: number;
+  ammo: number;
 }
 
 interface Effect {
@@ -71,6 +74,9 @@ export class GameScene extends Phaser.Scene {
   private boss: Boss | null = null;
   private bossDefeated = false;
   private bossDeathT = 0;
+  /** Weapons earned so far (from the save). */
+  private unlocked: WeaponId[] = ['buster'];
+  private weaponGetT = 0;
 
   private section!: Section;
   private camX = 0;
@@ -105,6 +111,8 @@ export class GameScene extends Phaser.Scene {
     this.boss = null;
     this.bossDefeated = false;
     this.bossDeathT = 0;
+    this.weaponGetT = 0;
+    this.unlocked = loadSave().weapons;
     this.acc = 0;
     this.paused = false;
     this.transition = null;
@@ -135,9 +143,10 @@ export class GameScene extends Phaser.Scene {
     this.banner = this.add
       .text(VIEW_W / 2, VIEW_H / 2 - 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#fff1e0' })
       .setOrigin(0.5)
+      .setAlign('center')
       .setScrollFactor(0)
       .setDepth(60);
-    this.pauseLayer = this.buildPauseLayer();
+    this.pauseLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(70).setVisible(false);
 
     this.respawn();
   }
@@ -169,13 +178,21 @@ export class GameScene extends Phaser.Scene {
       if (this.readyTimer === 0) this.banner.setVisible(false);
       return;
     }
-    const cutscene = this.transition || this.doorSeq || this.boss?.inIntro;
+    if (this.weaponGetT > 0) {
+      this.stepWeaponGet();
+      return;
+    }
+    const cutscene = this.transition || this.doorSeq || this.boss?.inIntro || this.bossDeathT > 0;
     if (this.controls.justPressed('start') && !cutscene && this.player.alive) {
       this.paused = !this.paused;
+      if (this.paused) this.buildPauseMenu();
       this.pauseLayer.setVisible(this.paused);
       sfx.select();
     }
-    if (this.paused) return;
+    if (this.paused) {
+      this.stepPauseMenu();
+      return;
+    }
 
     if (this.transition) {
       this.stepTransition();
@@ -200,7 +217,7 @@ export class GameScene extends Phaser.Scene {
 
     for (const e of this.enemies) e.step();
     this.boss?.step();
-    for (const b of this.bullets) b.step();
+    this.stepBullets();
     this.stepShots();
     this.stepPickups();
     this.stepEffects();
@@ -233,12 +250,52 @@ export class GameScene extends Phaser.Scene {
 
   // --- combat -----------------------------------------------------------------
 
-  /** Returns false when the on-screen bullet limit is reached. */
-  firePlayerBullet(x: number, y: number, dir: 1 | -1): boolean {
-    if (this.bullets.length >= PHYS.maxBullets) return false;
-    this.bullets.push(new Projectile(this, x - 3, y - 2, 6, 4, dir * PHYS.bulletSpeed, 0, 'bullet'));
-    sfx.shoot();
+  /**
+   * Fire the player's equipped weapon. Returns false (no shot) when that
+   * weapon's on-screen limit is reached or it's out of ammo.
+   */
+  fireWeapon(): boolean {
+    const p = this.player;
+    const def = WEAPONS[p.weapon];
+    if (this.bullets.filter((b) => b.weapon === def.id).length >= def.maxOnScreen) return false;
+    if (p.ammo[def.id] < def.cost) return false;
+    p.ammo[def.id] -= def.cost;
+
+    let b: Projectile;
+    if (def.id === 'quake') {
+      // Starts at the feet; if fired in the air it falls to the floor first.
+      b = new Projectile(this, p.cx + p.facing * 6 - 4, p.bottom - 12, 8, 12, p.facing * 3, 0, 'pwave');
+      b.pierce = true;
+      b.ignoresShield = true;
+      b.hasGravity = true;
+      b.stopAtWalls = true;
+      b.sprite.setFlipX(p.facing < 0);
+      sfx.quake();
+    } else {
+      b = new Projectile(this, p.cx + p.facing * 12 - 3, p.y + 10, 6, 4, p.facing * PHYS.bulletSpeed, 0, 'bullet');
+      sfx.shoot();
+    }
+    b.weapon = def.id;
+    b.power = def.power;
+    this.bullets.push(b);
     return true;
+  }
+
+  private stepBullets(): void {
+    for (const b of this.bullets) {
+      if (b.hasGravity) {
+        b.life++;
+        b.x += b.vx;
+        b.vy = Math.min(b.vy + PHYS.gravity, PHYS.maxFall);
+        if (moveY(this.level, b, b.vy, true)) b.vy = 0;
+      } else b.step();
+      if (b.stopAtWalls && this.hitsWall(b)) b.dead = true;
+    }
+  }
+
+  private hitsWall(s: Projectile): boolean {
+    const front = s.vx > 0 ? s.x + s.w : s.x;
+    return this.level.isSolid(Math.floor(front / TILE), Math.floor((s.y + s.h / 2) / TILE));
   }
 
   fireEnemyShot(x: number, y: number, vx: number, vy: number): void {
@@ -267,10 +324,7 @@ export class GameScene extends Phaser.Scene {
   private stepShots(): void {
     for (const s of this.shots) {
       s.step();
-      if (s.stopAtWalls) {
-        const front = s.vx > 0 ? s.x + s.w : s.x;
-        if (this.level.isSolid(Math.floor(front / TILE), Math.floor((s.y + s.h / 2) / TILE))) s.dead = true;
-      }
+      if (s.stopAtWalls && this.hitsWall(s)) s.dead = true;
     }
   }
 
@@ -281,29 +335,33 @@ export class GameScene extends Phaser.Scene {
 
     for (const b of this.bullets) {
       if (b.deflected || b.dead) continue;
-      if (bossActive && overlaps(b, boss)) {
+      if (bossActive && overlaps(b, boss) && !b.hitTargets.has(boss)) {
         // Shots pass through the boss during its brief post-hit invincibility.
         if (boss.vulnerable) {
-          b.dead = true;
-          boss.hit(1);
+          boss.hit(b.power);
           sfx.hit();
+          if (b.pierce) b.hitTargets.add(boss);
+          else b.dead = true;
           if (boss.state === 'dying') this.startBossDeath();
         }
-        continue;
+        if (!b.pierce) continue;
       }
       for (const e of this.enemies) {
-        if (e.hp <= 0 || !overlaps(b, e)) continue;
-        if (e.shielded()) {
+        if (e.hp <= 0 || b.hitTargets.has(e) || !overlaps(b, e)) continue;
+        if (e.shielded() && !b.ignoresShield) {
           b.deflect();
           sfx.deflect();
-        } else {
-          b.dead = true;
-          e.hp--;
-          e.flash = 8;
-          sfx.hit();
-          if (e.hp <= 0) this.killEnemy(e);
+          break;
         }
-        break;
+        e.hp -= b.power;
+        e.flash = 8;
+        sfx.hit();
+        if (e.hp <= 0) this.killEnemy(e);
+        if (b.pierce) b.hitTargets.add(e);
+        else {
+          b.dead = true;
+          break;
+        }
       }
     }
 
@@ -319,6 +377,7 @@ export class GameScene extends Phaser.Scene {
     for (const k of this.pickups) {
       if (!k.dead && overlaps(p, k)) {
         p.heal(k.heal);
+        if (k.ammo) this.refillAmmo(k.ammo);
         k.dead = true;
         sfx.pickup();
       }
@@ -332,14 +391,28 @@ export class GameScene extends Phaser.Scene {
     sfx.enemyDie();
     this.addEffect(e.cx, e.cy, 0, 0, 0, 14, true);
     const roll = Math.random();
-    if (roll < 0.08) this.dropPickup(e.cx, e.cy, 10, 'hp_big', 12, 10);
-    else if (roll < 0.3) this.dropPickup(e.cx, e.cy, 3, 'hp_small', 8, 6);
+    const hasAmmoWeapons = this.unlocked.length > 1;
+    if (roll < 0.08) this.dropPickup(e.cx, e.cy, 10, 0, 'hp_big', 12, 10);
+    else if (roll < 0.3) this.dropPickup(e.cx, e.cy, 3, 0, 'hp_small', 8, 6);
+    else if (hasAmmoWeapons && roll < 0.42) this.dropPickup(e.cx, e.cy, 0, 6, 'ammo_small', 8, 6);
   }
 
-  private dropPickup(cx: number, cy: number, heal: number, tex: string, w: number, h: number): void {
+  private dropPickup(cx: number, cy: number, heal: number, ammo: number, tex: string, w: number, h: number): void {
     const k = new Projectile(this, cx - w / 2, cy - h / 2, w, h, 0, -2, tex) as Pickup;
     k.heal = heal;
+    k.ammo = ammo;
     this.pickups.push(k);
+  }
+
+  /** Ammo goes to the equipped weapon, or the emptiest one if the cannon is equipped. */
+  private refillAmmo(n: number): void {
+    const p = this.player;
+    let target: WeaponId | undefined = p.weapon !== 'buster' ? p.weapon : undefined;
+    if (!target) {
+      const candidates = this.unlocked.filter((w) => w !== 'buster');
+      target = candidates.sort((a, b) => p.ammo[a] - p.ammo[b])[0];
+    }
+    if (target) p.ammo[target] = Math.min(MAX_AMMO, p.ammo[target] + n);
   }
 
   private stepPickups(): void {
@@ -418,6 +491,43 @@ export class GameScene extends Phaser.Scene {
       boss.destroy();
       this.boss = null;
       this.bossDefeated = true;
+      this.bossDeathT = 0;
+      const reward = this.level.data.bossWeapon;
+      if (reward) this.startWeaponGet(reward);
+      else this.stageClear();
+    }
+  }
+
+  // --- weapon get -------------------------------------------------------------
+
+  private startWeaponGet(id: WeaponId): void {
+    unlockWeapon(id);
+    if (!this.unlocked.includes(id)) this.unlocked.push(id);
+    this.player.ammo[id] = MAX_AMMO;
+    this.player.heal(PLAYER_MAX_HP);
+    for (const b of this.bullets) b.dead = true;
+    this.weaponGetT = 1;
+    sfx.clear();
+  }
+
+  /** Hero flashes between old and new colors, then shows the weapon name. */
+  private stepWeaponGet(): void {
+    const t = this.weaponGetT++;
+    const id = this.level.data.bossWeapon!;
+    const p = this.player;
+    p.state = 'idle';
+    p.invuln = 0;
+    this.stepEffects();
+    if (t < 90) {
+      p.weapon = Math.floor(t / 6) % 2 === 0 ? id : 'buster';
+      this.banner.setText('WEAPON GET!').setVisible(true);
+    } else {
+      p.weapon = id;
+      this.banner.setText(`YOU GOT\n${WEAPONS[id].name}\n\n(select it on the pause menu)`).setFontSize(12);
+    }
+    if (t >= 260) {
+      this.weaponGetT = 0;
+      this.banner.setFontSize(16);
       this.stageClear();
     }
   }
@@ -655,15 +765,20 @@ export class GameScene extends Phaser.Scene {
   // --- HUD / pause ------------------------------------------------------------
 
   private drawHud(): void {
-    const hp = this.player.hp;
+    const p = this.player;
+    const hp = p.hp;
     const bossHp = this.boss && this.boss.state !== 'dying' ? this.boss.barHp : -1;
-    const key = `${hp}|${bossHp}`;
+    const ammo = p.weapon === 'buster' ? -1 : p.ammo[p.weapon];
+    const key = `${hp}|${bossHp}|${p.weapon}|${ammo}`;
     if (key === this.hudKey) return;
     this.hudKey = key;
     const g = this.hud;
     g.clear();
-    this.drawBar(g, 12, hp, PLAYER_MAX_HP, 0xfff1a8);
-    if (bossHp >= 0) this.drawBar(g, 24, bossHp, BOSS_MAX_HP, 0xff7050);
+    // Bars left to right: life, equipped weapon's ammo (if any), boss.
+    let x = 12;
+    this.drawBar(g, x, hp, PLAYER_MAX_HP, 0xfff1a8);
+    if (ammo >= 0) this.drawBar(g, (x += 12), ammo, MAX_AMMO, WEAPONS[p.weapon].colors.main);
+    if (bossHp >= 0) this.drawBar(g, (x += 12), bossHp, BOSS_MAX_HP, 0xff7050);
   }
 
   private drawBar(g: Phaser.GameObjects.Graphics, x: number, value: number, max: number, color: number): void {
@@ -675,12 +790,42 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  private buildPauseLayer(): Phaser.GameObjects.Container {
+  /** Pause menu = weapon select. Up/down switches the equipped weapon live. */
+  private buildPauseMenu(): void {
+    const layer = this.pauseLayer;
+    layer.removeAll(true);
+    const p = this.player;
     const style = { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0' };
-    const box = this.add.rectangle(VIEW_W / 2, VIEW_H / 2, 160, 96, 0x000000, 0.85).setStrokeStyle(1, 0x5ef0c8);
-    const title = this.add.text(VIEW_W / 2, VIEW_H / 2 - 32, 'PAUSED', { ...style, fontSize: '16px' }).setOrigin(0.5);
-    const weapon = this.add.text(VIEW_W / 2 - 60, VIEW_H / 2 - 8, '> ARM CANNON   --', style);
-    const note = this.add.text(VIEW_W / 2, VIEW_H / 2 + 24, 'boss weapons go here', { ...style, color: '#8a8fa8' }).setOrigin(0.5);
-    return this.add.container(0, 0, [box, title, weapon, note]).setScrollFactor(0).setDepth(70).setVisible(false);
+    const rowH = 16;
+    const h = 56 + this.unlocked.length * rowH;
+    const top = VIEW_H / 2 - h / 2;
+    const left = VIEW_W / 2 - 90;
+    layer.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, 180, h, 0x000000, 0.85).setStrokeStyle(1, 0x5ef0c8));
+    layer.add(this.add.text(VIEW_W / 2, top + 14, 'PAUSED', { ...style, fontSize: '16px' }).setOrigin(0.5));
+    const bars = this.add.graphics();
+    layer.add(bars);
+    this.unlocked.forEach((id, i) => {
+      const y = top + 34 + i * rowH;
+      const def = WEAPONS[id];
+      const selected = id === p.weapon;
+      layer.add(this.add.text(left + 12, y, `${selected ? '>' : ' '} ${def.name}`, { ...style, color: selected ? '#fff1e0' : '#8a8fa8' }));
+      // Ammo bar (unlimited for the arm cannon).
+      const value = def.cost === 0 ? MAX_AMMO : p.ammo[id];
+      for (let u = 0; u < MAX_AMMO; u++) {
+        bars.fillStyle(u < value ? def.colors.main : 0x3a3550, 1).fillRect(left + 108 + u * 2, y + 2, 1, 6);
+      }
+    });
+    layer.add(this.add.text(VIEW_W / 2, top + h - 12, 'UP/DOWN select   ENTER resume', { ...style, color: '#8a8fa8' }).setOrigin(0.5));
   }
+
+  private stepPauseMenu(): void {
+    const c = this.controls;
+    const dir = (c.justPressed('down') ? 1 : 0) - (c.justPressed('up') ? 1 : 0);
+    if (dir === 0 || this.unlocked.length < 2) return;
+    const i = this.unlocked.indexOf(this.player.weapon);
+    this.player.weapon = this.unlocked[(i + dir + this.unlocked.length) % this.unlocked.length];
+    sfx.tick();
+    this.buildPauseMenu();
+  }
+
 }

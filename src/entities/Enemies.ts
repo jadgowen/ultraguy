@@ -3,6 +3,7 @@ import { PHYS, TILE } from '../constants';
 import type { EnemyKind, Spawn } from '../level/Level';
 import { moveX, moveY } from '../physics';
 import { sfx } from '../sfx';
+import type { WeaponId } from '../weapons';
 import type { GameScene } from '../scenes/GameScene';
 
 export abstract class Enemy {
@@ -186,6 +187,13 @@ export class Projectile {
   life = 0;
   dmg = 2; // damage to the player (enemy shots)
   stopAtWalls = false; // most shots pass through walls; ground waves don't
+  // Player weapon shots:
+  weapon: WeaponId = 'buster';
+  power = 1; // damage to enemies
+  pierce = false; // keeps going after a hit (hits each target once)
+  ignoresShield = false;
+  hasGravity = false; // falls and slides along floors
+  readonly hitTargets = new Set<object>();
   readonly sprite: Phaser.GameObjects.Image;
 
   constructor(

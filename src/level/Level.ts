@@ -1,3 +1,4 @@
+import type { WeaponId } from '../weapons';
 import { SCREEN_COLS, SCREEN_H, SCREEN_ROWS, SCREEN_W, TILE } from '../constants';
 
 /**
@@ -18,6 +19,8 @@ import { SCREEN_COLS, SCREEN_H, SCREEN_ROWS, SCREEN_W, TILE } from '../constants
  */
 export interface StageData {
   name: string;
+  /** Weapon earned by beating this stage's boss. */
+  bossWeapon?: WeaponId;
   screens: Record<string, string[]>;
   layout: string[];
 }

@@ -10,6 +10,7 @@ const SKY = '................';
 
 export const STAGE_1: StageData = {
   name: 'Foundry',
+  bossWeapon: 'quake',
   layout: ['ABCD..IJK|LM', '...EFGH..'],
   screens: {
     A: [

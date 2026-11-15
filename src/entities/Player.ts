@@ -3,6 +3,7 @@ import { PHYS, PLAYER_MAX_HP, TILE } from '../constants';
 import { moveX, moveY, touchesSpike } from '../physics';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
+import { MAX_AMMO, WEAPON_ORDER, WeaponId, heroPrefix } from '../weapons';
 
 export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'climb' | 'hurt' | 'dead';
 
@@ -23,6 +24,9 @@ export class Player {
   hp = PLAYER_MAX_HP;
   invuln = 0;
   shootPose = 0;
+  weapon: WeaponId = 'buster';
+  /** Ammo per weapon; kept across deaths, like the classics. */
+  readonly ammo = Object.fromEntries(WEAPON_ORDER.map((w) => [w, MAX_AMMO])) as Record<WeaponId, number>;
   private hurtTimer = 0;
   private knockDir = 0;
   deadTimer = 0;
@@ -198,7 +202,7 @@ export class Player {
   }
 
   private shoot(): void {
-    if (this.g.firePlayerBullet(this.cx + this.facing * 12, this.y + 12, this.facing)) this.shootPose = 16;
+    if (this.g.fireWeapon()) this.shootPose = 16;
   }
 
   /** Scripted walk used by door transitions (no physics, no input). */
@@ -270,7 +274,7 @@ export class Player {
       default:
         key = s ? 'p_idle_s' : 'p_idle';
     }
-    this.sprite.setTexture(key);
+    this.sprite.setTexture(heroPrefix(this.weapon) + key);
     this.sprite.setFlipX(flip);
     this.sprite.setPosition(Math.round(this.cx), Math.round(this.bottom));
     // Flicker while invincible (but stay solid during the knockback pose).

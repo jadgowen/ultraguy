@@ -53,6 +53,10 @@ export const sfx = {
   pickup: () => tone(600, 1400, 0.12, 'square', 0.05),
   enemyShot: () => tone(700, 300, 0.05, 'triangle', 0.05),
   select: () => tone(900, 900, 0.05),
+  quake: () => {
+    noise(0.15, 0.08);
+    tone(160, 60, 0.15, 'square', 0.06);
+  },
   tick: () => tone(1500, 1500, 0.02, 'square', 0.03),
   clear: () => {
     tone(523, 523, 0.15);
