@@ -15,7 +15,7 @@ import { sfx } from '../sfx';
 import { WEAPONS, WeaponId } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
 import { dialogue, pixelateIn, pixelateOut } from './cutscene';
-import { BOSS_ENCOUNTERS, Encounter, MINI_ENCOUNTERS, PART_GUARDIANS, Resume, Ret } from './encounters';
+import { Encounter, MINI_ENCOUNTERS, PART_GUARDIANS, Resume, Ret, VAULT_ENCOUNTERS } from './encounters';
 import { Hazards } from './hazards';
 import { Sky } from './sky';
 import { PixelText, pixelText } from '../pixelFont';
@@ -34,8 +34,14 @@ const WEAKNESS_DAMAGE = 4;
 /** Freeze-frames when a weakness hit lands. */
 const WEAK_HIT_STOP = 6;
 
-/** Boss rematch room: which boss each teleporter (left to right) sends you to. */
-const REMATCH_ORDER: BossKind[] = ['anvil', 'mantis', 'frostline', 'gale', 'volt', 'magma', 'scrap', 'tide'];
+/**
+ * Boss Hall: which boss each teleporter (left to right) sends you to. The first
+ * eight must all be beaten to open the exit; the rest are bonus games (the
+ * Overlord shows up once you've cleared the game).
+ */
+const REMATCH_ORDER: BossKind[] = ['anvil', 'mantis', 'frostline', 'gale', 'volt', 'magma', 'scrap', 'tide', 'gatekeeper', 'overlord'];
+const REQUIRED_REMATCHES = 8;
+const BONUS_NAMES: Partial<Record<BossKind, string>> = { gatekeeper: 'GATEKEEPER', overlord: 'OVERLORD' };
 const TELEPORT_FRAMES = 40;
 
 /** Display names for each stage boss (from the stage data). */
@@ -149,7 +155,7 @@ export class GameScene extends Phaser.Scene {
   /** Energy tanks lying in the stage (taken ones stay taken this visit). */
   private tankItems: { box: Box; sprite: Phaser.GameObjects.Image; taken: boolean }[] = [];
   /** Rematch room: capsules, which are done, and a teleport in progress. */
-  private capsules: { box: Box; sprite: Phaser.GameObjects.Image; kind: BossKind; done: boolean }[] = [];
+  private capsules: { box: Box; sprite: Phaser.GameObjects.Image; kind: BossKind; done: boolean; bonus: boolean }[] = [];
   private teleport: { t: number; to: 'arena' | 'hub'; kind?: BossKind; back?: Point } | null = null;
   private hubSpot: Point | null = null;
   /** Freeze-frame counter (weakness hits). */
@@ -314,14 +320,22 @@ export class GameScene extends Phaser.Scene {
       this.tankItems.push({ box: { x: t.x - 6, y: t.y - 10, w: 12, h: 10 }, sprite, taken: false });
     }
     // Rematch room: one capsule per boss; the exit opens once all are beaten.
+    const gameCleared = loadSave().cleared.includes('finale');
     [...this.level.teleporters]
       .sort((a, b) => a.x - b.x)
       .forEach((t, i) => {
-        const sprite = this.add.image(t.x, t.y, 'capsule_on').setOrigin(0.5, 1).setDepth(3);
-        this.capsules.push({ box: { x: t.x - 8, y: t.y - 28, w: 16, h: 28 }, sprite, kind: REMATCH_ORDER[i % REMATCH_ORDER.length], done: false });
-        const label = BOSS_NAMES[REMATCH_ORDER[i % REMATCH_ORDER.length]] ?? '';
-        pixelText(this, t.x, t.y - 38, label, { fontFamily: 'monospace', fontSize: '7px', color: '#c8ccd8' }).setOrigin(0.5).setDepth(3);
+        const kind = REMATCH_ORDER[i % REMATCH_ORDER.length];
+        const bonus = i >= REQUIRED_REMATCHES;
+        const locked = bonus && kind === 'overlord' && !gameCleared;
+        const sprite = this.add.image(t.x, t.y, locked ? 'capsule_off' : 'capsule_on').setOrigin(0.5, 1).setDepth(3);
+        this.capsules.push({ box: { x: t.x - 8, y: t.y - 28, w: 16, h: 28 }, sprite, kind, done: locked, bonus });
+        const label = locked ? '???' : (BOSS_NAMES[kind] ?? BONUS_NAMES[kind] ?? '');
+        pixelText(this, t.x, t.y - 38, label, { fontFamily: 'monospace', fontSize: '7px', color: bonus ? '#ffe14a' : '#c8ccd8' }).setOrigin(0.5).setDepth(3);
       });
+    if (this.capsules.some((c) => c.bonus)) {
+      const first = this.capsules.find((c) => c.bonus)!;
+      pixelText(this, first.box.x + 48, first.box.y - 40, 'BONUS GAMES', { fontFamily: 'monospace', fontSize: '8px', color: '#ffe14a' }).setOrigin(0.5).setDepth(3);
+    }
     if (this.capsules.length) {
       const hub = this.level.playerStart;
       pixelText(this, hub.x + 140, hub.y - 120, 'UP in a capsule to rematch a boss', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' }).setOrigin(0.5).setDepth(3);
@@ -933,7 +947,7 @@ export class GameScene extends Phaser.Scene {
       this.flashLabel(loadSave().tanks >= MAX_TANKS ? 'E-TANK (FULL)' : 'E-TANK');
     }
     const goal = this.level.goal;
-    const goalOpen = this.capsules.every((c) => c.done);
+    const goalOpen = this.capsules.every((c) => c.done || c.bonus);
     if (goal && goalOpen && overlaps(p, { x: goal.x - 6, y: goal.y - 16, w: 12, h: 16 })) this.stageClear();
   }
 
@@ -1061,9 +1075,6 @@ export class GameScene extends Phaser.Scene {
     };
     this.boss = createBoss(kind, this, at, this.bossRoom);
     playMusic(this, kind === 'overlord' ? 'finalboss' : 'boss');
-    // Some bosses don't fight here: they say their line, and off we go.
-    const special = BOSS_ENCOUNTERS[this.stageId]?.[0];
-    if (special && kind === this.level.data.boss) this.startEncounter(special, { kind: 'boss', step: 0 });
   }
 
   /** Dialogue, then warp into the encounter's mode. */
@@ -1080,9 +1091,16 @@ export class GameScene extends Phaser.Scene {
   private prepareResume(r: Resume): void {
     const L = this.level;
     const before = (x: number) => L.checkpoints.filter((c) => c.x < x).sort((a, b) => b.x - a.x)[0];
-    if (r.kind === 'boss') {
-      this.miniDefeated = true;
-      if (!r.won && L.bossTestStart) this.checkpoint = { ...L.bossTestStart };
+    if (r.kind === 'vault') {
+      // Back in the Boss Hall, in front of that capsule, with the hall as you left it.
+      const won = new Set([...(r.done ?? []), ...(r.won ? [r.step] : [])]);
+      this.capsules.forEach((c, i) => {
+        if (!won.has(i)) return;
+        c.done = true;
+        c.sprite.setTexture('capsule_off');
+      });
+      const c = this.capsules[r.step];
+      if (c) this.checkpoint = { x: c.box.x + c.box.w / 2, y: c.box.y + c.box.h };
     } else if (r.kind === 'mini') {
       this.miniDefeated = r.won;
       const at = L.miniboss;
@@ -1100,43 +1118,17 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
-  /** After respawning: carry on (next encounter in a chain, or the reward). */
+  /** After respawning: carry on. */
   private finishResume(r: Resume): void {
-    if (!r.won) return;
-    if (r.kind === 'boss') {
-      const chain = BOSS_ENCOUNTERS[this.stageId] ?? [];
-      const next = chain[r.step + 1];
-      if (next) {
-        // The next fight in the chain (the finale: Overlord, then Shade).
-        this.placeInBossRoom();
-        this.startEncounter(next, { kind: 'boss', step: r.step + 1 });
-        return;
-      }
-      this.resumeBossWon();
-    } else {
-      this.readyTimer = 0;
-      playMusic(this, stageMusic(this.level.data));
-    }
-  }
-
-  private placeInBossRoom(): void {
-    const at = this.level.boss;
-    if (!at) return;
-    const sec = this.level.sectionAt(at.x, at.y - 1)!;
-    this.section = sec;
-    this.camX = Math.round(this.bossRoomCamX(sec));
-    this.player.reset(at.x - 64, at.y);
     this.readyTimer = 0;
-  }
-
-  /** Won a special-mode boss fight: stand in the boss room and take the reward. */
-  private resumeBossWon(): void {
-    if (!this.level.boss) return;
-    this.placeInBossRoom();
-    this.bossDefeated = true;
-    const reward = this.level.data.bossWeapon;
-    if (reward) this.startWeaponGet(reward);
-    else this.stageClear();
+    playMusic(this, stageMusic(this.level.data));
+    if (r.kind === 'vault' && r.won) {
+      this.player.heal(10);
+      if (this.capsules.every((k) => k.done || k.bonus)) {
+        this.goalSprite?.setVisible(true);
+        this.flashLabel('THE WAY FORWARD IS OPEN');
+      }
+    }
   }
 
   /** Name shown while a boss's health bar fills. */
@@ -1184,6 +1176,14 @@ export class GameScene extends Phaser.Scene {
     const c = this.capsules.find((k) => !k.done && overlaps(p, k.box));
     if (!c) return;
     this.hubSpot = { x: c.box.x + c.box.w / 2, y: c.box.y + c.box.h };
+    // Some bosses take you into their own game instead.
+    const game = VAULT_ENCOUNTERS[c.kind];
+    if (game) {
+      sfx.charge(2);
+      const done = this.capsules.flatMap((k, i) => (k.done ? [i] : []));
+      this.startEncounter(game, { kind: 'vault', step: this.capsules.indexOf(c), done });
+      return;
+    }
     this.teleport = { t: 0, to: 'arena', kind: c.kind };
     sfx.charge(2);
   }
@@ -1304,7 +1304,7 @@ export class GameScene extends Phaser.Scene {
         }
         this.player.heal(10);
         this.teleport = { t: 0, to: 'hub' };
-        if (this.capsules.every((k) => k.done)) {
+        if (this.capsules.every((k) => k.done || k.bonus)) {
           this.goalSprite?.setVisible(true);
           this.flashLabel('THE WAY FORWARD IS OPEN');
         }

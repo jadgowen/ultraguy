@@ -32,20 +32,21 @@ a change of direction partway:
 | Scrapyard | barrel chutes, compactor presses, crane platforms and conveyor stairs |
 | Reef | currents (`{` / `}`) and bubble columns; a trench current that drags you toward spikes |
 
-Some fights change the game entirely. Each is its own scene, entered through a dialogue and a
-pixelate warp (`src/scenes/cutscene.ts`), and wired up in `src/scenes/encounters.ts`:
+Stage bosses are always fought in their arenas, where your weapons and parts matter. Some fights
+change the game entirely; each is its own scene, entered through a dialogue and a pixelate warp
+(`src/scenes/cutscene.ts`), and wired up in `src/scenes/encounters.ts`:
 
-| Fight | Mode | Scene |
-|---|---|---|
-| Volt (Power Plant) | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
-| Gatekeeper (Fortress Gate) | behind-the-back boxing, three rounds, Coach Jared in your corner | `BoxingScene.ts` |
-| Magma (Caldera) | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
-| Briar Toad (Canopy miniboss) | lane-crossing hop: dodge the trail, ride logs and pads, fill all three pads in time | `HopScene.ts` |
-| Overlord (finale) | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
-| Shade (finale, after the Overlord) | one-on-one fighting game, best of three; DOWN, FORWARD + FIRE fireball, FORWARD, DOWN + FIRE uppercut | `FighterScene.ts` |
+| Where | Fight | Mode | Scene |
+|---|---|---|---|
+| Boss Hall capsule | Volt | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
+| Boss Hall capsule | Magma | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
+| Boss Hall bonus | Gatekeeper | behind-the-back boxing, three rounds, Coach Jared in your corner | `BoxingScene.ts` |
+| Boss Hall bonus (after beating the game) | Overlord | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
+| Canopy miniboss | Briar Toad | lane-crossing hop: dodge the trail, ride logs and pads, fill all three pads in time | `HopScene.ts` |
 
-Win and you carry on (the boss reward, the next fight in a chain, or the part); lose and you retry from
-the last checkpoint. Any upgrade part can have a guardian (`PART_GUARDIANS` in `encounters.ts`).
+In the Boss Hall, the other six capsules are normal arena rematches; the exit opens once all eight
+stage bosses are beaten (bonus capsules are optional). Win a mode and you're back where you were
+(the Hall remembers which capsules are done); lose and you retry from the last checkpoint.
 
 Every hidden part is guarded, and each guardian is fought in a turn-based RPG battle (`RpgScene.ts`,
 guardians in `src/scenes/rpgGuardians.ts`): FIGHT, SPELL, GUARD, ITEM (your E-tanks), RUN. Spells are

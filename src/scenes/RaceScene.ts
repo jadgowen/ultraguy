@@ -140,11 +140,11 @@ export class RaceScene extends Phaser.Scene {
   }
 
   /** Where we came from (sent back at the end). */
-  private mode: ModeData = { stage: 'powerplant', ret: { kind: 'boss', step: 0 } };
+  private mode: ModeData = { stage: 'powerplant', ret: { kind: 'vault', step: 0 } };
 
   create(data: RaceData): void {
     this.stageId = data?.stage ?? 'powerplant';
-    this.mode = { stage: this.stageId, ret: data?.ret ?? { kind: 'boss', step: 0 } };
+    this.mode = { stage: this.stageId, ret: data?.ret ?? { kind: 'vault', step: 0 } };
     this.controls = new Controls(this);
     ({ ramps: this.ramps, patches: this.patches } = buildCourse());
     this.acc = 0;

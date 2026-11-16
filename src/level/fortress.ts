@@ -225,17 +225,22 @@ const rematchRoom = bossRoom();
 /**
  * BOSS HALL: before the throne, eight teleporter capsules ('T'), one per
  * stage boss. Press UP in a capsule to refight that boss; the exit capsule
- * opens once all eight are beaten. Bosses are fought in the room below.
+ * opens once all eight are beaten. Bosses are fought in the room below, or in
+ * their own game (Volt races, Magma bombs). Past them, two bonus capsules:
+ * the Gatekeeper's boxing match, and once the game is beaten, the Overlord's
+ * armada.
  */
 export const GAUNTLET: StageData = {
   id: 'gauntlet',
   name: 'BOSS HALL',
   tagline: 'ALL EIGHT, ONE MORE TIME',
   theme: 'fortress',
-  layout: ['AB', 'XY'],
+  layout: ['ABC', 'XY.'],
   screens: {
     A: [CEIL, CEIL, ...rows(SKY, 10), '.P...T..T..T..T.', FLOOR, FLOOR],
-    B: [CEIL, CEIL, ...rows(SKY, 10), '.T..T..T..T...*.', FLOOR, FLOOR],
+    B: [CEIL, CEIL, ...rows(SKY, 10), '.T..T..T..T.....', FLOOR, FLOOR],
+    // Bonus games: optional, they don't hold the exit shut.
+    C: [CEIL, CEIL, ...rows(SKY, 10), '...T......T..*.#', FLOOR, FLOOR],
     X: rematchRoom.left,
     Y: rematchRoom.right,
   },

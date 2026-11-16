@@ -78,10 +78,4 @@ export function createHeroTextures(scene: Phaser.Scene): void {
   swap.set(VISOR[0], 0xff3050);
   swap.set(VISOR[1], 0xa01830);
   recolorHero(scene, 'hero_shade', swap);
-  // Shade's dialogue portrait: his idle frame on its own.
-  const meta = scene.cache.json.get('hero_frames') as HeroFrameData;
-  const shadeSheet = scene.textures.get('hero_shade').getSourceImage() as HTMLCanvasElement;
-  const portrait = scene.textures.createCanvas('shade_portrait', meta.frameWidth, meta.frameHeight)!;
-  portrait.getContext().drawImage(shadeSheet, meta.frames.idle * meta.frameWidth, 0, meta.frameWidth, meta.frameHeight, 0, 0, meta.frameWidth, meta.frameHeight);
-  portrait.refresh();
 }

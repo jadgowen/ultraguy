@@ -158,8 +158,6 @@ const synth = {
     noise(0.12, 0.07);
     tone(600, 120, 0.1, 'square', 0.04);
   },
-  fireball: () => tone(300, 900, 0.25, 'sawtooth', 0.04),
-  uppercut: () => tone(200, 1200, 0.2, 'square', 0.05),
   rpgHit: () => {
     noise(0.08, 0.08);
     tone(500, 200, 0.08, 'square', 0.05);

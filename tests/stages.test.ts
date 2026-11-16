@@ -105,9 +105,9 @@ describe('fortress', () => {
     expect(FORTRESS_ORDER).toEqual(['fortress1', 'fortress2', 'fortress3', 'gauntlet', 'finale']);
   });
 
-  it('the boss hall has one teleporter per stage boss and a hidden exit', () => {
+  it('the boss hall has one teleporter per stage boss, two bonus ones, and a hidden exit', () => {
     const L = new Level(getStage('gauntlet'));
-    expect(L.teleporters.length).toBe(ALL_BOSS_STAGES.length);
+    expect(L.teleporters.length).toBe(ALL_BOSS_STAGES.length + 2);
     expect(L.goal).not.toBeNull();
     expect(L.boss).not.toBeNull();
   });

@@ -73,7 +73,7 @@ export class ShooterScene extends Phaser.Scene {
   }
 
   create(data: ModeData): void {
-    this.mode = { stage: data?.stage ?? 'finale', ret: data?.ret ?? { kind: 'boss', step: 0 } };
+    this.mode = { stage: data?.stage ?? 'finale', ret: data?.ret ?? { kind: 'vault', step: 0 } };
     this.controls = new Controls(this);
     Object.assign(this, { acc: 0, frame: 0, shipX: FIELD_W / 2, lives: LIVES, invuln: 0, dead: 0, shots: [], enemyShots: [], drones: [], wave: 0, boss: null, score: 0, result: null, overT: 0, waveT: 0, droneImgs: [] });
     makeShooterTextures(this);

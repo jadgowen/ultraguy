@@ -72,7 +72,7 @@ export class BombScene extends Phaser.Scene {
   }
 
   create(data: ModeData): void {
-    this.mode = { stage: data?.stage ?? 'caldera', ret: data?.ret ?? { kind: 'boss', step: 0 } };
+    this.mode = { stage: data?.stage ?? 'caldera', ret: data?.ret ?? { kind: 'vault', step: 0 } };
     this.controls = new Controls(this);
     Object.assign(this, { acc: 0, frame: 0, bombs: [], flames: [], result: null, overT: 0, started: 0, aiPath: [] });
     this.powers = new Map();

@@ -85,11 +85,11 @@ export class BoxingScene extends Phaser.Scene {
   }
 
   /** Where we came from (sent back at the end). */
-  private mode: ModeData = { stage: 'fortress1', ret: { kind: 'boss', step: 0 } };
+  private mode: ModeData = { stage: 'fortress1', ret: { kind: 'vault', step: 0 } };
 
   create(data: BoxingData): void {
     this.stageId = data?.stage ?? 'fortress1';
-    this.mode = { stage: this.stageId, ret: data?.ret ?? { kind: 'boss', step: 0 } };
+    this.mode = { stage: this.stageId, ret: data?.ret ?? { kind: 'vault', step: 0 } };
     this.controls = new Controls(this);
     Object.assign(this, {
       acc: 0, frame: 0, round: 1, clock: ROUND_FRAMES, phase: 'corner', phaseT: 0, story: null,

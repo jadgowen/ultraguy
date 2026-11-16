@@ -12,7 +12,6 @@ import { TitleScene } from './scenes/TitleScene';
 import { RaceScene } from './scenes/RaceScene';
 import { BoxingScene } from './scenes/BoxingScene';
 import { BombScene } from './scenes/BombScene';
-import { FighterScene } from './scenes/FighterScene';
 import { HopScene } from './scenes/HopScene';
 import { RpgScene } from './scenes/RpgScene';
 import { ShooterScene } from './scenes/ShooterScene';
@@ -30,7 +29,7 @@ const game = new Phaser.Game({
   input: { gamepad: true },
   // Stretch to fill the window (exact on 16:9; letterboxed otherwise).
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, TitleScene, SlotScene, SettingsScene, ControlsScene, StageSelectScene, FortressScene, GameScene, RaceScene, BoxingScene, RpgScene, HopScene, BombScene, ShooterScene, FighterScene, EndingScene],
+  scene: [BootScene, TitleScene, SlotScene, SettingsScene, ControlsScene, StageSelectScene, FortressScene, GameScene, RaceScene, BoxingScene, RpgScene, HopScene, BombScene, ShooterScene, EndingScene],
 });
 
 // Handy for debugging in the browser console.
