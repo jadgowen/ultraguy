@@ -12,7 +12,7 @@
 // enemy's hitbox anchoring (drawn bottom-center), and everything faces right
 // (the game mirrors sprites for facing left).
 
-import { Bitmap, drawGrid, encodePNG, write } from './lib.mjs';
+import { Bitmap, drawGrid, encodePNG, shade16, write } from './lib.mjs';
 
 // Palette characters ('.' is transparent):
 const PALETTE = {
@@ -1442,6 +1442,8 @@ function renderFrame(name, f) {
     if (!rows) throw new Error(`${name}: unknown part "${part}"`);
     drawGrid(bmp, `${name}/${part}`, rows, x, y, (c) => PALETTE[c], opts);
   }
+  // 16-bit finish: lit tops, shaded bottoms, softer outlines. White glints stay crisp.
+  shade16(bmp, { keep: [PALETTE.W] });
   return bmp;
 }
 

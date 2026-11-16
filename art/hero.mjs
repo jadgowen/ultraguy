@@ -237,9 +237,40 @@ function drawPart(bmp, name, ox, oy, charMap, palette) {
   drawGrid(bmp, `Part "${name}"`, rows, ox, oy, (c) => palette[c] ?? PALETTE[c], { map: charMap });
 }
 
+/**
+ * 16-bit finish for the hero, using only colors already in the palette (the
+ * game swaps them per weapon, so no new colors may appear): armor gets lit
+ * top edges and a dithered shade toward its lower edge; the suit gets lit top
+ * edges; metal and visor get shaded bottoms.
+ */
+function heroShade(bmp, palette) {
+  const col = (ch) => palette[ch] ?? PALETTE[ch];
+  const [K, L, O, o, S, s, G, g, V, v] = ['K', 'L', 'O', 'o', 'S', 's', 'G', 'g', 'V', 'v'].map(col);
+  const src = new Bitmap(bmp.w, bmp.h);
+  bmp.data.copy(src.data);
+  const at = (x, y) => (x < 0 || y < 0 || x >= bmp.w || y >= bmp.h ? null : src.get(x, y));
+  const edge = (c) => c === null || c === K;
+  for (let y = 0; y < bmp.h; y++) {
+    for (let x = 0; x < bmp.w; x++) {
+      const c = at(x, y);
+      if (c === null || c === K) continue;
+      const up = at(x, y - 1);
+      const down = at(x, y + 1);
+      if (c === O) {
+        if (edge(up)) bmp.set(x, y, L);
+        else if (edge(down)) bmp.set(x, y, o);
+        else if (edge(at(x, y + 2)) && (x + y) % 2 === 0) bmp.set(x, y, o);
+      } else if (c === S && edge(up)) bmp.set(x, y, s);
+      else if (c === G && edge(down)) bmp.set(x, y, g);
+      else if (c === V && edge(down)) bmp.set(x, y, v);
+    }
+  }
+}
+
 function drawFrame(bmp, frame, fx, fy, palette, scale = 1) {
   const tmp = new Bitmap(FRAME, FRAME);
   for (const [part, x, y, map] of frame) drawPart(tmp, part, x, y, map, palette);
+  heroShade(tmp, palette);
   for (let y = 0; y < FRAME; y++) {
     for (let x = 0; x < FRAME; x++) {
       const i = (y * FRAME + x) * 4;
