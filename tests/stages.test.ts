@@ -111,4 +111,18 @@ describe('fortress', () => {
     expect(L.goal).not.toBeNull();
     expect(L.boss).not.toBeNull();
   });
+
+  it('each of the three fortress stages ends with its own guardian boss and no weapon', () => {
+    const ids = ['fortress1', 'fortress2', 'fortress3'] as const;
+    const kinds = ids.map((id) => getStage(id).boss);
+    expect(kinds).toEqual(['gatekeeper', 'abyss', 'warden']);
+    for (const id of ids) {
+      const stage = getStage(id);
+      const L = new Level(stage);
+      expect(stage.bossWeapon).toBeUndefined();
+      expect(L.boss).not.toBeNull();
+      expect(L.goal).toBeNull();
+      expect(L.bossTestStart).not.toBeNull();
+    }
+  });
 });

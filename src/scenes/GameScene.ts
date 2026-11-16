@@ -1029,7 +1029,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
       // Miniboss: the camera unlocks, it leaves a big refill, and the stage goes on.
-      if (boss instanceof Miniboss) {
+      if (boss instanceof Miniboss && !boss.guardian) {
         this.miniDefeated = true;
         this.arena = null;
         this.dropPickup(boss.cx - 10, boss.cy, 10, 0, 'hp_big', 12, 10);

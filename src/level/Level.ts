@@ -61,7 +61,9 @@ export const ALL_STAGE_IDS: StageId[] = [
 ];
 export type ThemeId = 'foundry' | 'jungle' | 'ice' | 'sky' | 'power' | 'volcano' | 'scrap' | 'water' | 'fortress' | 'city';
 export type MiniKind = 'press' | 'toad' | 'mammoth' | 'kite' | 'dynamo' | 'crab' | 'crusher' | 'angler';
-export type BossKind = 'anvil' | 'mantis' | 'frostline' | 'gale' | 'volt' | 'magma' | 'scrap' | 'tide' | 'overlord' | 'shade' | 'jared' | MiniKind;
+/** Fortress stage bosses (no weapon reward). */
+export type GuardianKind = 'gatekeeper' | 'abyss' | 'warden';
+export type BossKind = 'anvil' | 'mantis' | 'frostline' | 'gale' | 'volt' | 'magma' | 'scrap' | 'tide' | 'overlord' | 'shade' | 'jared' | MiniKind | GuardianKind;
 
 export interface StageData {
   id: StageId;
@@ -391,7 +393,20 @@ export class Level {
 
   /** Tile indices for the translucent water layer drawn over sprites. */
   waterIndexGrid(): number[][] {
-    return this.grid((t) => (t === Tile.Water ? Tile.Water - 1 : -1));
+    const w = Tile.Water - 1;
+    return this.grid((t) => (t === Tile.Water ? w : -1)).map((row, r) =>
+      row.map((v, c) => (v === -1 && this.underwaterSeeThrough(c, r) ? w : v)),
+    );
+  }
+
+  /**
+   * See-through tiles (spikes, ladders) touching water: the water layer covers
+   * them too, so they don't show as a dry hole in the tint.
+   */
+  private underwaterSeeThrough(c: number, r: number): boolean {
+    const t = this.tileAt(c, r);
+    if (t !== Tile.Spike && t !== Tile.Ladder) return false;
+    return [this.tileAt(c - 1, r), this.tileAt(c + 1, r), this.tileAt(c, r - 1)].includes(Tile.Water);
   }
 
   private grid(index: (t: Tile) => number): number[][] {

@@ -5,6 +5,7 @@ import { ALL_BOSS_STAGES, hasStage } from '../level/stages';
 import { MAX_TANKS, SLOTS, SaveData, clearSave, loadSave, slotUsed } from '../save';
 import { loadSettings, updateSettings } from '../settings';
 import { sfx } from '../sfx';
+import { touch } from '../touch';
 import { FONT, MenuScene } from './menu';
 
 /** One line describing a slot's progress. */
@@ -62,6 +63,10 @@ export class SlotScene extends MenuScene {
   }
 
   protected tick(): boolean {
+    if (touch.takeBack()) {
+      this.scene.start('title');
+      return true;
+    }
     const slot = SLOTS[this.selected];
     if (this.controls.justPressed('fire')) {
       if (!slot || !slotUsed(slot)) return false;

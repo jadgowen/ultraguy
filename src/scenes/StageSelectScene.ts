@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { touch } from '../touch';
 import { DEV_TOOLS, VIEW_H, VIEW_W } from '../constants';
 import { heroFrames } from '../heroSprites';
 import type { BossStageId } from '../level/Level';
@@ -118,7 +119,7 @@ export class StageSelectScene extends MenuScene {
     if (c.justPressed('up')) this.move(0, -1);
     if (c.justPressed('down')) this.move(0, 1);
     // ESC is a 'start' key here, so Backspace goes back to the title.
-    if (Phaser.Input.Keyboard.JustDown(this.backKey)) {
+    if (Phaser.Input.Keyboard.JustDown(this.backKey) || touch.takeBack()) {
       this.scene.start('title');
       return true;
     }

@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { touch } from '../touch';
 import { VIEW_H, VIEW_W } from '../constants';
 import type { FortressStageId } from '../level/Level';
 import { FORTRESS_ORDER, FORTRESS_STAGES } from '../level/stages';
@@ -82,7 +83,7 @@ export class FortressScene extends MenuScene {
       this.pick--;
       sfx.tick();
     }
-    if (Phaser.Input.Keyboard.JustDown(this.backKey)) {
+    if (Phaser.Input.Keyboard.JustDown(this.backKey) || touch.takeBack()) {
       this.scene.start('title');
       return true;
     }

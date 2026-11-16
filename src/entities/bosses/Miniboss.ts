@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
-import type { MiniKind, Point } from '../../level/Level';
+import type { GuardianKind, MiniKind, Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import type { WeaponId } from '../../weapons';
 import { Boss, Room } from './Boss';
 
 /** Moves a miniboss can use. Each kind picks a few. */
-type Move = 'hop' | 'stomp' | 'volley' | 'lob' | 'charge' | 'rain' | 'ring' | 'roll' | 'swoop' | 'dash';
+type Move = 'hop' | 'stomp' | 'volley' | 'lob' | 'charge' | 'rain' | 'ring' | 'roll' | 'swoop' | 'dash' | 'spread' | 'slam';
 
 interface MiniDef {
   name: string;
@@ -36,7 +36,17 @@ export const MINIBOSSES: Record<MiniKind, MiniDef> = {
   angler: { name: 'ANGLER', w: 38, h: 26, hp: 18, weakness: 'spark', moves: ['dash', 'volley', 'ring'], flies: true, shot: { tex: 'bbubble', w: 10, h: 10 } },
 };
 
-/** One class for all eight: a small set of moves, picked at random without repeats. */
+/**
+ * Fortress guardians: full stage bosses (door, boss music, STAGE CLEAR) built
+ * on the same move set, bigger and tougher, with the heavier moves.
+ */
+export const GUARDIANS: Record<GuardianKind, MiniDef> = {
+  gatekeeper: { name: 'GATEKEEPER', w: 46, h: 44, hp: 28, weakness: 'spark', moves: ['stomp', 'spread', 'charge', 'volley'], shot: { tex: 'bshot', w: 6, h: 6 } },
+  abyss: { name: 'ABYSS EYE', w: 40, h: 40, hp: 28, weakness: 'frost', moves: ['ring', 'spread', 'swoop', 'rain'], flies: true, shot: { tex: 'vorb', w: 8, h: 8 } },
+  warden: { name: 'SPIRE WARDEN', w: 34, h: 50, hp: 28, weakness: 'cyclone', moves: ['slam', 'spread', 'roll', 'lob', 'slam'], shot: { tex: 'fireball', w: 8, h: 8 } },
+};
+
+/** One class for minibosses and guardians: a small set of moves, picked at random without repeats. */
 export class Miniboss extends Boss {
   readonly def: MiniDef;
   private move: Move | 'idle' = 'idle';
@@ -45,8 +55,8 @@ export class Miniboss extends Boss {
   private homeY: number;
   private dir: 1 | -1 = -1;
 
-  constructor(g: GameScene, readonly mini: MiniKind, at: Point, room: Room) {
-    const def = MINIBOSSES[mini];
+  constructor(g: GameScene, readonly mini: MiniKind | GuardianKind, at: Point, room: Room) {
+    const def = mini in GUARDIANS ? GUARDIANS[mini as GuardianKind] : MINIBOSSES[mini as MiniKind];
     super(g, mini, def.w, def.h, def.weakness, at, room);
     this.def = def;
     this.hp = this.maxHp = def.hp;
@@ -56,6 +66,11 @@ export class Miniboss extends Boss {
 
   get name(): string {
     return this.def.name;
+  }
+
+  /** A fortress guardian is the stage's boss, not a mid-stage fight. */
+  get guardian(): boolean {
+    return this.mini in GUARDIANS;
   }
 
   protected get texKey(): string {
@@ -267,10 +282,61 @@ export class Miniboss extends Boss {
         }
         break;
       }
+
+      // Fan of five aimed shots (twice when hurt).
+      case 'spread': {
+        this.float();
+        const volleys = fast ? [16, 46] : [16];
+        if (volleys.includes(this.t)) {
+          this.facePlayer();
+          const a0 = Math.atan2(p.cy - (this.y + 12), p.cx - this.cx);
+          for (let i = -2; i <= 2; i++) {
+            const a = a0 + i * 0.26;
+            this.shot(Math.cos(a) * 2.2, Math.sin(a) * 2.2, false, this.cx, this.y + 12);
+          }
+          sfx.enemyShot();
+        }
+        if (this.t >= volleys[volleys.length - 1] + 40) this.setMove('idle', 30);
+        break;
+      }
+
+      // Leap above the player, hang for a beat, drop straight down; shockwaves on landing.
+      case 'slam': {
+        if (this.t === 1) {
+          this.facePlayer();
+          this.vx = Phaser.Math.Clamp((p.cx - this.cx) / 34, -3.4, 3.4);
+          this.vy = -7;
+          this.grounded = false;
+          this.slamHang = 0;
+        }
+        if (this.slamHang === 0 && this.vy >= 0 && this.t > 2 && !this.grounded) this.slamHang = 1;
+        if (this.slamHang > 0 && this.slamHang < 14) {
+          // Hanging at the top (flashes): the tell to get out from under it.
+          this.slamHang++;
+          this.vx = 0;
+          this.vy = 0;
+          if (this.slamHang === 14) this.vy = 6;
+          break;
+        }
+        const r = this.physics();
+        if (r.wall) this.vx = 0;
+        if (r.landed && this.t > 2) {
+          this.vx = 0;
+          this.slamHang = 0;
+          this.g.shake(6);
+          sfx.quake();
+          this.g.fireGroundWave(this.cx - 4, this.room.floor, -1);
+          this.g.fireGroundWave(this.cx - 4, this.room.floor, 1);
+          this.setMove('idle', fast ? 22 : 34);
+        }
+        break;
+      }
     }
     // Keep inside the room vertically.
     if (this.def.flies) this.y = Phaser.Math.Clamp(this.y, this.room.top, this.room.floor - this.h);
   }
+
+  private slamHang = 0;
 
   private choose(): void {
     const pool = this.def.moves.filter((m) => m !== this.last);
@@ -280,7 +346,10 @@ export class Miniboss extends Boss {
   }
 
   protected telegraph(): boolean {
-    const windup = (this.move === 'charge' && this.t < (this.phase2 ? 20 : 32)) || (this.move === 'dash' && this.t < 30);
+    const windup =
+      (this.move === 'charge' && this.t < (this.phase2 ? 20 : 32)) ||
+      (this.move === 'dash' && this.t < 30) ||
+      (this.move === 'slam' && this.slamHang > 0);
     return windup && this.t % 6 < 3;
   }
 

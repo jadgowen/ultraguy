@@ -2,11 +2,18 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     <title>Ultraguy</title>
     <style>
-      html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-      #game { width: 100vw; height: 100vh; }
+      html, body { margin: 0; height: 100%; background: #000; overflow: hidden; touch-action: none; overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
+      #game { width: 100vw; height: 100vh; height: 100dvh; }
+      /* Phone held upright: game on top, touch controls underneath. */
+      @media (orientation: portrait) {
+        body.touch #game { height: calc(100vw * 9 / 16); margin-top: calc(env(safe-area-inset-top) + 56px); }
+      }
       canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
     </style>
   </head>

@@ -4,6 +4,7 @@ import { heroFrames } from '../heroSprites';
 import { ALL_BOSS_STAGES } from '../level/stages';
 import { loadSave } from '../save';
 import { sfx, unlockAudio } from '../sfx';
+import { touchEnabled } from '../touch';
 import { heroTexture } from '../weapons';
 import { FONT, MenuScene } from './menu';
 
@@ -31,7 +32,7 @@ export class TitleScene extends MenuScene {
     const labels: Record<Choice, string> = { start: 'START', fortress: 'FORTRESS', settings: 'SETTINGS' };
     this.list(VIEW_W / 2 - 34, 140, this.choices.map((c) => labels[c]), fortressOpen ? 1 : 0);
 
-    this.add.text(VIEW_W / 2, 222, 'ENTER / Z to choose', { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' }).setOrigin(0.5);
+    this.add.text(VIEW_W / 2, 222, touchEnabled() ? 'TAP JUMP to choose' : 'ENTER / Z to choose', { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' }).setOrigin(0.5);
     // Any key unlocks audio (browser autoplay rules).
     this.input.keyboard!.once('keydown', unlockAudio);
   }

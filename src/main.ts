@@ -9,6 +9,8 @@ import { SettingsScene } from './scenes/SettingsScene';
 import { SlotScene } from './scenes/SlotScene';
 import { StageSelectScene } from './scenes/StageSelectScene';
 import { TitleScene } from './scenes/TitleScene';
+import { unlockAudio } from './sfx';
+import { mountTouchControls } from './touch';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -26,3 +28,6 @@ const game = new Phaser.Game({
 
 // Handy for debugging in the browser console.
 (window as unknown as { game: Phaser.Game }).game = game;
+
+// On-screen controls for phones; the first touch also unlocks audio.
+mountTouchControls(unlockAudio, () => game.scale.refresh());

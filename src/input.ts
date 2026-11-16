@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { ACTIONS, Action, loadSettings } from './settings';
+import { touch } from './touch';
 
 /**
  * Input layer: the game only ever asks about Actions, never about keys.
@@ -20,6 +21,10 @@ export class Controls {
   private released = new Set<Action>();
 
   constructor(private scene: Phaser.Scene, bindings: Record<Action, number[]> = loadSettings().keys) {
+    // A touch button still held from the previous screen isn't a new press
+    // (keyboard keys get this for free: new Key objects start released).
+    this.held = new Set(touch.heldActions());
+    touch.takeLatched();
     const kb = scene.input.keyboard!;
     for (const action of ACTIONS) {
       const keys = bindings[action].map((code) => {
@@ -58,6 +63,10 @@ export class Controls {
       if (pad.L1) this.held.add('prev');
       if (pad.R1) this.held.add('next');
     }
+
+    // On-screen touch controls (see touch.ts).
+    for (const a of touch.heldActions()) this.held.add(a);
+    for (const a of touch.takeLatched()) this.latched.add(a);
 
     this.pressed.clear();
     for (const a of ACTIONS) {

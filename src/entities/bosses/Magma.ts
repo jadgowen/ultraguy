@@ -28,7 +28,7 @@ export class Magma extends Boss {
   }
 
   private pillar(x: number): void {
-    this.g.spawnEnemyShot({ x: x - 6, y: this.room.floor - 30, w: 12, h: 30, vx: 0, vy: 0, tex: 'pillar', dmg: 4, life: 36 });
+    this.g.spawnEnemyShot({ x: x - 6, y: this.room.floor - 30, w: 12, h: 30, vx: 0, vy: 0, tex: 'pillar', dmg: 4, life: 28 });
   }
 
   protected think(): void {
@@ -84,8 +84,10 @@ export class Magma extends Boss {
         break;
 
       case 'charge':
+        // A short trail: it burns out about a body-length behind, so jumping
+        // over the charge lands you on clear floor.
         if (this.t % 6 === 0) {
-          this.g.spawnEnemyShot({ x: this.cx - 4, y: this.room.floor - 10, w: 8, h: 10, vx: 0, vy: 0, tex: 'flamelick', dmg: 3, life: 50 });
+          this.g.spawnEnemyShot({ x: this.cx - 4, y: this.room.floor - 10, w: 8, h: 10, vx: 0, vy: 0, tex: 'flamelick', dmg: 3, life: 16 });
         }
         if (this.physics().wall) {
           this.g.shake(4);

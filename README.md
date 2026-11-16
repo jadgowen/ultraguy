@@ -13,7 +13,8 @@ ELEVENLABS_API_KEY=your-key npm run audio   # generate music + sound effects (op
 ## Game flow
 Title -> save select (3 slots; X twice erases one) -> intro stage (DOWNTOWN, boss BLACK JARED) on a new game -> boss select (8 bosses, 3x3 grid).
 Each boss gives a weapon; weaknesses form a loop. Beat all 8 and FORTRESS opens on the title menu
-(and the middle of boss select): three fortress stages, the BOSS HALL (eight teleporters for boss
+(and the middle of boss select): three fortress stages, each ending with a guardian boss (GATEKEEPER,
+ABYSS EYE, SPIRE WARDEN; no weapon reward), the BOSS HALL (eight teleporters for boss
 rematches), then the final boss (OVERLORD, then SHADE).
 
 Each boss stage has a miniboss halfway through, and an energy tank (E-tank) on a ledge just before it.
@@ -45,6 +46,11 @@ Keys can be remapped in Settings -> Controls (ESC cancels; ESC and Backspace can
 has a mixer for music and sound-effect volume. Settings are shared by all save slots.
 
 Boss select: arrows pick a boss, Enter/Z starts the stage, X starts at the boss door (boss test; only in the dev server, not in builds), Backspace goes back.
+
+On phones and tablets, on-screen controls appear with the first touch: d-pad on the left, JUMP / FIRE on
+the right, weapon switch above them, and START / BACK at the top (FULL goes fullscreen where the browser
+allows it). Held upright, the game sits above the controls; turned sideways, the controls overlay the
+edges. Pressing a physical key hides them again. The logic is in `src/touch.ts`.
 
 ## Deploy
 Live at https://jadgowen.github.io/ultraguy/. `npm run deploy` builds (typecheck, tests, Vite) and
