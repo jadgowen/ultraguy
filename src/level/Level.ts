@@ -13,6 +13,18 @@ import type { WeaponId } from '../weapons';
  *   ~  water (not solid; floaty jumps and slow falls)
  *   F  fake wall (looks solid, drawn over sprites, but you walk through it)
  *   &  frozen block (solid until Flame Burst melts it)
+ *   x  crumbling cloud (one-way platform that puffs away soon after you land; comes back)
+ *   y  updraft (rising air: lifts you, and you can jump again while inside it)
+ *   =  moving cloud, horizontal: a 3-tile cloud whose left end starts here and
+ *      slides right along the '-' cells after it, then back
+ *   v  moving cloud, vertical: starts here (left end, top) and sinks along the
+ *      ':' cells below it, then back up
+ *      (Moving clouds are drawn per theme: clouds, logs, ice floes, metal lifts...)
+ *   %  spring / bounce flower (solid; landing on it launches you high)
+ *   [ ]  switch blocks: solid in turns ('[' then ']'), blinking before they vanish
+ *   { }  water current pushing left / right (counts as water)
+ *   !  crusher: a 2-tile-wide press that hangs here and slams down to the floor
+ *   @  roller chute: keeps sending a boulder / snowball / barrel rolling left
  *   D  boss door (solid; opens when the player walks into it from the left)
  *   P  player start              c  checkpoint       *  goal
  *   B  checkpoint that is also the "boss test" start
@@ -82,7 +94,24 @@ export interface StageData {
   layout: string[];
   /** Scenery drawn behind the sprites: images or text, in world pixels. */
   decor?: Decor[];
+  /** Wind gusts blow on these screens (by screen id), in the given directions in turn. */
+  wind?: { screens: string; dirs: (1 | -1)[] };
+  /** Screens that are dark: you see a small circle around you, plus flashes. */
+  dark?: string;
+  /** Lava rises through these screens once you enter them (px per step). */
+  rise?: { screens: string; speed: number };
 }
+
+/** A moving cloud: its top-left travels between (x0, y0) and (x1, y1). */
+export interface Mover {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+}
+
+/** Width of a moving cloud, in tiles. */
+export const MOVER_TILES = 3;
 
 export interface Decor {
   x: number;
@@ -112,7 +141,17 @@ export enum Tile {
   Water = 11,
   Fake = 12,
   Melt = 13,
+  Crumble = 14,
+  Updraft = 15,
+  Spring = 16,
+  SwitchA = 17,
+  SwitchB = 18,
+  CurrentL = 19,
+  CurrentR = 20,
 }
+
+/** Tileset frame drawn where a switch block is switched off (just its outline). */
+export const SWITCH_OFF_INDEX = 19;
 
 /** Tileset frame for a frozen block. Fake walls use the solid frame (0). */
 export const MELT_INDEX = 12;
@@ -201,9 +240,21 @@ const TILE_CHARS: Record<string, Tile> = {
   '~': Tile.Water,
   F: Tile.Fake,
   '&': Tile.Melt,
+  x: Tile.Crumble,
+  y: Tile.Updraft,
+  '%': Tile.Spring,
+  '[': Tile.SwitchA,
+  ']': Tile.SwitchB,
+  '{': Tile.CurrentL,
+  '}': Tile.CurrentR,
 };
 
-const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U']);
+const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U', '=', '-', 'v', ':', '!', '@']);
+
+/** Water, including currents. */
+export function isWaterTile(t: Tile): boolean {
+  return t === Tile.Water || t === Tile.CurrentL || t === Tile.CurrentR;
+}
 
 export class Level {
   readonly cols: number;
@@ -221,6 +272,14 @@ export class Level {
   upgrade: Point | null = null;
   bossTestStart: Point | null = null;
   readonly doors: Door[] = [];
+  readonly movers: Mover[] = [];
+  /** Crusher anchors (top-left of the 2-tile head) and roller chutes. */
+  readonly crushers: Point[] = [];
+  readonly rollers: Point[] = [];
+  /** Screen id at each layout cell ('' where unused), [sy][sx]. */
+  private readonly screenGrid: string[][] = [];
+  /** Moving-cloud marker characters by cell, used to trace tracks once all screens are in. */
+  private readonly moverChars = new Map<number, string>();
 
   constructor(readonly data: StageData) {
     const screensWide = Math.max(...data.layout.map((r) => r.replace(/\|/g, '').length));
@@ -230,6 +289,7 @@ export class Level {
     this.tiles = new Uint8Array(this.cols * this.rows);
 
     data.layout.forEach((line, sy) => {
+      this.screenGrid[sy] = [];
       // Sections: runs of used screens in this row, also split at '|'.
       let sx = 0;
       let start = -1;
@@ -247,6 +307,7 @@ export class Level {
           const screen = data.screens[id];
           if (!screen) throw new Error(`Stage "${data.name}": unknown screen "${id}"`);
           this.loadScreen(id, screen, sx, sy);
+          this.screenGrid[sy][sx] = id;
           if (start < 0) start = sx;
         }
         sx++;
@@ -255,6 +316,30 @@ export class Level {
     });
     this.fillMarkersInWater();
     this.findDoors();
+    this.findMovers();
+  }
+
+  /** Trace each moving cloud's track ('-' to the right of '=', ':' below 'v'). */
+  private findMovers(): void {
+    const at = (c: number, r: number) => this.moverChars.get(r * this.cols + c);
+    for (const [k, ch] of this.moverChars) {
+      const c = k % this.cols;
+      const r = Math.floor(k / this.cols);
+      if (ch === '=') {
+        let end = c;
+        while (at(end + 1, r) === '-') end++;
+        this.movers.push({ x0: c * TILE, y0: r * TILE, x1: Math.max(c, end - MOVER_TILES + 1) * TILE, y1: r * TILE });
+      } else if (ch === 'v') {
+        let end = r;
+        while (at(c, end + 1) === ':') end++;
+        this.movers.push({ x0: c * TILE, y0: r * TILE, x1: c * TILE, y1: end * TILE });
+      }
+    }
+  }
+
+  /** Id of the screen containing a world point ('' if none). */
+  screenIdAt(px: number, py: number): string {
+    return this.screenGrid[Math.floor(py / SCREEN_H)]?.[Math.floor(px / SCREEN_W)] ?? '';
   }
 
   /** Cells holding an enemy or marker are empty; if they sit in water, make them water too. */
@@ -262,7 +347,7 @@ export class Level {
   private fillMarkersInWater(): void {
     for (const { c, r } of this.markerCells) {
       const near = [this.tileAt(c - 1, r), this.tileAt(c + 1, r), this.tileAt(c, r - 1), this.tileAt(c, r + 1)];
-      if (near.includes(Tile.Water)) this.tiles[r * this.cols + c] = Tile.Water;
+      if (near.some(isWaterTile)) this.tiles[r * this.cols + c] = Tile.Water;
     }
   }
 
@@ -294,6 +379,7 @@ export class Level {
         const bottom = (gr + 1) * TILE;
         const t = TILE_CHARS[ch] ?? Tile.Empty;
         if (!(ch in TILE_CHARS) && ch !== '.') this.markerCells.push({ c: gc, r: gr });
+        if (ch === '=' || ch === '-' || ch === 'v' || ch === ':') this.moverChars.set(gr * this.cols + gc, ch);
         if (ch === 'X') this.boss = { x: cx, y: bottom };
         else if (ch === 'B') {
           this.bossTestStart = { x: cx, y: bottom };
@@ -305,6 +391,8 @@ export class Level {
         else if (ch === 'E') this.tanks.push({ x: cx, y: bottom });
         else if (ch === 'T') this.teleporters.push({ x: cx, y: bottom });
         else if (ch === 'U') this.upgrade = { x: cx, y: bottom };
+        else if (ch === '!') this.crushers.push({ x: gc * TILE, y: gr * TILE });
+        else if (ch === '@') this.rollers.push({ x: cx, y: bottom });
         else if (ENEMY_CHARS[ch]) this.spawns.push({ kind: ENEMY_CHARS[ch], x: cx, y: bottom, alive: false, armed: true });
         else if (t === Tile.Empty && !MARKERS.has(ch)) throw new Error(`${where} row ${r}: unknown character "${ch}"`);
         this.tiles[gr * this.cols + gc] = t;
@@ -320,13 +408,17 @@ export class Level {
 
   isSolid(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    return t === Tile.Solid || t === Tile.Spike || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR || t === Tile.Melt;
+    return t === Tile.Solid || t === Tile.Spike || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR || t === Tile.Melt || t === Tile.Spring || t === Tile.SwitchA || t === Tile.SwitchB;
   }
 
   /** Ground an enemy is willing to walk on (not spikes). */
   isFloor(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    return t === Tile.Solid || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR || t === Tile.Melt || this.isPlatform(c, r);
+    return t === Tile.Solid || t === Tile.Door || t === Tile.Ice || t === Tile.ConveyorL || t === Tile.ConveyorR || t === Tile.Melt || t === Tile.SwitchA || t === Tile.SwitchB || this.isPlatform(c, r);
+  }
+
+  isUpdraft(c: number, r: number): boolean {
+    return this.tileAt(c, r) === Tile.Updraft;
   }
 
   isLava(c: number, r: number): boolean {
@@ -334,8 +426,19 @@ export class Level {
   }
 
   isWater(c: number, r: number): boolean {
-    return this.tileAt(c, r) === Tile.Water;
+    return isWaterTile(this.tileAt(c, r));
   }
+
+  /** Current push at a cell: -1 (left), 1 (right) or 0. */
+  currentAt(c: number, r: number): number {
+    const t = this.tileAt(c, r);
+    return t === Tile.CurrentL ? -1 : t === Tile.CurrentR ? 1 : 0;
+  }
+
+  hasWater(): boolean {
+    return this.tiles.some((t) => isWaterTile(t as Tile));
+  }
+
 
   isElectric(c: number, r: number): boolean {
     return this.tileAt(c, r) === Tile.Electric;
@@ -372,7 +475,8 @@ export class Level {
 
   /** One-way platforms: ladder tops and clouds. */
   isPlatform(c: number, r: number): boolean {
-    return this.tileAt(c, r) === Tile.Cloud || this.isLadderTop(c, r);
+    const t = this.tileAt(c, r);
+    return t === Tile.Cloud || t === Tile.Crumble || this.isLadderTop(c, r);
   }
 
   sectionAt(px: number, py: number): Section | null {
@@ -383,7 +487,7 @@ export class Level {
 
   /** Tile indices for the main Phaser tilemap layer (-1 = empty). Water is drawn on its own layer. */
   tileIndexGrid(): number[][] {
-    return this.grid((t) => (t === Tile.Water || t === Tile.Fake ? -1 : t === Tile.Melt ? MELT_INDEX : t - 1));
+    return this.grid((t) => (isWaterTile(t) || t === Tile.Fake || t === Tile.Updraft ? -1 : t === Tile.Melt ? MELT_INDEX : t - 1));
   }
 
   /** Fake walls, drawn as solid wall on a layer over the sprites (so you vanish into them). */
@@ -394,7 +498,7 @@ export class Level {
   /** Tile indices for the translucent water layer drawn over sprites. */
   waterIndexGrid(): number[][] {
     const w = Tile.Water - 1;
-    return this.grid((t) => (t === Tile.Water ? w : -1)).map((row, r) =>
+    return this.grid((t) => (isWaterTile(t) ? w : -1)).map((row, r) =>
       row.map((v, c) => (v === -1 && this.underwaterSeeThrough(c, r) ? w : v)),
     );
   }
@@ -405,8 +509,8 @@ export class Level {
    */
   private underwaterSeeThrough(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    if (t !== Tile.Spike && t !== Tile.Ladder) return false;
-    return [this.tileAt(c - 1, r), this.tileAt(c + 1, r), this.tileAt(c, r - 1)].includes(Tile.Water);
+    if (t !== Tile.Spike && t !== Tile.Ladder && t !== Tile.Updraft) return false;
+    return [this.tileAt(c - 1, r), this.tileAt(c + 1, r), this.tileAt(c, r - 1)].some(isWaterTile);
   }
 
   private grid(index: (t: Tile) => number): number[][] {

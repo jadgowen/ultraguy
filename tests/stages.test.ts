@@ -126,3 +126,66 @@ describe('fortress', () => {
     }
   });
 });
+
+describe('sky mechanics', () => {
+  const L = new Level(getStage('stratos'));
+
+  it('Stratos has horizontal and vertical moving clouds with real tracks', () => {
+    const horizontal = L.movers.filter((m) => m.y0 === m.y1);
+    const vertical = L.movers.filter((m) => m.x0 === m.x1);
+    expect(horizontal.length).toBeGreaterThanOrEqual(3);
+    expect(vertical.length).toBeGreaterThanOrEqual(1);
+    for (const m of L.movers) expect(Math.hypot(m.x1 - m.x0, m.y1 - m.y0)).toBeGreaterThanOrEqual(32);
+  });
+
+  it('a moving-cloud track can run across two screens', () => {
+    // A's cloud ends in B: its far end is past A's right edge.
+    const first = L.movers.find((m) => m.y0 === m.y1 && m.x0 < 256)!;
+    expect(first.x1).toBeGreaterThan(256);
+  });
+
+  it('wind blows only on the screens that name it', () => {
+    expect(getStage('stratos').wind?.screens).toBe('DEFLMN');
+    expect(L.screenIdAt(3 * 256 + 10, 3 * 240 + 10)).toBe('D');
+    expect(L.screenIdAt(0, 0)).toBe('');
+  });
+
+  it('the climb needs its updrafts', () => {
+    const stage = getStage('stratos');
+    const still = { ...stage, screens: { ...stage.screens, W: stage.screens.W.map((r) => r.replace(/y/g, '.')) } };
+    expect(reach(still).ok).toBe(false);
+  });
+});
+
+describe('each boss stage is built around its own mechanic', () => {
+  const has = (id: Parameters<typeof getStage>[0], t: Tile) => new Level(getStage(id)).findTiles(t).length > 0;
+  it('Foundry: crushers and a lift', () => {
+    const L = new Level(getStage('foundry'));
+    expect(L.crushers.length).toBeGreaterThanOrEqual(8);
+    expect(L.movers.some((m) => m.x0 === m.x1)).toBe(true);
+  });
+  it('Canopy: bounce flowers and breaking branches', () => {
+    expect(new Level(getStage('canopy')).findTiles(Tile.Spring).length).toBeGreaterThanOrEqual(6);
+    expect(has('canopy', Tile.Crumble)).toBe(true);
+  });
+  it('Glacier: cracking ice and snowball chutes', () => {
+    expect(new Level(getStage('glacier')).findTiles(Tile.Crumble).length).toBeGreaterThanOrEqual(20);
+    expect(new Level(getStage('glacier')).rollers.length).toBeGreaterThanOrEqual(2);
+  });
+  it('Power Plant: switch blocks and dark rooms', () => {
+    expect(has('powerplant', Tile.SwitchA) && has('powerplant', Tile.SwitchB)).toBe(true);
+    expect(getStage('powerplant').dark?.length).toBeGreaterThanOrEqual(3);
+  });
+  it('Caldera: rising lava through a climb', () => {
+    expect(getStage('caldera').rise?.screens).toBe('DE');
+  });
+  it('Scrapyard: barrel chutes, presses and cranes', () => {
+    const L = new Level(getStage('scrapyard'));
+    expect(L.rollers.length).toBeGreaterThanOrEqual(3);
+    expect(L.crushers.length).toBeGreaterThanOrEqual(5);
+    expect(L.movers.length).toBeGreaterThanOrEqual(3);
+  });
+  it('Reef: currents both ways and bubble columns', () => {
+    expect(has('reef', Tile.CurrentL) && has('reef', Tile.CurrentR) && has('reef', Tile.Updraft)).toBe(true);
+  });
+});

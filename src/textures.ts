@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import type { ThemeId } from './level/Level';
 import { THEMES, Theme } from './level/themes';
+import { makeHazardTextures } from './scenes/hazards';
 
 /**
  * Art drawn in code at boot: stage tiles, backgrounds and small effects.
@@ -37,7 +38,7 @@ function tri(g: G, color: number, x1: number, y1: number, x2: number, y2: number
 
 /** Tileset per theme: 0 solid, 1 ladder, 2 spike, 3 boss door, 4 ice, 5 cloud. */
 function makeTileset(scene: Phaser.Scene, id: ThemeId, t: Theme): void {
-  make(scene, `tiles_${id}`, 208, 16, (g) => {
+  make(scene, `tiles_${id}`, 320, 16, (g) => {
     const s = t.solid;
     rect(g, s.base, 0, 0, 16, 16);
     rect(g, s.light, 0, 0, 16, 2);
@@ -132,6 +133,106 @@ function makeTileset(scene: Phaser.Scene, id: ThemeId, t: Theme): void {
     rect(g, 0x6aa8d8, 192, 14, 16, 2);
     rect(g, 0x6aa8d8, 206, 0, 2, 16);
     for (const [x, y, w, h] of [[196, 4, 1, 4], [197, 8, 3, 1], [200, 9, 1, 3], [202, 4, 3, 1], [204, 5, 1, 3]]) rect(g, 0x6aa8d8, x, y, w, h);
+    // 13: crumbling tile. Sky: a cloud broken into puffs. Jungle: a thin branch.
+    // Elsewhere: a cracked, chipped version of the solid tile.
+    if (id === 'sky') {
+      rect(g, t.cloud.base, 208, 3, 6, 6);
+      rect(g, t.cloud.base, 215, 2, 8, 6);
+      rect(g, t.cloud.base, 210, 1, 3, 2);
+      rect(g, t.cloud.shade, 208, 8, 6, 2);
+      rect(g, t.cloud.shade, 215, 7, 8, 2);
+      rect(g, t.cloud.shade, 214, 4, 1, 4);
+    } else if (id === 'jungle') {
+      rect(g, 0x7a5a3a, 208, 2, 16, 5);
+      rect(g, 0x9a7a4a, 208, 2, 16, 1);
+      rect(g, 0x3a2618, 208, 6, 16, 2);
+      rect(g, 0x4ca04a, 210, 0, 4, 2);
+      rect(g, 0x4ca04a, 218, 0, 3, 2);
+      rect(g, 0x3a2618, 214, 2, 1, 4);
+    } else {
+      const ice = id === 'ice';
+      const base = ice ? t.ice.base : s.base;
+      const light = ice ? t.ice.light : s.light;
+      const dark = ice ? t.ice.dark : s.dark;
+      rect(g, base, 208, 0, 16, 12);
+      rect(g, light, 208, 0, 16, 2);
+      rect(g, dark, 208, 10, 16, 2);
+      for (const [x, y, w, h] of [[211, 2, 1, 4], [212, 5, 3, 1], [215, 6, 1, 4], [219, 2, 1, 3], [220, 4, 2, 1]]) rect(g, dark, x, y, w, h);
+      rect(g, dark, 209, 12, 3, 2);
+      rect(g, dark, 217, 12, 4, 2);
+    }
+    // 15: spring. Jungle: a bounce flower. Elsewhere: a coil spring on a base.
+    if (id === 'jungle') {
+      rect(g, 0x2e7a34, 240, 8, 16, 8);
+      rect(g, 0x4ca04a, 240, 8, 16, 2);
+      rect(g, 0xd83a4a, 241, 2, 14, 6);
+      rect(g, 0xff8aa8, 242, 2, 12, 2);
+      rect(g, 0xffe14a, 245, 3, 6, 3);
+    } else {
+      rect(g, s.dark, 240, 12, 16, 4);
+      rect(g, s.light, 240, 12, 16, 1);
+      for (const y of [5, 8, 11]) rect(g, 0xc8ccd8, 243, y, 10, 2);
+      rect(g, 0xd83a4a, 240, 1, 16, 4);
+      rect(g, 0xff8aa8, 240, 1, 16, 1);
+    }
+    // 16, 17: switch blocks (set A orange, set B teal); 19: switched off (outline).
+    for (const [ox, col, lite] of [[256, 0xf28c28, 0xffe14a], [272, 0x2aa88a, 0x5ef0c8]] as const) {
+      rect(g, 0x1a1428, ox, 0, 16, 16);
+      rect(g, col, ox + 1, 1, 14, 14);
+      rect(g, lite, ox + 1, 1, 14, 2);
+      rect(g, 0x1a1428, ox + 5, 5, 6, 6);
+      rect(g, lite, ox + 6, 6, 4, 4);
+    }
+    for (const [x, y, w, h] of [[304, 0, 16, 1], [304, 15, 16, 1], [304, 0, 1, 16], [319, 0, 1, 16], [308, 7, 8, 2]]) rect(g, 0xc8ccd8, x, y, w, h);
+  });
+  // Moving platform, per theme. Sky: an outlined cloud on jets. Jungle: a
+  // log. Ice: an ice floe. Elsewhere: a metal lift with hazard stripes.
+  make(scene, `mcloud_${id}`, 48, 16, (g) => {
+    const K = 0x1a1428;
+    const s = t.solid;
+    if (id === 'sky') {
+      rect(g, K, 0, 2, 48, 10);
+      for (const x of [2, 18, 34]) rect(g, K, x - 1, 0, 7, 3);
+      for (const x of [9, 25, 41]) rect(g, K, x - 1, 0, 7, 3);
+      rect(g, t.cloud.base, 1, 3, 46, 6);
+      for (const x of [2, 18, 34]) rect(g, t.cloud.base, x, 1, 5, 2);
+      for (const x of [9, 25, 41]) rect(g, t.cloud.base, x, 1, 5, 2);
+      rect(g, t.cloud.shade, 1, 8, 46, 3);
+      rect(g, 0xffffff, 6, 4, 6, 1);
+      rect(g, 0xffffff, 26, 4, 6, 1);
+      for (const x of [8, 34]) {
+        rect(g, K, x - 1, 11, 8, 4);
+        rect(g, 0x8a8fa8, x, 11, 6, 2);
+        rect(g, 0x5ef0c8, x + 1, 13, 4, 2);
+      }
+    } else if (id === 'jungle') {
+      rect(g, K, 0, 0, 48, 10);
+      rect(g, 0x7a5a3a, 1, 1, 46, 8);
+      rect(g, 0x9a7a4a, 1, 1, 46, 2);
+      rect(g, 0x3a2618, 1, 7, 46, 2);
+      for (const x of [9, 22, 36]) rect(g, 0x5a3e2a, x, 3, 4, 2);
+      rect(g, 0xc8a070, 1, 2, 3, 5);
+      rect(g, 0x4ca04a, 30, 0, 6, 2);
+    } else if (id === 'ice' || id === 'water') {
+      const c = id === 'ice' ? t.ice : { base: 0x6ab8a8, light: 0xa8e8d0, dark: 0x2a6a68 };
+      rect(g, K, 0, 0, 48, 12);
+      rect(g, c.base, 1, 1, 46, 10);
+      rect(g, c.light, 1, 1, 46, 2);
+      rect(g, c.dark, 1, 9, 46, 2);
+      rect(g, c.light, 8, 4, 3, 2);
+      rect(g, c.light, 30, 5, 4, 1);
+    } else {
+      rect(g, K, 0, 0, 48, 10);
+      rect(g, s.base, 1, 1, 46, 8);
+      rect(g, s.light, 1, 1, 46, 2);
+      for (let x = 2; x < 46; x += 8) rect(g, 0xffc040, x, 4, 4, 3);
+      rect(g, s.dark, 1, 7, 46, 2);
+      for (const x of [6, 38]) {
+        rect(g, K, x - 1, 10, 6, 5);
+        rect(g, 0x8a8fa8, x, 10, 4, 3);
+        rect(g, 0xd83a4a, x + 1, 13, 2, 2);
+      }
+    }
   });
 }
 
@@ -343,4 +444,5 @@ export function generateTextures(scene: Phaser.Scene): void {
     makeBackground(scene, id, theme);
   }
   makeEffects(scene);
+  makeHazardTextures(scene);
 }

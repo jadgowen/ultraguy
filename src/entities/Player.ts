@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { PHYS, TILE } from '../constants';
 import { BASE_MAX, HELMET_MAX, PartId, armoredDamage } from '../parts';
 import { conveyorUnder, moveX, moveY, standingOnIce, touchesSpike, touchesTile } from '../physics';
+import { Tile } from '../level/Level';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
 import { heroFrames } from '../heroSprites';
@@ -175,9 +176,15 @@ export class Player {
     }
 
     if (this.grounded) this.airJumps = this.has('boots') ? 1 : 0;
+    const lifted = this.inUpdraft;
+    // Hovering at the top of an updraft bobs your middle in and out of it, so feet count for jumping.
+    const canAirJump = lifted || L.isUpdraft(Math.floor(this.cx / TILE), Math.floor((this.bottom - 1) / TILE));
     if (c.justPressed('jump') && this.grounded) {
       this.vy = this.inWater ? -PHYS.waterJump : -PHYS.jump;
       this.grounded = false;
+    } else if (c.justPressed('jump') && canAirJump) {
+      // Rising air: you can always jump again while inside it.
+      this.vy = Math.min(this.vy, -PHYS.updraftJump);
     } else if (c.justPressed('jump') && this.airJumps > 0) {
       // Jump Boots: one more jump in mid-air, with a puff under the feet.
       this.airJumps--;
@@ -187,7 +194,10 @@ export class Player {
       sfx.land();
     }
     // Variable jump height: letting go of jump kills upward speed.
-    if (!c.isDown('jump') && this.vy < 0) this.vy = 0;
+    // (Not in an updraft: the air itself is what's lifting you there.)
+    // (Nor after a spring: that launch isn't yours to cut short.)
+    if (this.sprung && this.vy >= 0) this.sprung = false;
+    if (!c.isDown('jump') && this.vy < 0 && !lifted && !this.sprung) this.vy = 0;
 
     const target = dir * PHYS.run;
     const onIce = this.grounded && standingOnIce(L, this);
@@ -258,15 +268,49 @@ export class Player {
     const L = this.g.level;
     const water = this.inWater;
     this.vy = Math.min(this.vy + (water ? PHYS.waterGravity : PHYS.gravity), water ? PHYS.waterMaxFall : PHYS.maxFall);
+    if (this.inUpdraft) this.vy = Math.max(this.vy - PHYS.updraftLift, -PHYS.updraftMax);
     if (water && Math.random() < 0.03) this.g.burst(this.cx + this.facing * 4, this.y + 4, 'bubble_fx', 1);
     const belt = this.grounded ? conveyorUnder(L, this) * PHYS.conveyor : 0;
-    if (moveX(L, this, this.vx + this.g.wind + belt)) this.vx = 0;
+    // Gusts push less while your feet are planted.
+    const gust = this.g.gust * (this.grounded ? PHYS.gustGrip : 1);
+    const current = L.currentAt(Math.floor(this.cx / TILE), Math.floor(this.cy / TILE)) * PHYS.current;
+    if (moveX(L, this, this.vx + this.g.wind + gust + belt + current)) this.vx = 0;
     const falling = this.vy > 0;
     const wasGrounded = this.grounded;
+    const prevBottom = this.bottom;
     const hit = moveY(L, this, this.vy, true);
     this.grounded = hit && falling;
     if (hit) this.vy = 0;
+    if (!this.grounded && this.vy >= 0 && this.g.landOnMover(this, prevBottom)) {
+      this.grounded = true;
+      this.vy = 0;
+    }
+    // Springs: landing on one launches you (higher if you're holding jump).
+    if (this.grounded && this.onSpring()) {
+      this.vy = -(this.g.controls.isDown('jump') ? PHYS.springHigh : PHYS.spring);
+      this.grounded = false;
+      this.sprung = true;
+      this.airJumps = this.has('boots') ? 1 : 0;
+      sfx.bubble();
+      this.g.burst(this.cx, this.bottom, 'spark', 4);
+      return;
+    }
     if (this.grounded && !wasGrounded) sfx.land();
+  }
+
+  /** Launched by a spring and still rising. */
+  private sprung = false;
+
+  private onSpring(): boolean {
+    const L = this.g.level;
+    const row = Math.floor((this.bottom + 0.5) / TILE);
+    // Either foot on it counts (you can stand half on a spring otherwise).
+    return L.tileAt(Math.floor((this.x + 1) / TILE), row) === Tile.Spring || L.tileAt(Math.floor((this.x + this.w - 1) / TILE), row) === Tile.Spring;
+  }
+
+  /** Center of the body is in rising air. */
+  get inUpdraft(): boolean {
+    return this.g.level.isUpdraft(Math.floor(this.cx / TILE), Math.floor(this.cy / TILE));
   }
 
   private ladderOverlap(col: number): boolean {

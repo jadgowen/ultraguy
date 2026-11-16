@@ -1,17 +1,21 @@
 import type { StageData } from './Level';
 import { bossRoom, miniHall, rows, SKY } from './rooms';
 
-// POWER PLANT. Electric barriers ('Z') switch on and off every ~1.7 seconds:
-// wait for them to go dark, then run through. Tesla-coil zappers throw arcs
-// along the floor and steel rollers come barreling at you.
+// POWER PLANT. Built around switch blocks ('[' and ']' take turns being solid,
+// blinking before they vanish) and the dark: in the unlit rooms you only see
+// a circle around yourself, plus a flash every few seconds.
+//  1. Lit: learn the switch blocks over a safe dip (A), then over spikes, past
+//     an electric barrier (B).
+//  2. Lights out: a dark room with a pit (C), switch blocks in the dark (D),
+//     then a switch-block staircase up the dark shaft to a ladder (E).
+//  3. Back in the light upstairs: rollers, then barriers and switch blocks in
+//     the dark again (G), and a barrier run (H). Then the hall and VOLT.
 //
-// Layout:  row 0:  A B C D E . . . K L M N | X Y
-//          row 1:  . . . . F G H I J
-// Run right, ladder down at E, run the lower floor, ladder up at J, finish at N.
+// Layout:  row 0:  . . . . F G H 1 2 I | X Y
+//          row 1:  A B C D E
 
 const CEIL = '################';
 const room = bossRoom();
-
 const hall = miniHall('#');
 
 export const POWERPLANT: StageData = {
@@ -21,28 +25,47 @@ export const POWERPLANT: StageData = {
   boss: 'volt',
   bossName: 'VOLT',
   bossWeapon: 'spark',
-  layout: ['ABCDE.....KLMN|XY', '....FG12HIJ'],
+  layout: ['....FGH12I|XY', 'ABCDE'],
   miniboss: 'dynamo',
+  dark: 'CDEG',
   screens: {
+    // --- 1. Lit -----------------------------------------------------------------------
+    // Orange blocks, then teal: stand on one set and step across as they swap.
+    A: [CEIL, CEIL, ...rows(SKY, 10), '..P.............', '#######[[[]]]###', CEIL],
+    // The same over spikes, past a barrier.
+    B: [CEIL, CEIL, ...rows(SKY, 7), '..........o.....', '...Z............', '...Z............', '...Z............', '#######]]][[[###', '#######^^^^^^###'],
+
+    // --- 2. Lights out ----------------------------------------------------------------
+    C: [CEIL, CEIL, ...rows(SKY, 8), '.........###....', SKY, '..c.....k.......', '#####...########', '#####...########'],
+    D: [CEIL, CEIL, ...rows(SKY, 8), '..........f.....', '.......]]]......', '...[[[.....[[[..', '###...........##', '###...........##'],
+    // Up the dark shaft on switch blocks to the ladder.
+    E: [
+      '############H###',
+      '#...........H..#',
+      '#...........H..#',
+      '#..........[[[.#',
+      '#..............#',
+      '#......]]].....#',
+      '#..............#',
+      '#...[[[........#',
+      '#..............#',
+      '#......]]]....f#',
+      '...............#',
+      '...[[[.........#',
+      '...............#',
+      CEIL,
+      CEIL,
+    ],
+
+    // --- 3. Upstairs --------------------------------------------------------------------
+    F: [CEIL, CEIL, ...rows(SKY, 10), '..c....o........', '############H###', '############H###'],
+    // Barrier, then switch blocks over a pit, in the dark.
+    G: [CEIL, CEIL, ...rows(SKY, 7), '..........f.....', '..Z.............', '..Z.............', '..Z.............', '#####[[[]]][[[##', '#####.........##'],
+    // A barrier run back in the light, up to the hall.
+    H: [CEIL, CEIL, ...rows(SKY, 7), '...........k....', '.....Z....Z.....', '.....Z....Z.....', '.....Z....Z.....', CEIL, CEIL],
     '1': hall.a,
     '2': hall.b,
-    A: [CEIL, CEIL, ...rows(SKY, 8), '..........###...', SKY, '..P.........o...', CEIL, CEIL],
-    // First barrier: wait for it to switch off.
-    B: [CEIL, CEIL, ...rows(SKY, 7), '........###.....', '.........Z......', '.........Z......', '...k.....Z......', CEIL, CEIL],
-    C: [CEIL, CEIL, ...rows(SKY, 6), '..........f.....', SKY, SKY, '.....###........', '..c.............', '#######...######', '#######...######'],
-    // Two barriers switch together: cross one, wait between them.
-    D: [CEIL, CEIL, ...rows(SKY, 7), '....###....###..', '.....Z......Z...', '.....Z......Z...', '.....Z...t..Z...', CEIL, CEIL],
-    E: [CEIL, CEIL, ...rows('...............#', 10), '...o...........#', '############H###', '############H###'],
-    F: ['############H###', ...rows('#...........H..#', 9), '#...........H...', '#..........cH...', '#...........H...', CEIL, CEIL],
-    G: [...rows(CEIL, 6), ...rows(SKY, 5), '.........##.....', '...o.....##.....', CEIL, CEIL],
-    H: [...rows(CEIL, 6), SKY, SKY, SKY, '.....###........', '......Z.........', '......Z.........', '......Z...k.....', '#############^^#', CEIL],
-    I: [...rows(CEIL, 6), SKY, '..........f.....', SKY, '......t.........', '....####........', SKY, SKY, CEIL, CEIL],
-    J: [...rows('##########H#####', 6), ...rows('..........H....#', 7), CEIL, CEIL],
-    K: [CEIL, CEIL, ...rows('#...............', 10), '#...c...........', '##########H#####', '##########H#####'],
-    // Barrier gauntlet with a roller between the posts.
-    L: [CEIL, CEIL, ...rows(SKY, 7), '..###....###....', '...Z......Z.....', '...Z......Z.....', '...Z...o..Z.....', CEIL, CEIL],
-    M: [CEIL, CEIL, ...rows(SKY, 7), '..........k.....', '.........###....', SKY, '....##..........', '#######^^#######', CEIL],
-    N: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', CEIL, CEIL],
+    I: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', CEIL, CEIL],
     X: room.left,
     Y: room.right,
   },

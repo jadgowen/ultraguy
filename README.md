@@ -17,6 +17,21 @@ Each boss gives a weapon; weaknesses form a loop. Beat all 8 and FORTRESS opens 
 ABYSS EYE, SPIRE WARDEN; no weapon reward), the BOSS HALL (eight teleporters for boss
 rematches), then the final boss (OVERLORD, then SHADE).
 
+Every boss stage is built around its own set piece (legend in `src/level/Level.ts`; logic in
+`src/scenes/sky.ts` and `src/scenes/hazards.ts`), taught safely, tested, twisted, then pushed hard, with
+a change of direction partway:
+
+| Stage | Built around |
+|---|---|
+| Foundry | crushers (`!`) that slam in a rolling wave; a lift down a shaft; belts |
+| Canopy | bounce flowers (`%`, hold jump to go higher) up through the trees; breaking branches; a drifting log |
+| Glacier | cracking ice (`x`) you fall through layer by layer; snowball chutes (`@`) |
+| Stratos | moving clouds (`=`/`-`, `v`/`:`), updrafts (`y`), wind gusts (`wind` screens), crumbling clouds |
+| Power Plant | switch blocks (`[` / `]` take turns) and dark rooms (`dark` screens) lit by flashes |
+| Caldera | lava that rises after you up a two-screen climb (`rise`); lifts and crumbling rock over lava |
+| Scrapyard | barrel chutes, compactor presses, crane platforms and conveyor stairs |
+| Reef | currents (`{` / `}`) and bubble columns; a trench current that drags you toward spikes |
+
 Each boss stage has a miniboss halfway through, and an energy tank (E-tank) on a ledge just before it.
 You can carry up to 4 E-tanks (saved); use one from the pause menu to refill your life. Enemies drop
 small and large life and weapon-energy pellets.

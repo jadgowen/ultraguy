@@ -1,14 +1,22 @@
 import type { StageData } from './Level';
 import { bossRoom, miniHall, rows, SKY } from './rooms';
 
-// STRATOS (sky). Hop between cloud platforms ('C', one-way: jump up through
-// them) high above a bottomless drop, while bombers and lightning-throwing
-// sparkers harass you from above.
+// STRATOS (sky). Built around moving air:
+//  1. Low altitude (A-F): ride moving clouds, then learn the gusts. The WIND
+//     warning blinks before each gust; headwinds stop a jump short, tailwinds
+//     carry you past a small cloud.
+//  2. The climb (W, G-H, I-J): updrafts lift you up through the stage (you can
+//     jump again while inside one), across crumbling clouds and a moving cloud.
+//  3. High altitude (K-N): gusts again, now over crumbling clouds and movers.
+//     Then the miniboss hall, and GALE.
 //
-// Layout:  row 0:  A B C D E F | X Y
+// Layout (each letter one screen; you climb from W up to K):
+//   row 0:  . . . . . . K L M N 1 2 O | X Y
+//   row 1:  . . . . . . I J
+//   row 2:  . . . . . . G H
+//   row 3:  A B C D E F W
 
 const room = bossRoom();
-
 const hall = miniHall('#');
 
 export const STRATOS: StageData = {
@@ -18,80 +26,100 @@ export const STRATOS: StageData = {
   boss: 'gale',
   bossName: 'GALE',
   bossWeapon: 'cyclone',
-  layout: ['AaBbCcDd12EegF|XY'],
+  layout: ['......KLMN12O|XY', '......IJ', '......GH', 'ABCDEFW'],
   miniboss: 'kite',
   upgrade: 'armor',
+  wind: { screens: 'DEFLMN', dirs: [-1, 1] },
   screens: {
+    // --- 1. Low altitude --------------------------------------------------------
+    // A moving cloud ferries you over the first drop.
+    A: [...rows(SKY, 12), '..P.............', '##########=-----', '##########......'],
+    B: [SKY, SKY, SKY, '...........b....', ...rows(SKY, 8), SKY, '----############', '....############'],
+    // A lift up to the high ledge: the wall is too tall to jump.
+    C: [
+      ...rows(SKY, 6),
+      '......v..#######',
+      ...rows('......:..#######', 5),
+      '..w...:..#######',
+      '################',
+      '################',
+    ],
+    // First gusts, on solid ground: wait out a headwind before the gap.
+    D: [SKY, SKY, SKY, '.....f..........', SKY, '..c.............', '#######...######', '#######...######', '#######...######', ...rows(SKY, 6)],
+    // Small clouds in the wind: a tailwind can carry you right past one.
+    E: [...rows(SKY, 5), '.........z......', '###.............', '###.............', '###...CCC.......', '............CCC.', ...rows(SKY, 5)],
+    // A moving cloud while the wind blows.
+    F: [...rows(SKY, 4), '.......f........', ...rows(SKY, 4), '.=------...#####', '...........#####', '...........#####', ...rows(SKY, 3)],
+
+    // --- 2. The climb -------------------------------------------------------------
+    // First updraft, over safe ground: it carries you up off the screen.
+    W: [
+      ...rows('..........yyy..#', 8),
+      '..c.......yyy..#',
+      '#########.yyy..#',
+      '#########.yyy..#',
+      '..........yyy..#',
+      '..........yyy..#',
+      '.........#######',
+      '.........#######',
+    ],
+    // The updraft tops out beside a ledge: jump from inside it to reach the ledge.
+    G: [...rows(SKY, 7), '..........yyy###', '..........yyy###', ...rows('..........yyy...', 6)],
+    // Crumbling clouds to the next updraft (no floor below).
+    H: [
+      ...rows('.............yyy', 4),
+      '......f......yyy',
+      '.............yyy',
+      '.............yyy',
+      '##..xxx...xxxyyy',
+      '##...........yyy',
+      ...rows('.............yyy', 6),
+    ],
+    // Off the updraft to the left, onto a moving cloud.
+    J: [SKY, SKY, '....b...........', SKY, SKY, '.=-----.#####yyy', '........#####yyy', ...rows('.............yyy', 8)],
+    // Drop off the ledge into the last updraft (miss it and you fall back down).
+    I: [
+      '..yyy...........',
+      '..yyy...........',
+      '..yyy......z....',
+      '..yyy...........',
+      '..yyy...........',
+      '..yyy....#######',
+      '..yyy....#######',
+      ...rows('..yyy...........', 4),
+      '#######.........',
+      '#######.........',
+      SKY,
+      SKY,
+    ],
+
+    // --- 3. High altitude ------------------------------------------------------------
+    K: [SKY, SKY, '.........b......', ...rows(SKY, 4), '........c.......', '..yyy###########', '..yyy###########', ...rows('..yyy...........', 5)],
+    // Gusts over crumbling clouds.
+    L: [...rows(SKY, 5), '..........z.....', SKY, '............xxx.', '####..xxx.......', '####............', ...rows(SKY, 5)],
+    // Gusts on a moving cloud.
+    M: [SKY, SKY, SKY, '.....b..........', SKY, SKY, SKY, '=-----..........', '.........#######', '.........#######', ...rows(SKY, 5)],
+    // The Armor sits on a cloud too high for a single jump. Then down to the hall.
+    N: [
+      SKY,
+      SKY,
+      SKY,
+      '...U............',
+      '..CCC...........',
+      SKY,
+      SKY,
+      SKY,
+      '#######.........',
+      '#######.........',
+      '.........CCC....',
+      '.............###',
+      '.............###',
+      SKY,
+      SKY,
+    ],
     '1': hall.a,
     '2': hall.b,
-    A: [
-      ...rows(SKY, 12),
-      '..P.............',
-      '#######...CCC...',
-      '#######.........',
-    ],
-    B: [
-      SKY,
-      SKY,
-      SKY,
-      '..............b.',
-      ...rows(SKY, 5),
-      '.........CCC....',
-      SKY,
-      '....CCC.........',
-      SKY,
-      'CC...........CCC',
-      SKY,
-    ],
-    C: [
-      ...rows(SKY, 5),
-      '.......z........',
-      ...rows(SKY, 4),
-      '..........####..',
-      '.....CCC..####..',
-      '..........####..',
-      'CCC.......####..',
-      '..........####..',
-    ],
-    D: [
-      SKY,
-      SKY,
-      '..b.............',
-      ...rows(SKY, 7),
-      'CC..............',
-      '..........CCC...',
-      '.....CCC........',
-      SKY,
-      SKY,
-    ],
-    E: [
-      ...rows(SKY, 5),
-      '..........z.....',
-      SKY,
-      '..............U.',
-      '.............CCC',
-      '.....CCC........',
-      SKY,
-      'CCC.............',
-      '.............c..',
-      '...........#####',
-      '...........#####',
-    ],
-    // --- added screens (longer stage); each joins its neighbors at the same height ---
-    a: [SKY, SKY, SKY, '...........b....', ...rows(SKY, 5), '......CCC.......', SKY, '...CCC.....CCC..', SKY, 'CC..............', SKY],
-    b: [...rows(SKY, 5), '........z.......', ...rows(SKY, 6), '.....c..........', 'CCC.####...CC.CC', '....####........'],
-    c: [SKY, SKY, SKY, '....b...........', ...rows(SKY, 6), 'CC..........CC..', SKY, '....CCC..CCC....', SKY, SKY],
-    d: [...rows(SKY, 5), '.......z........', SKY, SKY, SKY, '.....CCC........', SKY, 'CCC.......CCC...', SKY, SKY, SKY],
-    e: [...rows(SKY, 4), '..........b.....', ...rows(SKY, 5), SKY, '.....CCC........', '..c.............', '####.......#####', '####.......#####'],
-    g: [...rows(SKY, 6), '........f.......', SKY, SKY, SKY, '.........CCC....', SKY, '....CCC.........', 'CC...........###', '.............###'],
-    F: [
-      ...rows('...............#', 10),
-      '...............D',
-      '...............D',
-      '..B............D',
-      '################',
-      '################',
-    ],
+    O: [...rows('...............#', 10), '...............D', '...............D', '..B............D', '################', '################'],
     X: room.left,
     Y: room.right,
   },

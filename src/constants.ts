@@ -39,6 +39,20 @@ export const PHYS = {
   conveyor: 0.8,
   // Live electric barriers.
   electricDamage: 4,
+  // Updrafts: extra upward pull per step, top rising speed, and the jump you get inside one.
+  updraftLift: 0.55,
+  updraftMax: 2.6,
+  updraftJump: 4.2,
+  // Wind gusts (Stratos): push per step in the air; on the ground it's scaled by gustGrip.
+  gust: 0.8,
+  gustGrip: 0.65,
+  // Springs: launch speed (about 4.5 tiles high), or about 6.5 tiles if you hold jump.
+  spring: 6.0,
+  springHigh: 7.2,
+  // Water currents push you this much per step.
+  current: 0.7,
+  // Crushers: damage, and how long one waits at the top before it slams.
+  crusherDamage: 6,
 };
 
 export const PLAYER_MAX_HP = 28;

@@ -1,4 +1,4 @@
-import { Level, StageData, Tile } from '../src/level/Level';
+import { Level, MOVER_TILES, StageData, Tile } from '../src/level/Level';
 
 export interface ReachOptions {
   /** Jump Boots: double jump. */
@@ -14,15 +14,26 @@ export interface ReachOptions {
  * the boss door (or goal, or upgrade capsule)? Jumps are conservative (2
  * tiles up, 4 across; 5/5 with boots; higher in water), may not pass
  * through walls, and you can't land in lava or on spikes. It doesn't model
- * conveyors, enemies or exact arcs, so it can call a hard jump possible.
+ * conveyors, enemies, wind or exact arcs, so it can call a hard jump possible.
+ *
+ * Moving clouds count as a platform everywhere along their track (you can
+ * wait for them). Updrafts carry you up, and you can jump from inside one.
  */
 export function reach(stage: StageData, opts: ReachOptions = {}): { ok: boolean; visited: number; stuck?: { c: number; r: number } } {
   const L = new Level(stage);
   const T = (c: number, r: number) => L.tileAt(c, r);
-  const blocks = (c: number, r: number) => L.isSolid(c, r) && !(opts.flame && T(c, r) === Tile.Melt);
+  // Switch blocks take turns, so they never block for good (but you can stand on them).
+  const switchy = (c: number, r: number) => T(c, r) === Tile.SwitchA || T(c, r) === Tile.SwitchB;
+  const blocks = (c: number, r: number) => L.isSolid(c, r) && !switchy(c, r) && !(opts.flame && T(c, r) === Tile.Melt);
   const deadly = (c: number, r: number) => T(c, r) === Tile.Lava;
+  const ride = new Set<number>();
+  for (const m of L.movers) {
+    for (let y = m.y0 / 16; y <= m.y1 / 16; y++) for (let x = m.x0 / 16; x <= m.x1 / 16 + MOVER_TILES - 1; x++) ride.add(x * 10000 + y);
+  }
+  const updraft = (c: number, r: number) => L.isUpdraft(c, r);
   // A cell where the 12x22 hero can stand: two cells clear, support below.
-  const support = (c: number, r: number) => (L.isSolid(c, r + 1) && !L.isSpike(c, r + 1)) || L.isPlatform(c, r + 1);
+  const support = (c: number, r: number) => (L.isSolid(c, r + 1) && !L.isSpike(c, r + 1)) || L.isPlatform(c, r + 1) || ride.has(c * 10000 + r + 1);
+  const spring = (c: number, r: number) => T(c, r + 1) === Tile.Spring;
   const clear = (c: number, r: number) => !blocks(c, r) && !blocks(c, r - 1) && !deadly(c, r);
   const stand = (c: number, r: number) => r >= 0 && r < L.rows && clear(c, r) && support(c, r);
   const key = (c: number, r: number) => c * 10000 + r;
@@ -47,7 +58,7 @@ export function reach(stage: StageData, opts: ReachOptions = {}): { ok: boolean;
       if (blocks(c, y)) return null;
       if (deadly(c, y) || L.isSpike(c, y + 1)) return null;
       if (support(c, y) && clear(c, y)) return y;
-      if (L.isLadder(c, y)) return y;
+      if (L.isLadder(c, y) || updraft(c, y) || L.isWater(c, y)) return y; // you can swim from here
     }
     return null;
   };
@@ -56,14 +67,23 @@ export function reach(stage: StageData, opts: ReachOptions = {}): { ok: boolean;
   while (q.length) {
     const { c, r } = q.shift()!;
     if (c === goal.c && Math.abs(r - goal.r) <= 1) return { ok: true, visited: seen.size };
-    const water = T(c, r) === Tile.Water;
-    const up = water ? 4 : opts.boots ? 5 : 2;
-    const far = water ? 6 : opts.boots ? 5 : 4;
+    const water = L.isWater(c, r); // currents count as water
+    // A spring throws you about 6.5 tiles up (holding jump); crossing into the
+    // screen above carries you a little further, so call it 7.
+    const up = spring(c, r) ? (opts.boots ? 9 : 7) : water ? 4 : opts.boots ? 5 : 2;
+    const far = spring(c, r) ? 5 : water ? 6 : opts.boots ? 5 : 4;
     if (L.isLadder(c, r) || L.isLadder(c, r + 1)) {
       for (const dy of [-1, 1]) if (L.isLadder(c, r + dy) || (dy < 0 && L.isLadder(c, r))) push(c, r + dy);
       if (L.isLadderTop(c, r + 1)) push(c, r + 1);
     }
-    const onSomething = support(c, r) || L.isLadder(c, r) || water;
+    if (updraft(c, r) && !blocks(c, r - 2)) push(c, r - 1); // rising
+    // Crumbling tiles give way: you can also drop through them.
+    if (T(c, r + 1) === Tile.Crumble) {
+      const y = fall(c, r + 1);
+      if (y !== null) push(c, y);
+    }
+    if (water && clear(c, r + 1) && !L.isSpike(c, r + 2)) push(c, r + 1); // sink
+    const onSomething = support(c, r) || L.isLadder(c, r) || water || updraft(c, r);
     if (!onSomething) {
       const y = fall(c, r);
       if (y !== null) push(c, y);

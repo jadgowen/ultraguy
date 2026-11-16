@@ -1,17 +1,22 @@
 import type { StageData } from './Level';
 import { bossRoom, miniHall, rows, SKY, water } from './rooms';
 
-// REEF. Start on the beach, drop through a hole into the sea. Underwater
-// ('~') you fall slowly and jump much higher, which you need for the long
-// sea-urchin beds. Puffers drift after you; clams hide behind their shells.
+// REEF. Built around the water itself: currents ('{' pushes left, '}' right)
+// and bubble columns ('y') that lift you.
+//  1. The beach, then down a hole into the sea (A, B). A current carries you
+//     over a bed of urchins (C); then one pushes against you, so you swim
+//     under it (D); then a bubble column lifts you over a coral wall (E).
+//  2. Down into the trench (F, G): the current there drags you toward a
+//     spiked wall, so get out of it fast.
+//  3. A bubble column up into a fast current that rides you over a long
+//     urchin bed (H, I). Then the hall and TIDE.
 //
-// Layout:  row 0:  A B C
-//          row 1:  . . D E F G H
-//          row 2:  . . . . . . I J K L M N | X Y
+// Layout:  row 0:  A B
+//          row 1:  . C D E F
+//          row 2:  . . . . G H I 1 2 J | X Y
 
 const ROCK = '################';
 const room = bossRoom();
-
 const hall = miniHall('#', true);
 
 export const REEF: StageData = {
@@ -21,28 +26,48 @@ export const REEF: StageData = {
   boss: 'tide',
   bossName: 'TIDE',
   bossWeapon: 'bubble',
-  layout: ['ABC', '..DEFGH', '......IJK12LMN|XY'],
+  layout: ['AB', '.CDEF', '....GHI12J|XY'],
   miniboss: 'angler',
   screens: {
+    // --- 1. Into the sea ------------------------------------------------------------------
+    A: [...rows(SKY, 10), '..........###...', SKY, '..P.............', ROCK, ROCK],
+    B: [...rows(SKY, 12), '..c.............', '#####......#####', '#####......#####'],
+    // A current carries you over the urchins.
+    C: water([
+      '#####......#####',
+      ...rows('#...............', 6),
+      '#...}}}}}}}}}}}}',
+      '#...}}}}}}}}}}}}',
+      ...rows('#...............', 2),
+      '#..........q....',
+      '#...............',
+      '#####^^^^^^^^###',
+      ROCK,
+    ]),
+    // This one pushes back: swim under it.
+    D: water([ROCK, ROCK, SKY, SKY, '{{{{{{{{{{{{{{{{', '{{{{{{{{{{{{{{{{', '{{{{{{{{{{{{{{{{', SKY, '......u.........', SKY, '...###....###...', SKY, SKY, '###^^^###^^^####', ROCK]),
+    // A bubble column lifts you over the coral wall.
+    E: water([ROCK, ROCK, SKY, SKY, '..........###...', ...rows('.......yyy###...', 8), ROCK, ROCK]),
+
+    // --- 2. The trench ------------------------------------------------------------------
+    F: water([ROCK, ROCK, ...rows(SKY, 3), '....u...........', ...rows(SKY, 4), '..c.............', SKY, SKY, '######.....#####', '######.....#####']),
+    // The current drags you toward the spiked wall.
+    G: water([
+      '######.....#####',
+      ...rows('#...............', 6),
+      ...rows('#^{{{{{{{{......', 4),
+      '#^..............',
+      '#^.......q......',
+      ROCK,
+      ROCK,
+    ]),
+
+    // --- 3. The fast current -------------------------------------------------------------
+    H: water([ROCK, ROCK, SKY, '}}}}}}}}}}}}}}}}', '}}}}}}}}}}}}}}}}', SKY, ...rows('..yyy...........', 7), '#####^^^^^^^^^^^', ROCK]),
+    I: water([ROCK, ROCK, SKY, '}}}}}}..........', '}}}}}}..........', ...rows(SKY, 6), '..........######', '..........######', '^^^^^^^^########', ROCK]),
     '1': hall.a,
     '2': hall.b,
-    A: [...rows(SKY, 12), '..P.........w...', ROCK, ROCK],
-    B: [...rows(SKY, 10), '......###.......', SKY, '...........w....', ROCK, ROCK],
-    // Dive through the hole.
-    C: [...rows('...............#', 13), '##########...###', '##########...###'],
-    D: water(['##########...###', ...rows('#...............', 9), '#.......####....', '#...............', '#.........c.....', ROCK, ROCK]),
-    E: water([ROCK, ROCK, ...rows(SKY, 8), '.....##.........', '.....##....u....', '.....##.......q.', ROCK, ROCK]),
-    // Urchin bed: a big underwater jump (use the ledge in the middle).
-    F: water([ROCK, ROCK, ...rows(SKY, 5), '..........u.....', SKY, SKY, SKY, '......###.......', SKY, '###^^^^^^^^#####', ROCK]),
-    G: water([...rows(ROCK, 6), ...rows(SKY, 6), '...q.......q....', ROCK, ROCK]),
-    H: water([ROCK, ROCK, ...rows('...............#', 10), '..u............#', '######...#######', '######...#######']),
-    I: water(['######...#######', ...rows('#...............', 11), '#......c........', ROCK, ROCK]),
-    // Kelp pillars from floor and ceiling.
-    J: water([ROCK, ROCK, ...rows('....##......##..', 3), ...rows(SKY, 4), '........##......', '........##......', '........##...u..', '........##......', ROCK, ROCK]),
-    K: water([ROCK, ROCK, ...rows(SKY, 9), '..........q.....', '.........###....', '##^^^^^##^^^^###', ROCK]),
-    L: water([ROCK, ROCK, SKY, SKY, SKY, '...u.......u....', ...rows(SKY, 4), '......u.........', SKY, SKY, ROCK, ROCK]),
-    M: water([ROCK, ROCK, ...rows(SKY, 8), '..........##....', '..........##....', '...q......##..q.', ROCK, ROCK]),
-    N: water([ROCK, ROCK, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', ROCK, ROCK]),
+    J: water([...rows(ROCK, 6), ...rows('...............#', 4), '...............D', '...............D', '...B...........D', ROCK, ROCK]),
     X: water(room.left),
     Y: water(room.right),
   },

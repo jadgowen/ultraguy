@@ -13,6 +13,8 @@ import { Box, moveY, overlaps } from '../physics';
 import { MAX_TANKS, loadSave, recordClear, recordPart, setTanks } from '../save';
 import { sfx } from '../sfx';
 import { WEAPONS, WeaponId } from '../weapons';
+import { Hazards } from './hazards';
+import { Sky } from './sky';
 
 const TRANSITION_FRAMES = 64;
 const DOOR_PAN_FRAMES = 80;
@@ -107,6 +109,10 @@ export class GameScene extends Phaser.Scene {
   player!: Player;
   /** Horizontal push applied to the player this step (Gale's gusts, Scrap's magnet). */
   wind = 0;
+  /** Moving clouds, crumbling clouds, updrafts and stage wind gusts. */
+  private sky!: Sky;
+  /** Crushers, switch blocks, roller chutes, currents, darkness, rising lava. */
+  private hazards!: Hazards;
   /** Electric barriers ('Z' tiles) are live. They switch every ELECTRIC_PERIOD steps. */
   electricOn = true;
   private electricT = 0;
@@ -220,7 +226,7 @@ export class GameScene extends Phaser.Scene {
     const tileset = map.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
     this.layer = map.createLayer(0, tileset, 0, 0)!.setDepth(0);
     // Water sits on its own translucent layer drawn over the sprites.
-    if (this.level.findTiles(Tile.Water).length) {
+    if (this.level.hasWater()) {
       const waterMap = this.make.tilemap({ data: this.level.waterIndexGrid(), tileWidth: TILE, tileHeight: TILE });
       const waterSet = waterMap.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
       waterMap.createLayer(0, waterSet, 0, 0)!.setDepth(15).setAlpha(0.4);
@@ -231,6 +237,28 @@ export class GameScene extends Phaser.Scene {
       const fakeSet = fakeMap.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
       fakeMap.createLayer(0, fakeSet, 0, 0)!.setDepth(16);
     }
+    this.sky = new Sky(
+      {
+        scene: this,
+        level: this.level,
+        layer: this.layer,
+        player: () => this.player,
+        view: () => ({ x: this.camX, y: this.camY }),
+        burst: (x, y, tex, n) => this.burst(x, y, tex, n),
+        windStreak: (dir) => this.windStreak(dir),
+      },
+      stage.theme,
+    );
+    this.hazards = new Hazards({
+      scene: this,
+      level: this.level,
+      layer: this.layer,
+      theme: stage.theme,
+      player: () => this.player,
+      view: () => ({ x: this.camX, y: this.camY }),
+      shake: (n) => this.shake(n),
+      spawnShot: (o) => this.spawnEnemyShot(o),
+    });
     this.electricTiles = this.level.findTiles(Tile.Electric);
     this.electricOn = true;
     this.electricT = 0;
@@ -374,7 +402,10 @@ export class GameScene extends Phaser.Scene {
 
     const p = this.player;
     this.cycleWeapon();
+    this.sky.stepMovers();
     p.update();
+    this.sky.stepCrumbles();
+    this.hazards.step();
     if (!p.alive && p.deadTimer <= 0) {
       this.respawn();
       return;
@@ -383,6 +414,8 @@ export class GameScene extends Phaser.Scene {
     this.stepElectric();
     for (const e of this.enemies) e.step();
     this.wind = 0; // the boss sets it again if it's blowing
+    this.sky.stepGust();
+    this.sky.stepUpdraftFx();
     this.boss?.step();
     this.stepBullets();
     this.stepShots();
@@ -827,6 +860,15 @@ export class GameScene extends Phaser.Scene {
       const sp = 0.5 + Math.random();
       this.addEffect(x, y, Math.cos(a) * sp, Math.sin(a) * sp - 0.5, 0.05, 20, false, tex);
     }
+  }
+
+  /** Push from a stage wind gust this step (see sky.ts). */
+  get gust(): number {
+    return this.sky.gust;
+  }
+
+  landOnMover(p: Player, prevBottom: number): boolean {
+    return this.sky.landOnMover(p, prevBottom);
   }
 
   /** Wind streak blowing across the screen in direction `dir`. */
@@ -1369,6 +1411,8 @@ export class GameScene extends Phaser.Scene {
     this.drawShadeRing(null);
     this.bossDeathT = 0;
     this.wind = 0;
+    this.sky.reset();
+    this.hazards.reset();
     for (const s of this.level.spawns) {
       s.alive = false;
       s.armed = true;
