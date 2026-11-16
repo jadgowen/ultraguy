@@ -120,6 +120,37 @@ const synth = {
     setTimeout(() => tone(659, 784, 0.25), 220);
   },
   jump: () => tone(400, 700, 0.06, 'square', 0.025),
+  // Race and boxing modes.
+  engine: () => tone(110, 130, 0.2, 'sawtooth', 0.02),
+  rev: () => tone(120, 420, 0.4, 'sawtooth', 0.04),
+  bikeCrash: () => {
+    noise(0.5, 0.1);
+    tone(300, 60, 0.4, 'square', 0.05);
+  },
+  bikeLand: () => tone(160, 70, 0.1, 'triangle', 0.06),
+  overheat: () => noise(0.8, 0.05),
+  crowd: () => noise(1.2, 0.03),
+  bell: () => {
+    tone(1600, 1600, 0.25, 'triangle', 0.06);
+    setTimeout(() => tone(1600, 1600, 0.25, 'triangle', 0.06), 280);
+  },
+  punch: () => {
+    noise(0.08, 0.1);
+    tone(180, 80, 0.08, 'square', 0.06);
+  },
+  punchBlock: () => tone(220, 160, 0.06, 'triangle', 0.05),
+  whoosh: () => noise(0.12, 0.04),
+  bodyFall: () => {
+    noise(0.3, 0.1);
+    tone(90, 40, 0.3, 'triangle', 0.07);
+  },
+  starPunch: () => {
+    tone(300, 1500, 0.3, 'square', 0.05);
+    setTimeout(() => noise(0.3, 0.12), 300);
+  },
+  glitch: () => {
+    for (let i = 0; i < 6; i++) setTimeout(() => tone(200 + Math.random() * 1800, 100, 0.05, 'square', 0.03), i * 60);
+  },
 };
 
 /** Plays a loaded sample by name; returns false if there isn't one. */

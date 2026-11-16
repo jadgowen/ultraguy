@@ -39,6 +39,33 @@ const MUSIC = {
   ending: 'Triumphant, emotional ending credits theme, warm and celebratory, slower tempo',
 };
 
+/** Music for the special modes, in a 16-bit console style. */
+const STYLE16 = 'instrumental 16-bit chiptune in the style of classic SNES-era sports games, punchy FM-style lead, slap bass, sampled drums, seamless loop';
+const MUSIC16 = {
+  race: 'High-energy motocross race theme, fast tempo, revving rock energy, exciting and competitive',
+  boxing: 'Boxing match theme, punchy and heroic, driving beat, tension and triumph, arena energy',
+};
+
+/** Spoken lines: [voice id, text]. Played with the dialogue boxes. */
+const VOICE = {
+  volt_challenge: ['TX3LPaxmHKxFdv7VOQHJ', "Heh. You can't beat me in a fight... but maybe you can beat me in a race. Winner takes all!"],
+  volt_wins: ['TX3LPaxmHKxFdv7VOQHJ', 'Too slow! Better luck next lap.'],
+  volt_loses: ['TX3LPaxmHKxFdv7VOQHJ', 'No way... you actually beat me!'],
+  race_go: ['pNInz6obpgDQGcFmaJgB', 'Three... two... one... GO!'],
+  gate_challenge: ['2EiwWnXFnvU5JabPnv8n', 'No weapons. No tricks. Just our hands.'],
+  gate_taunt1: ['2EiwWnXFnvU5JabPnv8n', 'Is that all you have got?'],
+  gate_taunt2: ['2EiwWnXFnvU5JabPnv8n', "I will knock that helmet clean off!"],
+  gate_wins: ['2EiwWnXFnvU5JabPnv8n', 'Stay down, little robot.'],
+  gate_loses: ['2EiwWnXFnvU5JabPnv8n', 'Hmph. You hit harder than you look.'],
+  jared_round1: ['iP95p4xoKVk53GoZ742B', "Alright champ, watch his shoulders! When he winds up, dodge... then hit him hard!"],
+  jared_round2: ['iP95p4xoKVk53GoZ742B', 'He covers his face when you go high. Work the body!'],
+  jared_round3: ['iP95p4xoKVk53GoZ742B', "Last round! When his eyes flash, that's your opening. Go get him!"],
+  jared_getup: ['iP95p4xoKVk53GoZ742B', 'Get up! Get up, champ!'],
+  box_fight: ['pNInz6obpgDQGcFmaJgB', 'Fight!'],
+  box_ko: ['pNInz6obpgDQGcFmaJgB', 'Knockout!'],
+  box_down: ['pNInz6obpgDQGcFmaJgB', 'Down he goes!'],
+};
+
 /** Sound effects. Keys match the names in src/sfx.ts. */
 const SFX = {
   shoot: ['retro 8-bit arcade blaster shot, short bright pew', 0.5],
@@ -74,6 +101,21 @@ const SFX = {
   ready: ['16-bit SNES game sound, short stage start jingle, heroic and punchy', 1.8],
   jump: ['16-bit SNES game sound, short light jump, quick upward swish', 0.5],
   land: ['16-bit SNES game sound, soft metal boots landing, short thud', 0.5],
+  // Race mode.
+  engine: ['16-bit SNES game sound, small dirt bike engine buzzing at speed, steady', 1.0],
+  rev: ['16-bit SNES game sound, dirt bike engine revving up hard', 0.8],
+  bikeCrash: ['16-bit SNES game sound, motorbike crash and tumble, metal clatter', 1.0],
+  bikeLand: ['16-bit SNES game sound, motorbike landing from a jump, suspension thump', 0.5],
+  overheat: ['16-bit SNES game sound, engine overheating, steam hiss and sputter', 1.2],
+  crowd: ['16-bit SNES game sound, stadium crowd cheering', 2.5],
+  // Boxing mode.
+  bell: ['boxing ring bell, ding ding ding', 1.5],
+  punch: ['16-bit SNES game sound, heavy boxing punch landing, meaty thwack', 0.5],
+  punchBlock: ['16-bit SNES game sound, punch blocked by boxing gloves, soft thud', 0.5],
+  whoosh: ['16-bit SNES game sound, quick dodge whoosh', 0.5],
+  bodyFall: ['16-bit SNES game sound, heavy body falling onto a boxing ring canvas', 0.8],
+  starPunch: ['16-bit SNES game sound, super power uppercut, charging whoosh then huge impact', 1.0],
+  glitch: ['16-bit SNES game sound, screen pixelating, digital warp transition', 1.2],
 };
 
 // Same lookup as the other local projects: env var first, then ~/.elevenlabs_api_key.
@@ -92,6 +134,7 @@ const wanted = (name) => only.size === 0 || only.has(name);
 mkdirSync(OUT, { recursive: true });
 const manifestPath = join(OUT, 'manifest.json');
 const manifest = existsSync(manifestPath) ? JSON.parse(readFileSync(manifestPath, 'utf8')) : { music: {}, sfx: {} };
+manifest.voice ??= {};
 
 async function post(path, body) {
   const res = await fetch(`${API}${path}`, {
@@ -125,9 +168,17 @@ for (const [name, mood] of Object.entries(MUSIC)) {
     post('/music', { prompt: `${mood}. ${STYLE}.`, music_length_ms: 60000, force_instrumental: true, model_id: 'music_v1' }),
   );
 }
+for (const [name, mood] of Object.entries(MUSIC16)) {
+  await job('music', name, () =>
+    post('/music', { prompt: `${mood}. ${STYLE16}.`, music_length_ms: 60000, force_instrumental: true, model_id: 'music_v1' }),
+  );
+}
+for (const [name, [voice, text]] of Object.entries(VOICE)) {
+  await job('voice', name, () => post(`/text-to-speech/${voice}`, { text, model_id: 'eleven_multilingual_v2' }));
+}
 for (const [name, [text, seconds]] of Object.entries(SFX)) {
   await job('sfx', name, () => post('/sound-generation', { text, duration_seconds: seconds, prompt_influence: 0.6 }));
 }
 
 writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-console.log(`manifest: ${Object.keys(manifest.music).length} music, ${Object.keys(manifest.sfx).length} sfx`);
+console.log(`manifest: ${Object.keys(manifest.music).length} music, ${Object.keys(manifest.sfx).length} sfx, ${Object.keys(manifest.voice).length} voice`);

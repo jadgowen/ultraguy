@@ -64,8 +64,9 @@ export const REEF: StageData = {
     ]),
 
     // --- 3. The fast current -------------------------------------------------------------
-    H: water([ROCK, ROCK, SKY, '}}}}}}}}}}}}}}}}', '}}}}}}}}}}}}}}}}', SKY, ...rows('..yyy...........', 7), '#####^^^^^^^^^^^', ROCK]),
-    I: water([ROCK, ROCK, SKY, '}}}}}}..........', '}}}}}}..........', ...rows(SKY, 6), '..........######', '..........######', '^^^^^^^^########', ROCK]),
+    // The bubble column rises into the middle of the current, which carries you over the urchins.
+    H: water([ROCK, ROCK, SKY, ...rows('}}}}}}}}}}}}}}}}', 2), ...rows('}}yyy}}}}}}}}}}}', 3), ...rows('..yyy...........', 5), '#####^^^^^^^^^^^', ROCK]),
+    I: water([ROCK, ROCK, SKY, ...rows('}}}}}}}}}.......', 5), ...rows(SKY, 3), '..........######', '..........######', '^^^^^^^^########', ROCK]),
     '1': hall.a,
     '2': hall.b,
     J: water([...rows(ROCK, 6), ...rows('...............#', 4), '...............D', '...............D', '...B...........D', ROCK, ROCK]),

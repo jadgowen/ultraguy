@@ -283,6 +283,8 @@ export class Player {
     // Gusts push less while your feet are planted.
     const gust = this.g.gust * (this.grounded ? PHYS.gustGrip : 1);
     const current = L.currentAt(Math.floor(this.cx / TILE), Math.floor(this.cy / TILE)) * PHYS.current;
+    // A current carries you: you only sink slowly while you're in one.
+    if (current !== 0 && !this.g.controls.isDown('down')) this.vy = Math.min(this.vy, PHYS.currentSink);
     if (moveX(L, this, this.vx + this.g.wind + gust + belt + current)) this.vx = 0;
     const falling = this.vy > 0;
     const wasGrounded = this.grounded;

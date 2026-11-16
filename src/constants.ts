@@ -50,7 +50,9 @@ export const PHYS = {
   spring: 6.0,
   springHigh: 7.2,
   // Water currents push you this much per step.
-  current: 0.7,
+  current: 0.9,
+  /** Fastest you sink while a current is carrying you (hold DOWN to sink normally). */
+  currentSink: 0.06,
   // Crushers: damage, and how long one waits at the top before it slams.
   crusherDamage: 6,
 };

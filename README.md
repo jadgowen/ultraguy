@@ -32,6 +32,14 @@ a change of direction partway:
 | Scrapyard | barrel chutes, compactor presses, crane platforms and conveyor stairs |
 | Reef | currents (`{` / `}`) and bubble columns; a trench current that drags you toward spikes |
 
+Two bosses change the game entirely. VOLT challenges you to a race instead of a fight: a side-view
+motocross race on four lanes (JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, LEFT/RIGHT to tilt
+in the air; land at the wrong angle and you crash). The GATEKEEPER (Fortress Gate) drops his weapons
+for a behind-the-back boxing match: dodge, block, punch high or low, counter when he winds up, earn
+stars for a star uppercut, three rounds with Coach Jared in your corner. Both are separate scenes
+(`src/scenes/RaceScene.ts`, `src/scenes/BoxingScene.ts`) entered through a dialogue and a pixelate
+warp (`src/scenes/cutscene.ts`); win and you get the boss reward, lose and you retry from the door.
+
 Each boss stage has a miniboss halfway through, and an energy tank (E-tank) on a ledge just before it.
 You can carry up to 4 E-tanks (saved); use one from the pause menu to refill your life. Enemies drop
 small and large life and weapon-energy pellets.

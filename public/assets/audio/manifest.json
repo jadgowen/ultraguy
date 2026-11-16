@@ -14,7 +14,9 @@
     "ending": "music_ending.mp3",
     "scrapyard": "music_scrapyard.mp3",
     "reef": "music_reef.mp3",
-    "boss": "music_boss.mp3"
+    "boss": "music_boss.mp3",
+    "race": "music_race.mp3",
+    "boxing": "music_boxing.mp3"
   },
   "sfx": {
     "shoot": "sfx_shoot.mp3",
@@ -48,6 +50,37 @@
     "door": "sfx_door.mp3",
     "ready": "sfx_ready.mp3",
     "jump": "sfx_jump.mp3",
-    "land": "sfx_land.mp3"
+    "land": "sfx_land.mp3",
+    "engine": "sfx_engine.mp3",
+    "rev": "sfx_rev.mp3",
+    "bikeCrash": "sfx_bikeCrash.mp3",
+    "bikeLand": "sfx_bikeLand.mp3",
+    "overheat": "sfx_overheat.mp3",
+    "crowd": "sfx_crowd.mp3",
+    "bell": "sfx_bell.mp3",
+    "bodyFall": "sfx_bodyFall.mp3",
+    "starPunch": "sfx_starPunch.mp3",
+    "glitch": "sfx_glitch.mp3",
+    "punch": "sfx_punch.mp3",
+    "punchBlock": "sfx_punchBlock.mp3",
+    "whoosh": "sfx_whoosh.mp3"
+  },
+  "voice": {
+    "volt_challenge": "voice_volt_challenge.mp3",
+    "volt_wins": "voice_volt_wins.mp3",
+    "volt_loses": "voice_volt_loses.mp3",
+    "race_go": "voice_race_go.mp3",
+    "gate_challenge": "voice_gate_challenge.mp3",
+    "gate_taunt1": "voice_gate_taunt1.mp3",
+    "gate_taunt2": "voice_gate_taunt2.mp3",
+    "gate_wins": "voice_gate_wins.mp3",
+    "gate_loses": "voice_gate_loses.mp3",
+    "jared_round1": "voice_jared_round1.mp3",
+    "jared_round2": "voice_jared_round2.mp3",
+    "jared_round3": "voice_jared_round3.mp3",
+    "jared_getup": "voice_jared_getup.mp3",
+    "box_fight": "voice_box_fight.mp3",
+    "box_ko": "voice_box_ko.mp3",
+    "box_down": "voice_box_down.mp3"
   }
 }

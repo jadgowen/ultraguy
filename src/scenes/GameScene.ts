@@ -14,6 +14,7 @@ import { MAX_TANKS, loadSave, recordClear, recordPart, setTanks } from '../save'
 import { sfx } from '../sfx';
 import { WEAPONS, WeaponId } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
+import { Line, dialogue, pixelateIn, pixelateOut } from './cutscene';
 import { Hazards } from './hazards';
 import { Sky } from './sky';
 import { PixelText, pixelText } from '../pixelFont';
@@ -45,7 +46,41 @@ export interface GameSceneData {
   stage: StageId;
   /** Start at the checkpoint just before the boss door. */
   bossTest?: boolean;
+  /** Coming back from a special-mode boss fight (race, boxing): how it went. */
+  resume?: 'bossWon' | 'bossLost';
 }
+
+/**
+ * Bosses fought in another game style. On entering the room the boss says
+ * its line, the screen pixelates, and that mode's scene takes over; it comes
+ * back with `resume`.
+ */
+const SPECIAL_BOSSES: Partial<Record<StageId, { scene: string; lines: (g: GameScene) => Line[] }>> = {
+  powerplant: {
+    scene: 'race',
+    lines: () => [
+      {
+        name: 'VOLT',
+        text: "Heh. You can't beat me in a fight... but maybe you can beat me in a race. Winner takes all!",
+        portrait: { key: 'volt_idle' },
+        voice: 'volt_challenge',
+        color: 0xf8e040,
+      },
+    ],
+  },
+  fortress1: {
+    scene: 'boxing',
+    lines: () => [
+      {
+        name: 'GATEKEEPER',
+        text: 'No weapons. No tricks. Just our hands.',
+        portrait: { key: 'gatekeeper_idle' },
+        voice: 'gate_challenge',
+        color: 0x8c4ad8,
+      },
+    ],
+  },
+};
 
 export interface ShotOptions {
   x: number;
@@ -169,6 +204,8 @@ export class GameScene extends Phaser.Scene {
   private doorSeq: DoorSequence | null = null;
   private checkpoint!: Point;
   private readyTimer = 0;
+  /** A dialogue (or other story beat) that has the screen; steps instead of the game. */
+  private story: (() => void) | null = null;
   /** Stage title card (only when a stage starts, not after a death). */
   private titleCard: Phaser.GameObjects.Container | null = null;
   private titleT = 0;
@@ -222,6 +259,7 @@ export class GameScene extends Phaser.Scene {
     this.clearTimer = 0;
     this.hudKey = '';
     this.goalSprite = null;
+    this.story = null;
 
     const stage = getStage(this.stageId);
     this.level = new Level(stage);
@@ -342,8 +380,16 @@ export class GameScene extends Phaser.Scene {
       .setVisible(false);
 
     playMusic(this, stageMusic(stage));
+    // Back from a special-mode boss fight: either carry on to the reward, or
+    // try again from the checkpoint by the boss door.
+    if (data?.resume === 'bossLost' && this.level.bossTestStart) this.checkpoint = { ...this.level.bossTestStart };
+    // Starting at the boss door (boss test, or a retry after a special-mode loss) means the miniboss is behind you.
+    if (data?.resume || (DEV_TOOLS && data?.bossTest)) this.miniDefeated = true;
     this.respawn();
-    this.showTitleCard(stage.name, stage.tagline, theme.solid.light);
+    if (data?.resume) {
+      pixelateIn(this, 800);
+      if (data.resume === 'bossWon') this.resumeBossWon();
+    } else this.showTitleCard(stage.name, stage.tagline, theme.solid.light);
   }
 
   /**
@@ -432,6 +478,10 @@ export class GameScene extends Phaser.Scene {
 
   private step(): void {
     this.controls.poll();
+    if (this.story) {
+      this.story();
+      return;
+    }
     if (this.hitStop > 0) {
       this.hitStop--;
       return;
@@ -1031,6 +1081,31 @@ export class GameScene extends Phaser.Scene {
     };
     this.boss = createBoss(kind, this, at, this.bossRoom);
     playMusic(this, kind === 'overlord' ? 'finalboss' : 'boss');
+    // Some bosses don't fight here: they say their line, and off we go.
+    const special = SPECIAL_BOSSES[this.stageId];
+    if (special && kind === this.level.data.boss) {
+      stopMusic();
+      const skip = () => this.controls.justPressed('start') || this.controls.justPressed('jump');
+      this.story = dialogue(this, special.lines(this), skip, () => {
+        this.story = () => {};
+        pixelateOut(this, 900, () => this.scene.start(special.scene, { stage: this.stageId }));
+      });
+    }
+  }
+
+  /** Won a special-mode boss fight: stand in the boss room and take the reward. */
+  private resumeBossWon(): void {
+    const at = this.level.boss;
+    if (!at) return;
+    const sec = this.level.sectionAt(at.x, at.y - 1)!;
+    this.section = sec;
+    this.camX = Math.round(this.bossRoomCamX(sec));
+    this.player.reset(at.x - 64, at.y);
+    this.readyTimer = 0;
+    this.bossDefeated = true;
+    const reward = this.level.data.bossWeapon;
+    if (reward) this.startWeaponGet(reward);
+    else this.stageClear();
   }
 
   /** Name shown while a boss's health bar fills. */

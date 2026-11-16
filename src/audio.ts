@@ -11,6 +11,7 @@ import { getSfxLevel, setSamplePlayer } from './sfx';
 interface Manifest {
   music: Record<string, string>;
   sfx: Record<string, string>;
+  voice?: Record<string, string>;
 }
 
 const MUSIC_VOLUME = 0.45;
@@ -35,6 +36,10 @@ export function loadAudio(scene: Phaser.Scene, done: () => void): void {
   let queued = 0;
   for (const [name, file] of Object.entries(m?.music ?? {})) {
     scene.load.audio(`music_${name}`, `assets/audio/${file}`);
+    queued++;
+  }
+  for (const [name, file] of Object.entries(m?.voice ?? {})) {
+    scene.load.audio(`voice_${name}`, `assets/audio/${file}`);
     queued++;
   }
   for (const [name, file] of Object.entries(m?.sfx ?? {})) {
@@ -77,4 +82,24 @@ export function stopMusic(): void {
 export function stageMusic(stage: StageData): string {
   if (stage.theme === 'fortress') return 'fortress';
   return stage.id;
+}
+
+/** Speak a dialogue line (if it was generated). Returns its length in ms, or 0. */
+export function playVoice(scene: Phaser.Scene, name: string): number {
+  const key = `voice_${name}`;
+  if (!scene.cache.audio.exists(key)) return 0;
+  const level = getSfxLevel();
+  const sound = scene.sound.add(key, { volume: 0.9 * Math.max(level, 0.3) });
+  sound.play();
+  sound.once('complete', () => sound.destroy());
+  return (sound.duration || 0) * 1000;
+}
+
+/** A looping sound effect sample (engines, crowds); null if it wasn't generated. */
+export function loopSfx(scene: Phaser.Scene, name: string, volume = 0.4): Phaser.Sound.BaseSound | null {
+  const key = `sfx_${name}`;
+  if (!scene.cache.audio.exists(key)) return null;
+  const sound = scene.sound.add(key, { loop: true, volume: volume * getSfxLevel() });
+  sound.play();
+  return sound;
 }
