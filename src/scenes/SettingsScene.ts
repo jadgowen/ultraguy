@@ -4,12 +4,13 @@ import { VIEW_W } from '../constants';
 import { VOLUME_STEPS, loadSettings, updateSettings, volumeOf } from '../settings';
 import { setSfxLevel, sfx } from '../sfx';
 import { FONT, MenuScene } from './menu';
+import { PixelText, pixelText } from '../pixelFont';
 
 const ROWS = ['MUSIC', 'SOUND FX', 'CONTROLS', 'BACK'] as const;
 
 /** Settings: volume mixer (music / sound effects) and the way into key remapping. */
 export class SettingsScene extends MenuScene {
-  private labels: Phaser.GameObjects.Text[] = [];
+  private labels: PixelText[] = [];
 
   constructor() {
     super('settings');
@@ -18,14 +19,14 @@ export class SettingsScene extends MenuScene {
   create(): void {
     this.initMenu();
     playMusic(this, 'title');
-    this.cameras.main.setBackgroundColor('#141626');
+    this.backdrop('power', 0.6);
     const small = { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' };
-    this.add.text(VIEW_W / 2, 24, 'SETTINGS', { fontFamily: FONT, fontSize: '16px', color: '#f28c28' }).setOrigin(0.5);
-    this.add.text(VIEW_W / 2, 50, 'MIXER', { ...small, color: '#5ef0c8' }).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, 24, 'SETTINGS', { fontFamily: FONT, fontSize: '16px', color: '#f28c28' }).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, 50, 'MIXER', { ...small, color: '#5ef0c8' }).setOrigin(0.5);
     this.labels = this.list(VIEW_W / 2 - 110, 70, ROWS.map(() => ''));
     this.refresh();
-    this.add.text(VIEW_W / 2, 200, 'LEFT/RIGHT change volume', small).setOrigin(0.5);
-    this.add.text(VIEW_W / 2, 214, 'UP/DOWN choose   ENTER / Z select   X back', small).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, 200, 'LEFT/RIGHT change volume', small).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, 214, 'UP/DOWN choose   ENTER / Z select   X back', small).setOrigin(0.5);
   }
 
   private bar(level: number): string {

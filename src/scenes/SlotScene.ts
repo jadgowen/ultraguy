@@ -7,6 +7,7 @@ import { loadSettings, updateSettings } from '../settings';
 import { sfx } from '../sfx';
 import { touch } from '../touch';
 import { FONT, MenuScene } from './menu';
+import { PixelText, pixelText } from '../pixelFont';
 
 /** One line describing a slot's progress. */
 export function slotSummary(save: SaveData, used: boolean): string {
@@ -21,7 +22,7 @@ export function slotSummary(save: SaveData, used: boolean): string {
  * the intro stage); X twice erases one.
  */
 export class SlotScene extends MenuScene {
-  private labels: Phaser.GameObjects.Text[] = [];
+  private labels: PixelText[] = [];
   private confirmErase = -1;
 
   constructor() {
@@ -32,12 +33,12 @@ export class SlotScene extends MenuScene {
     this.initMenu();
     playMusic(this, 'title');
     this.confirmErase = -1;
-    this.cameras.main.setBackgroundColor('#141626');
+    this.backdrop('power', 0.6);
     const small = { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' };
-    this.add.text(VIEW_W / 2, 26, 'SELECT SAVE', { fontFamily: FONT, fontSize: '16px', color: '#f28c28' }).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, 26, 'SELECT SAVE', { fontFamily: FONT, fontSize: '16px', color: '#f28c28' }).setOrigin(0.5);
     this.labels = this.list(60, 70, [...SLOTS.map(() => ''), 'BACK'], loadSettings().slot - 1);
     this.refresh();
-    this.add.text(VIEW_W / 2, VIEW_H - 26, 'ENTER / Z play   X erase   BKSP back', small).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, VIEW_H - 26, 'ENTER / Z play   X erase   BKSP back', small).setOrigin(0.5);
     const back = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.BACKSPACE);
     back.once('down', () => this.scene.start('title'));
   }

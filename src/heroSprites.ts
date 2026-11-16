@@ -48,17 +48,33 @@ function recolorHero(scene: Phaser.Scene, key: string, swap: Map<number, number>
   for (let i = 0; i < count; i++) tex.add(i, 0, i * meta.frameWidth, 0, meta.frameWidth, meta.frameHeight);
 }
 
+/** Blend a color toward white (k > 0) or toward a cool near-black (k < 0). */
+function shift(c: number, k: number): number {
+  const ch = [(c >> 16) & 255, (c >> 8) & 255, c & 255];
+  const to = k > 0 ? [255, 250, 230] : [16, 12, 32];
+  const a = Math.abs(k);
+  const [r, g, b] = ch.map((v, i) => Math.round(v + (to[i] - v) * a));
+  return (r << 16) | (g << 8) | b;
+}
+
+/** A weapon's full hero ramp: the extra shades come from its own colors unless given. */
+function fullColors(c: HeroColors): Required<HeroColors> {
+  return { ...c, shine: c.shine ?? shift(c.light, 0.5), deep: c.deep ?? shift(c.dark, -0.4), suitDark: c.suitDark ?? shift(c.suit, -0.35) };
+}
+
 export function createHeroTextures(scene: Phaser.Scene): void {
-  const keys = Object.keys(HERO_BASE_COLORS) as (keyof HeroColors)[];
+  const base = fullColors(HERO_BASE_COLORS);
+  const keys = Object.keys(base) as (keyof HeroColors)[];
   for (const id of WEAPON_ORDER) {
     const swap = new Map<number, number>();
-    for (const k of keys) swap.set(HERO_BASE_COLORS[k], WEAPONS[id].colors[k]);
+    const colors = id === 'buster' ? base : fullColors(WEAPONS[id].colors);
+    for (const k of keys) swap.set(base[k], colors[k]);
     recolorHero(scene, heroTexture(id), swap);
   }
   // Shade, the final boss: a dark UltraGuy with a red visor.
-  const shade: HeroColors = { light: 0x7a6a9a, main: 0x4a3a6a, dark: 0x2a1a44, suit: 0x140c1c, suitLight: 0x2a2038 };
+  const shade = fullColors({ light: 0x7a6a9a, main: 0x4a3a6a, dark: 0x2a1a44, suit: 0x140c1c, suitLight: 0x2a2038 });
   const swap = new Map<number, number>();
-  for (const k of keys) swap.set(HERO_BASE_COLORS[k], shade[k]);
+  for (const k of keys) swap.set(base[k], shade[k]);
   swap.set(VISOR[0], 0xff3050);
   swap.set(VISOR[1], 0xa01830);
   recolorHero(scene, 'hero_shade', swap);

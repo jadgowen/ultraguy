@@ -86,6 +86,14 @@ export abstract class Boss {
     return this.state === 'fight' && !this.untouchable();
   }
 
+  /**
+   * Override: a world y below which the boss is behind cover (shots that low
+   * bounce off it instead of hitting). null = no cover.
+   */
+  coverTop(): number | null {
+    return null;
+  }
+
   /** Override: shots bounce off instead of passing through (e.g. a shield). */
   blocksShots(): boolean {
     return false;

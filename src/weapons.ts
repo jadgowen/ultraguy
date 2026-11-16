@@ -26,6 +26,10 @@ export interface HeroColors {
   dark: number;
   suit: number;
   suitLight: number;
+  /** Extra shades of the 16-bit hero; worked out from the others when left out. */
+  shine?: number;
+  deep?: number;
+  suitDark?: number;
 }
 
 /**
@@ -38,6 +42,9 @@ export const HERO_BASE_COLORS: HeroColors = {
   dark: 0xb85a1a,
   suit: 0x2b2540,
   suitLight: 0x4a4068,
+  shine: 0xffe4b0,
+  deep: 0x7a3410,
+  suitDark: 0x1e1a30,
 };
 
 export const MAX_AMMO = 28;

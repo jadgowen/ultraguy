@@ -5,6 +5,7 @@ import { sfx } from '../sfx';
 import { WEAPON_ORDER, heroTexture } from '../weapons';
 import { FONT, MenuScene } from './menu';
 import { playMusic } from '../audio';
+import { PixelText, pixelText } from '../pixelFont';
 
 const CREDITS = [
   'THE FORTRESS HAS FALLEN',
@@ -25,7 +26,7 @@ const CREDITS = [
 /** Ending: the hero cycles through every weapon color while the credits roll. */
 export class EndingScene extends MenuScene {
   private hero!: Phaser.GameObjects.Image;
-  private credits!: Phaser.GameObjects.Text;
+  private credits!: PixelText;
 
   constructor() {
     super('ending');
@@ -34,13 +35,11 @@ export class EndingScene extends MenuScene {
   create(): void {
     this.initMenu();
     playMusic(this, 'ending');
-    this.cameras.main.setBackgroundColor('#05060c');
-    this.add.tileSprite(0, 0, VIEW_W, VIEW_H, 'bg_foundry').setOrigin(0).setAlpha(0.5);
+    this.backdrop('sky', 0.3);
     this.hero = this.add.image(VIEW_W / 2, VIEW_H - 40, heroTexture('buster'), heroFrames(this).idle).setScale(2).setOrigin(0.5, 1);
-    this.credits = this.add
-      .text(VIEW_W / 2, VIEW_H + 10, CREDITS.join('\n'), { fontFamily: FONT, fontSize: '12px', color: '#fff1e0', align: 'center', lineSpacing: 6 })
+    this.credits = pixelText(this, VIEW_W / 2, VIEW_H + 10, CREDITS.join('\n'), { fontFamily: FONT, fontSize: '12px', color: '#fff1e0', align: 'center', lineSpacing: 6 })
       .setOrigin(0.5, 0);
-    this.add.text(VIEW_W / 2, VIEW_H - 12, 'ENTER to return to the title', { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' }).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, VIEW_H - 12, 'ENTER to return to the title', { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' }).setOrigin(0.5);
     sfx.clear();
   }
 

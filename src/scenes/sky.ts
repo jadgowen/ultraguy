@@ -4,6 +4,7 @@ import type { Player } from '../entities/Player';
 import { Level, MOVER_TILES, Mover, Tile } from '../level/Level';
 import { moveX, moveY } from '../physics';
 import { sfx } from '../sfx';
+import { PixelText, pixelText } from '../pixelFont';
 
 /**
  * Moving parts for sky-style stages (used by Stratos, available to any stage):
@@ -77,7 +78,7 @@ export class Sky {
   private updraftCells: { c: number; r: number }[] = [];
   private gustT = 0;
   private gustIndex = 0;
-  private gustLabel: Phaser.GameObjects.Text;
+  private gustLabel: PixelText;
   /** Push from the current gust (0 when calm or off a windy screen). */
   gust = 0;
 
@@ -95,8 +96,7 @@ export class Sky {
       g.fillStyle(0xffffff, 0.1);
       for (const { c, r } of this.updraftCells) g.fillRect(c * TILE, r * TILE, TILE, TILE);
     }
-    this.gustLabel = scene.add
-      .text(VIEW_W / 2, 30, '', { fontFamily: 'monospace', fontSize: '10px', color: '#fff1e0', stroke: '#1a1428', strokeThickness: 3 })
+    this.gustLabel = pixelText(scene, VIEW_W / 2, 30, '', { fontFamily: 'monospace', fontSize: '10px', color: '#fff1e0', stroke: '#1a1428', strokeThickness: 3 })
       .setOrigin(0.5)
       .setScrollFactor(0)
       .setDepth(40)

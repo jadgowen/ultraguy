@@ -11,6 +11,7 @@ import { WEAPONS, heroTexture } from '../weapons';
 import type { GameSceneData } from './GameScene';
 import { FONT, MenuScene } from './menu';
 import { playMusic } from '../audio';
+import { PixelText, pixelText } from '../pixelFont';
 
 const PANEL_W = 104;
 const PANEL_H = 58;
@@ -26,7 +27,7 @@ export class StageSelectScene extends MenuScene {
   private pick = 0;
   private frames: Phaser.GameObjects.Rectangle[] = [];
   private launching: { start: () => void; t: number } | null = null;
-  private launchText!: Phaser.GameObjects.Text;
+  private launchText!: PixelText;
   private backKey!: Phaser.Input.Keyboard.Key;
   private fortressOpen = false;
 
@@ -39,13 +40,14 @@ export class StageSelectScene extends MenuScene {
     playMusic(this, 'select');
     this.backKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.BACKSPACE);
     this.launching = null;
+    this.backdrop('fortress', 0.6);
     this.frames = [];
     this.cameras.main.setBackgroundColor('#0b0d1a');
     const save = loadSave();
     this.fortressOpen = ALL_BOSS_STAGES.every((id) => save.cleared.includes(id));
     const small = { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' };
 
-    this.add.text(VIEW_W / 2, 14, 'SELECT STAGE', { fontFamily: FONT, fontSize: '12px', color: '#f28c28' }).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, 14, 'SELECT STAGE', { fontFamily: FONT, fontSize: '12px', color: '#f28c28' }).setOrigin(0.5);
 
     STAGE_GRID.forEach((id, i) => {
       const x = COL_X[i % 3];
@@ -58,8 +60,8 @@ export class StageSelectScene extends MenuScene {
         // Middle: the hero, or the way into the fortress once it's open.
         this.add.image(x, y + 6, heroTexture('buster'), heroFrames(this).idle).setOrigin(0.5, 1);
         if (this.fortressOpen) {
-          this.add.text(x, y + 9, 'FORTRESS', { fontFamily: FONT, fontSize: '8px', color: '#ff5050' }).setOrigin(0.5, 0);
-          this.add.text(x, y + 18, 'all bosses beaten', small).setOrigin(0.5, 0);
+          pixelText(this, x, y + 9, 'FORTRESS', { fontFamily: FONT, fontSize: '8px', color: '#ff5050' }).setOrigin(0.5, 0);
+          pixelText(this, x, y + 18, 'all bosses beaten', small).setOrigin(0.5, 0);
         }
         return;
       }
@@ -68,16 +70,14 @@ export class StageSelectScene extends MenuScene {
       this.add.rectangle(x, y - PANEL_H / 2 + 2, PANEL_W, 3, Phaser.Display.Color.HexStringToColor(THEMES[stage.theme].sky).color);
       const boss = this.add.image(x, y + 6, `${stage.boss}_idle`).setOrigin(0.5, 1);
       if (cleared) boss.setTint(0x9a9ab0);
-      this.add.text(x, y + 9, stage.bossName ?? '', { fontFamily: FONT, fontSize: '8px', color: '#fff1e0' }).setOrigin(0.5, 0);
-      this.add
-        .text(x, y + 18, cleared ? `${stage.name} - CLEAR` : stage.name, { ...small, color: cleared ? '#5ef0c8' : '#8a8fa8' })
+      pixelText(this, x, y + 9, stage.bossName ?? '', { fontFamily: FONT, fontSize: '8px', color: '#fff1e0' }).setOrigin(0.5, 0);
+      pixelText(this, x, y + 18, cleared ? `${stage.name} - CLEAR` : stage.name, { ...small, color: cleared ? '#5ef0c8' : '#8a8fa8' })
         .setOrigin(0.5, 0);
     });
 
     const hint = DEV_TOOLS ? 'ARROWS choose   ENTER/Z start   X boss test   BKSP back' : 'ARROWS choose   ENTER/Z start   BKSP back';
-    this.add.text(VIEW_W / 2, VIEW_H - 10, hint, small).setOrigin(0.5);
-    this.launchText = this.add
-      .text(VIEW_W / 2, VIEW_H / 2, '', { fontFamily: FONT, fontSize: '16px', color: '#fff1e0', backgroundColor: '#000000', align: 'center', padding: { x: 8, y: 6 } })
+    pixelText(this, VIEW_W / 2, VIEW_H - 10, hint, small).setOrigin(0.5);
+    this.launchText = pixelText(this, VIEW_W / 2, VIEW_H / 2, '', { fontFamily: FONT, fontSize: '16px', color: '#fff1e0', backgroundColor: '#000000', align: 'center', padding: { x: 8, y: 6 } })
       .setOrigin(0.5)
       .setDepth(10)
       .setVisible(false);

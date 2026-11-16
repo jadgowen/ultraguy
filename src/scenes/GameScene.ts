@@ -16,6 +16,7 @@ import { WEAPONS, WeaponId } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
 import { Hazards } from './hazards';
 import { Sky } from './sky';
+import { PixelText, pixelText } from '../pixelFont';
 
 /** How long the stage title card shows, in steps. */
 const TITLE_CARD_FRAMES = 130;
@@ -151,7 +152,7 @@ export class GameScene extends Phaser.Scene {
   /** Upgrade capsule (armor part) in this stage, and the pickup sequence timer. */
   private upgradeItem: { box: Box; sprite: Phaser.GameObjects.Image; icon: Phaser.GameObjects.Image; taken: boolean } | null = null;
   private partGetT = 0;
-  private weaponLabel!: Phaser.GameObjects.Text;
+  private weaponLabel!: PixelText;
   private weaponLabelT = 0;
   private bossDeathT = 0;
   /** Weapons earned so far (from the save). */
@@ -181,7 +182,7 @@ export class GameScene extends Phaser.Scene {
   private hud!: Phaser.GameObjects.Graphics;
   private hudKey = '';
   private goalSprite: Phaser.GameObjects.Image | null = null;
-  private banner!: Phaser.GameObjects.Text;
+  private banner!: PixelText;
   private pauseLayer!: Phaser.GameObjects.Container;
 
   constructor() {
@@ -279,6 +280,7 @@ export class GameScene extends Phaser.Scene {
       player: () => this.player,
       view: () => ({ x: this.camX, y: this.camY }),
       shake: (n) => this.shake(n),
+      burst: (x, y, tex, n) => this.burst(x, y, tex, n),
       spawnShot: (o) => this.spawnEnemyShot(o),
     });
     this.electricTiles = this.level.findTiles(Tile.Electric);
@@ -290,7 +292,7 @@ export class GameScene extends Phaser.Scene {
       const depth = d.depth ?? 1;
       if (d.rect) this.add.rectangle(d.x, d.y, d.rect.w, d.rect.h, d.rect.fill).setOrigin(0).setDepth(depth);
       if (d.tex) this.add.image(d.x, d.y, d.tex).setOrigin(0).setDepth(depth);
-      if (d.text) this.add.text(d.x, d.y, d.text, { fontFamily: 'monospace', fontSize: `${d.size ?? 8}px`, color: d.color ?? '#ffffff' }).setDepth(depth + 0.1);
+      if (d.text) pixelText(this, d.x, d.y, d.text, { fontFamily: 'monospace', fontSize: `${d.size ?? 8}px`, color: d.color ?? '#ffffff' }).setDepth(depth + 0.1);
     }
 
     if (this.level.goal) {
@@ -307,11 +309,11 @@ export class GameScene extends Phaser.Scene {
         const sprite = this.add.image(t.x, t.y, 'capsule_on').setOrigin(0.5, 1).setDepth(3);
         this.capsules.push({ box: { x: t.x - 8, y: t.y - 28, w: 16, h: 28 }, sprite, kind: REMATCH_ORDER[i % REMATCH_ORDER.length], done: false });
         const label = BOSS_NAMES[REMATCH_ORDER[i % REMATCH_ORDER.length]] ?? '';
-        this.add.text(t.x, t.y - 38, label, { fontFamily: 'monospace', fontSize: '7px', color: '#c8ccd8' }).setOrigin(0.5).setDepth(3);
+        pixelText(this, t.x, t.y - 38, label, { fontFamily: 'monospace', fontSize: '7px', color: '#c8ccd8' }).setOrigin(0.5).setDepth(3);
       });
     if (this.capsules.length) {
       const hub = this.level.playerStart;
-      this.add.text(hub.x + 140, hub.y - 120, 'UP in a capsule to rematch a boss', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' }).setOrigin(0.5).setDepth(3);
+      pixelText(this, hub.x + 140, hub.y - 120, 'UP in a capsule to rematch a boss', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' }).setOrigin(0.5).setDepth(3);
     }
     this.goalSprite?.setVisible(!this.capsules.length);
     // Upgrade capsule: holds this stage's armor part until it's found.
@@ -328,15 +330,13 @@ export class GameScene extends Phaser.Scene {
     this.player = new Player(this, loadSave().parts);
 
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(50);
-    this.banner = this.add
-      .text(VIEW_W / 2, VIEW_H / 2 - 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#fff1e0', stroke: '#000000', strokeThickness: 3 })
+    this.banner = pixelText(this, VIEW_W / 2, VIEW_H / 2 - 16, '', { fontFamily: 'monospace', fontSize: '16px', color: '#fff1e0', stroke: '#000000', strokeThickness: 3 })
       .setOrigin(0.5)
       .setAlign('center')
       .setScrollFactor(0)
       .setDepth(60);
     this.pauseLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(70).setVisible(false);
-    this.weaponLabel = this.add
-      .text(12, 80, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0', stroke: '#000000', strokeThickness: 2 })
+    this.weaponLabel = pixelText(this, 12, 80, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0', stroke: '#000000', strokeThickness: 2 })
       .setScrollFactor(0)
       .setDepth(60)
       .setVisible(false);
@@ -394,11 +394,9 @@ export class GameScene extends Phaser.Scene {
     const band = this.add.rectangle(0, y, VIEW_W, 58, 0x1a1428, 0.92).setOrigin(0, 0.5);
     const top = this.add.rectangle(0, y - 29, VIEW_W, 2, accent).setOrigin(0, 0.5);
     const bottom = this.add.rectangle(0, y + 29, VIEW_W, 2, accent).setOrigin(0, 0.5);
-    const title = this.add
-      .text(VIEW_W / 2, y - 7, name, { fontFamily: 'monospace', fontSize: '20px', color: '#fff1e0', stroke: '#000000', strokeThickness: 4 })
+    const title = pixelText(this, VIEW_W / 2, y - 7, name, { fontFamily: 'monospace', fontSize: '20px', color: '#fff1e0', stroke: '#000000', strokeThickness: 4 })
       .setOrigin(0.5);
-    const sub = this.add
-      .text(VIEW_W / 2, y + 15, tagline ?? '', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' })
+    const sub = pixelText(this, VIEW_W / 2, y + 15, tagline ?? '', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' })
       .setOrigin(0.5);
     this.titleCard = this.add.container(0, 0, [band, top, bottom, title, sub]).setScrollFactor(0).setDepth(66);
     this.titleT = TITLE_CARD_FRAMES;
@@ -816,7 +814,10 @@ export class GameScene extends Phaser.Scene {
     for (const b of this.bullets) {
       if (b.deflected || b.dead) continue;
 
-      if (boss && boss.state === 'fight' && boss.blocksShots() && overlaps(b, boss)) {
+      // Shots that hit the boss's cover (Jared's counter) bounce off it.
+      const cover = boss?.coverTop() ?? null;
+      const covered = cover !== null && b.y + b.h / 2 > cover;
+      if (boss && boss.state === 'fight' && (boss.blocksShots() || covered) && overlaps(b, boss)) {
         b.deflect();
         sfx.deflect();
         continue;
@@ -1626,7 +1627,7 @@ export class GameScene extends Phaser.Scene {
     const top = VIEW_H / 2 - h / 2;
     const left = VIEW_W / 2 - 100;
     layer.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, 200, h, 0x000000, 0.88).setStrokeStyle(1, 0x5ef0c8));
-    layer.add(this.add.text(VIEW_W / 2, top + 14, 'PAUSED', { ...style, fontSize: '16px' }).setOrigin(0.5));
+    layer.add(pixelText(this, VIEW_W / 2, top + 14, 'PAUSED', { ...style, fontSize: '16px' }).setOrigin(0.5));
     // Armor parts found (dim = not found yet).
     PART_ORDER.forEach((id, i) => {
       layer.add(this.add.image(VIEW_W / 2 - 27 + i * 18, top + 32, `part_${id}`).setAlpha(p.has(id) ? 1 : 0.2));
@@ -1637,7 +1638,7 @@ export class GameScene extends Phaser.Scene {
       const y = top + 44 + i * rowH;
       const def = WEAPONS[id];
       const selected = i === this.pauseIndex;
-      layer.add(this.add.text(left + 12, y, `${selected ? '>' : ' '} ${def.name}`, { ...style, color: selected ? '#fff1e0' : '#8a8fa8' }));
+      layer.add(pixelText(this, left + 12, y, `${selected ? '>' : ' '} ${def.name}`, { ...style, color: selected ? '#fff1e0' : '#8a8fa8' }));
       const value = def.cost === 0 ? p.maxAmmo : p.ammo[id];
       for (let u = 0; u < p.maxAmmo; u++) {
         bars.fillStyle(u < value ? def.colors.main : 0x3a3550, 1).fillRect(left + 120 + u * 2, y + 2, 1, 6);
@@ -1647,20 +1648,20 @@ export class GameScene extends Phaser.Scene {
     const tankRow = this.unlocked.length;
     const tankY = top + 44 + tankRow * rowH + 4;
     const onTank = this.pauseIndex === tankRow;
-    layer.add(this.add.text(left + 12, tankY, `${onTank ? '>' : ' '} E-TANK`, { ...style, color: onTank ? '#9ee8ff' : '#8a8fa8' }));
+    layer.add(pixelText(this, left + 12, tankY, `${onTank ? '>' : ' '} E-TANK`, { ...style, color: onTank ? '#9ee8ff' : '#8a8fa8' }));
     for (let i = 0; i < MAX_TANKS; i++) {
       layer.add(this.add.image(left + 126 + i * 14, tankY + 4, 'etank').setAlpha(i < tanks ? 1 : 0.2));
     }
     const exitY = tankY + rowH;
     const onExit = this.pauseIndex === tankRow + 1;
-    layer.add(this.add.text(left + 12, exitY, `${onExit ? '>' : ' '} EXIT STAGE`, { ...style, color: onExit ? '#ff9a7a' : '#8a8fa8' }));
+    layer.add(pixelText(this, left + 12, exitY, `${onExit ? '>' : ' '} EXIT STAGE`, { ...style, color: onExit ? '#ff9a7a' : '#8a8fa8' }));
     const hint = onExit
       ? 'Z / X to leave the stage'
       : onTank
         ? tanks === 0 ? 'none left: find them in stages' : p.hp >= p.maxHp ? 'life is already full' : 'Z / X to refill your life'
         : WEAPONS[this.unlocked[this.pauseIndex]].blurb;
-    layer.add(this.add.text(VIEW_W / 2, top + h - 22, hint, { ...style, color: '#5ef0c8' }).setOrigin(0.5));
-    layer.add(this.add.text(VIEW_W / 2, top + h - 10, 'UP/DOWN select   ENTER resume', { ...style, color: '#8a8fa8' }).setOrigin(0.5));
+    layer.add(pixelText(this, VIEW_W / 2, top + h - 22, hint, { ...style, color: '#5ef0c8' }).setOrigin(0.5));
+    layer.add(pixelText(this, VIEW_W / 2, top + h - 10, 'UP/DOWN select   ENTER resume', { ...style, color: '#8a8fa8' }).setOrigin(0.5));
   }
 
   private stepPauseMenu(): void {

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { ThemeId } from './level/Level';
 import { THEMES, Theme } from './level/themes';
 import { makeEnvArt } from './envArt';
+import { makePixelFont } from './pixelFont';
 import { makeHazardTextures } from './scenes/hazards';
 
 /**
@@ -447,4 +448,5 @@ export function generateTextures(scene: Phaser.Scene): void {
   makeEffects(scene);
   makeHazardTextures(scene);
   makeEnvArt(scene);
+  makePixelFont(scene);
 }

@@ -3,6 +3,7 @@ import { VIEW_H, VIEW_W } from '../constants';
 import { ACTIONS, ACTION_LABELS, Action, KEY, bindKey, loadSettings, resetKeys, saveSettings, updateSettings } from '../settings';
 import { sfx } from '../sfx';
 import { FONT, MenuScene } from './menu';
+import { PixelText, pixelText } from '../pixelFont';
 
 /** Readable name for a key code ("LEFT", "Z", "SPACE"...). */
 const KEY_NAMES: Record<number, string> = Object.fromEntries(
@@ -18,8 +19,8 @@ export function keyName(code: number): string {
  * is taken off any other action. ESC cancels; ESC and Backspace can't be bound.
  */
 export class ControlsScene extends MenuScene {
-  private labels: Phaser.GameObjects.Text[] = [];
-  private prompt!: Phaser.GameObjects.Text;
+  private labels: PixelText[] = [];
+  private prompt!: PixelText;
   private capturing: Action | null = null;
   private captureListener: ((e: KeyboardEvent) => void) | null = null;
   /** Frames to ignore input after a capture ends (so ESC doesn't also count as "confirm"). */
@@ -33,17 +34,16 @@ export class ControlsScene extends MenuScene {
     this.initMenu();
     this.capturing = null;
     this.cooldown = 10;
-    this.cameras.main.setBackgroundColor('#141626');
+    this.backdrop('power', 0.65);
     const small = { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' };
-    this.add.text(VIEW_W / 2, 14, 'CONTROLS', { fontFamily: FONT, fontSize: '16px', color: '#f28c28' }).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, 14, 'CONTROLS', { fontFamily: FONT, fontSize: '16px', color: '#f28c28' }).setOrigin(0.5);
     const rows = [...ACTIONS.map(() => ''), 'RESET TO DEFAULTS', 'BACK'];
     this.labels = this.list(56, 32, rows, data?.index ?? 0);
     this.labels.forEach((t) => t.setFontSize(10));
     this.refresh();
-    this.add.text(VIEW_W / 2, VIEW_H - 26, 'GAMEPAD (fixed): D-PAD move  A jump  B/X fire  START pause  L1/R1 weapon', small).setOrigin(0.5);
-    this.add.text(VIEW_W / 2, VIEW_H - 12, 'ENTER / Z: rebind   X: back', small).setOrigin(0.5);
-    this.prompt = this.add
-      .text(VIEW_W / 2, VIEW_H / 2, '', { fontFamily: FONT, fontSize: '12px', color: '#fff1e0', backgroundColor: '#000000', align: 'center', padding: { x: 10, y: 8 } })
+    pixelText(this, VIEW_W / 2, VIEW_H - 26, 'GAMEPAD (fixed): D-PAD move  A jump  B/X fire  START pause  L1/R1 weapon', small).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, VIEW_H - 12, 'ENTER / Z: rebind   X: back', small).setOrigin(0.5);
+    this.prompt = pixelText(this, VIEW_W / 2, VIEW_H / 2, '', { fontFamily: FONT, fontSize: '12px', color: '#fff1e0', backgroundColor: '#000000', align: 'center', padding: { x: 10, y: 8 } })
       .setOrigin(0.5)
       .setDepth(10)
       .setVisible(false);

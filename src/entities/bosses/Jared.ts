@@ -18,7 +18,9 @@ export class Jared extends Boss {
   private attack = 0;
 
   constructor(g: GameScene, at: Point, room: Room) {
-    // Hitbox runs down to the floor (through the counter) so standing shots hit.
+    // Hitbox runs down to the floor, but the counter covers his lower half:
+    // shots below its top bounce off (see coverTop), so you have to jump (or
+    // get up on the counter) to hit him, in reach of his hot dogs.
     super(g, 'jared', 30, 66, null, at, room);
     // Already behind the register: no drop-in, straight to the health bar.
     this.y = room.floor - this.h;
@@ -51,6 +53,11 @@ export class Jared extends Boss {
     }
     this.throwPose = 16;
     sfx.enemyShot();
+  }
+
+  /** The counter is two tiles tall. */
+  coverTop(): number {
+    return this.room.floor - 32;
   }
 
   protected introPose(): string {

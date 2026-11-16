@@ -1,7 +1,11 @@
 import Phaser from 'phaser';
-import { STEP_MS } from '../constants';
+import { STEP_MS, VIEW_H, VIEW_W } from '../constants';
 import { Controls } from '../input';
+import { PARALLAX } from '../envArt';
+import type { ThemeId } from '../level/Level';
+import { THEMES } from '../level/themes';
 import { sfx } from '../sfx';
+import { PixelText, pixelText } from '../pixelFont';
 
 export const FONT = 'monospace';
 
@@ -13,9 +17,11 @@ export abstract class MenuScene extends Phaser.Scene {
   protected controls!: Controls;
   protected frame = 0;
   private acc = 0;
-  private items: Phaser.GameObjects.Text[] = [];
-  private cursor: Phaser.GameObjects.Text | null = null;
+  private items: PixelText[] = [];
+  private cursor: PixelText | null = null;
   protected selected = 0;
+  /** Parallax layers behind the menu, drifting slowly. */
+  private backdropLayers: { sprite: Phaser.GameObjects.TileSprite; speed: number }[] = [];
   /** While true, the list ignores UP/DOWN (e.g. waiting for a key to bind). */
   protected inputLocked = false;
 
@@ -25,13 +31,39 @@ export abstract class MenuScene extends Phaser.Scene {
     this.items = [];
     this.cursor = null;
     this.inputLocked = false;
+    this.backdropLayers = [];
     this.controls = new Controls(this);
   }
 
+  /**
+   * A stage's parallax layers drifting behind the menu, under a dark
+   * gradient (`dim` at the top and bottom, lighter through the middle) so
+   * text reads cleanly over it.
+   */
+  protected backdrop(theme: ThemeId, dim = 0.55): void {
+    this.cameras.main.setBackgroundColor(THEMES[theme].sky);
+    this.backdropLayers = PARALLAX.map(({ layer, factor }) => ({
+      sprite: this.add.tileSprite(0, 0, VIEW_W, VIEW_H, `bgl_${theme}_${layer}`).setOrigin(0).setDepth(-20 + layer),
+      speed: factor * 0.6,
+    }));
+    const shade = this.add.graphics().setDepth(-5);
+    const bands = 12;
+    for (let i = 0; i < bands; i++) {
+      const k = Math.abs(i / (bands - 1) - 0.5) * 2; // 1 at the edges, 0 in the middle
+      shade.fillStyle(0x05060c, dim * (0.55 + 0.45 * k));
+      shade.fillRect(0, Math.floor((i * VIEW_H) / bands), VIEW_W, Math.ceil(VIEW_H / bands) + 1);
+    }
+  }
+
+  /** A soft panel behind a block of menu text. */
+  protected panel(x: number, y: number, w: number, h: number): Phaser.GameObjects.Rectangle {
+    return this.add.rectangle(x, y, w, h, 0x0a0c18, 0.72).setStrokeStyle(1, 0x3a4470).setDepth(-4);
+  }
+
   /** Lay out a vertical list; returns the text objects (for relabeling). */
-  protected list(x: number, y: number, labels: string[], start = 0): Phaser.GameObjects.Text[] {
-    this.items = labels.map((l, i) => this.add.text(x, y + i * 14, l, { fontFamily: FONT, fontSize: '12px', color: '#fff1e0' }));
-    this.cursor = this.add.text(x - 14, y, '>', { fontFamily: FONT, fontSize: '12px', color: '#5ef0c8' });
+  protected list(x: number, y: number, labels: string[], start = 0): PixelText[] {
+    this.items = labels.map((l, i) => pixelText(this, x, y + i * 14, l, { fontFamily: FONT, fontSize: '12px', color: '#fff1e0' }));
+    this.cursor = pixelText(this, x - 14, y, '>', { fontFamily: FONT, fontSize: '12px', color: '#5ef0c8' });
     this.select(start);
     return this.items;
   }
@@ -65,6 +97,7 @@ export abstract class MenuScene extends Phaser.Scene {
       if (this.tick()) return;
     }
     this.cursor?.setVisible(Math.floor(this.frame / 20) % 3 !== 0);
+    for (const b of this.backdropLayers) b.sprite.tilePositionX += b.speed * Math.min(delta, 100) / 16.7;
   }
 
   protected confirmed(): boolean {
