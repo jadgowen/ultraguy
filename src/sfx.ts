@@ -148,6 +148,31 @@ const synth = {
     tone(300, 1500, 0.3, 'square', 0.05);
     setTimeout(() => noise(0.3, 0.12), 300);
   },
+  fuse: () => noise(0.25, 0.03),
+  explode: () => {
+    noise(0.45, 0.12);
+    tone(140, 40, 0.35, 'square', 0.06);
+  },
+  laser: () => tone(1400, 600, 0.07, 'square', 0.03),
+  alienDie: () => {
+    noise(0.12, 0.07);
+    tone(600, 120, 0.1, 'square', 0.04);
+  },
+  fireball: () => tone(300, 900, 0.25, 'sawtooth', 0.04),
+  uppercut: () => tone(200, 1200, 0.2, 'square', 0.05),
+  rpgHit: () => {
+    noise(0.08, 0.08);
+    tone(500, 200, 0.08, 'square', 0.05);
+  },
+  rpgSpell: () => {
+    for (let i = 0; i < 5; i++) setTimeout(() => tone(800 + i * 200, 1200 + i * 200, 0.06, 'triangle', 0.04), i * 50);
+  },
+  victory: () => {
+    tone(523, 523, 0.12);
+    setTimeout(() => tone(659, 659, 0.12), 130);
+    setTimeout(() => tone(784, 784, 0.12), 260);
+    setTimeout(() => tone(1046, 1046, 0.4), 390);
+  },
   glitch: () => {
     for (let i = 0; i < 6; i++) setTimeout(() => tone(200 + Math.random() * 1800, 100, 0.05, 'square', 0.03), i * 60);
   },

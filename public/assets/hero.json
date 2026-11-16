@@ -14,6 +14,12 @@
     "jump_s": 9,
     "climb": 10,
     "climb_s": 11,
-    "hurt": 12
+    "hurt": 12,
+    "punch": 13,
+    "kick": 14,
+    "crouch": 15,
+    "crouchPunch": 16,
+    "block": 17,
+    "win": 18
   }
 }

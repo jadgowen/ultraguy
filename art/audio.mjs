@@ -44,6 +44,11 @@ const STYLE16 = 'instrumental 16-bit chiptune in the style of classic SNES-era s
 const MUSIC16 = {
   race: 'High-energy motocross race theme, fast tempo, revving rock energy, exciting and competitive',
   boxing: 'Boxing match theme, punchy and heroic, driving beat, tension and triumph, arena energy',
+  rpg: 'Classic Japanese role-playing game battle theme, heroic and bouncy, brass and strings over a marching beat',
+  fighter: 'One-on-one fighting game stage theme, intense and rhythmic, aggressive lead, rooftop showdown at night',
+  shooter: 'Space shooter theme, urgent synth arpeggios, alien invasion, heroic and fast',
+  bomb: 'Bomb battle maze theme, bouncy and mischievous with a hot volcanic flavor, fast tempo',
+  hop: 'Light, playful jungle crossing theme, fast and cheerful, plucky bass and marimba-like lead',
 };
 
 /** Spoken lines: [voice id, text]. Played with the dialogue boxes. */
@@ -64,6 +69,27 @@ const VOICE = {
   box_fight: ['pNInz6obpgDQGcFmaJgB', 'Fight!'],
   box_ko: ['pNInz6obpgDQGcFmaJgB', 'Knockout!'],
   box_down: ['pNInz6obpgDQGcFmaJgB', 'Down he goes!'],
+  magma_challenge: ['N2lVS1w4EtoT3dr4eOWO', "Too hot to handle, little bot? Then let's settle this the old way. Bombs, bricks, and nowhere to run!"],
+  magma_wins: ['N2lVS1w4EtoT3dr4eOWO', 'Burned to a crisp!'],
+  magma_loses: ['N2lVS1w4EtoT3dr4eOWO', "Argh... you've got a short fuse, and a long reach."],
+  overlord_challenge: ['nPczCjzI2devNBz1zQrb', 'Pathetic machine. My armada will blot you from the sky!'],
+  overlord_loses: ['nPczCjzI2devNBz1zQrb', 'Impossible... my fleet... destroyed!'],
+  shade_challenge: ['bIHbv24MWmeRgasZH58o', "So you made it. No armor. No cannon. Just you and me... and only one of us walks away."],
+  shade_wins: ['bIHbv24MWmeRgasZH58o', 'Two of us was always one too many.'],
+  shade_loses: ['bIHbv24MWmeRgasZH58o', "Then... you're the real one."],
+  fight_round1: ['cjVigY5qzO86Huf0OWal', 'Round one!'],
+  fight_round2: ['cjVigY5qzO86Huf0OWal', 'Round two!'],
+  fight_final: ['cjVigY5qzO86Huf0OWal', 'Final round!'],
+  fight_go: ['cjVigY5qzO86Huf0OWal', 'Fight!'],
+  fight_ko: ['cjVigY5qzO86Huf0OWal', 'K. O.!'],
+  fight_perfect: ['cjVigY5qzO86Huf0OWal', 'Perfect!'],
+  fight_youwin: ['cjVigY5qzO86Huf0OWal', 'You win!'],
+  fight_youlose: ['cjVigY5qzO86Huf0OWal', 'You lose!'],
+  toad_challenge: ['IKne3meq5aSn9XLyUdCD', 'Ribbit! You want past me? Hop across my thicket first, tin can. Fill all three lily pads before the time runs out!'],
+  toad_wins: ['IKne3meq5aSn9XLyUdCD', 'Splash! Ha ha!'],
+  toad_loses: ['IKne3meq5aSn9XLyUdCD', 'Ribbit... fine, fine. Go on through.'],
+  sentry_challenge: ['onwK4e9ZLuTAKqWW03F9', 'Halt. The UltraBlaster is sealed. Prove your worth... in combat.'],
+  sentry_loses: ['onwK4e9ZLuTAKqWW03F9', 'Access... granted.'],
 };
 
 /** Sound effects. Keys match the names in src/sfx.ts. */
@@ -116,6 +142,16 @@ const SFX = {
   bodyFall: ['16-bit SNES game sound, heavy body falling onto a boxing ring canvas', 0.8],
   starPunch: ['16-bit SNES game sound, super power uppercut, charging whoosh then huge impact', 1.0],
   glitch: ['16-bit SNES game sound, screen pixelating, digital warp transition', 1.2],
+  // Bomb battle, shooter, fighter, RPG.
+  fuse: ['16-bit SNES game sound, bomb dropped, short fuse fizz', 0.6],
+  explode: ['16-bit SNES game sound, bomb explosion, punchy boom', 0.8],
+  laser: ['16-bit SNES game sound, small spaceship laser shot', 0.5],
+  alienDie: ['16-bit SNES game sound, alien invader destroyed, crunchy pop', 0.5],
+  fireball: ['16-bit SNES game sound, energy fireball special move launched, whoosh', 0.7],
+  uppercut: ['16-bit SNES game sound, rising uppercut special move, powerful swoosh', 0.6],
+  rpgHit: ['16-bit SNES game sound, turn-based RPG attack hit, sharp slash', 0.5],
+  rpgSpell: ['16-bit SNES game sound, RPG magic spell cast, shimmering', 0.8],
+  victory: ['16-bit SNES game sound, short RPG victory fanfare jingle', 3],
 };
 
 // Same lookup as the other local projects: env var first, then ~/.elevenlabs_api_key.

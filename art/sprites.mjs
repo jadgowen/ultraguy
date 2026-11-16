@@ -1096,6 +1096,32 @@ P.mantisIdle = mantisShape('idle');
 P.mantisJump = mantisShape('jump');
 P.mantisThrow = mantisShape('throw');
 
+/** VAULT SENTRY, the UltraBlaster's guardian, seen head-on for the RPG battle. 64 x 64. */
+function sentryFront() {
+  return shapes(64, 64, [
+    // Thruster glow under the floating base.
+    ['ellipse', 32, 60, 9, 3, 'O'], ['ellipse', 32, 59, 5, 2, 'Y'],
+    ['poly', [[20, 50], [44, 50], [40, 57], [24, 57]], 'g'], ['rect', 22, 50, 20, 2, 'G'],
+    // Body.
+    ['poly', [[16, 24], [48, 24], [44, 50], [20, 50]], 'G'],
+    ['rect', 18, 24, 28, 2, 'w'],
+    ['ellipse', 32, 37, 7, 7, 'd'], ['ellipse', 32, 37, 5, 5, 'C'], ['ellipse', 32, 37, 2.5, 2.5, 'W'],
+    ['line', 21, 44, 43, 44, 'g'], ['px', 22, 28, 'w'], ['px', 41, 28, 'w'], ['px', 22, 46, 'w'], ['px', 41, 46, 'w'],
+    // Shoulders.
+    ['ellipse', 13, 25, 8, 6, 'S'], ['ellipse', 51, 25, 8, 6, 'S'], ['line', 7, 22, 19, 22, 's'], ['line', 45, 22, 57, 22, 's'],
+    // Left arm: a shield. Right arm: a cannon.
+    ['rect', 7, 30, 6, 10, 'g'], ['poly', [[1, 36], [14, 34], [14, 52], [7, 56], [1, 52]], 'S'], ['line', 7, 37, 7, 53, 'V'],
+    ['rect', 51, 30, 6, 10, 'g'], ['rect', 49, 40, 10, 14, 'G'], ['rect', 50, 52, 8, 4, 'd'], ['rect', 52, 53, 4, 2, 'R'],
+    ['line', 49, 43, 58, 43, 'g'], ['line', 49, 47, 58, 47, 'g'],
+    // Neck and dome head with one big eye.
+    ['rect', 28, 20, 8, 5, 'g'],
+    ['ellipse', 32, 13, 12, 10, 'G'], ['ellipse', 30, 9, 6, 3, 'w'],
+    ['rect', 21, 13, 22, 6, 'd'], ['ellipse', 32, 16, 5, 2.6, 'R'], ['ellipse', 32, 16, 2.4, 1.6, 'Y'], ['px', 31, 15, 'W'],
+    ['line', 32, 2, 32, 0, 'g'], ['px', 32, 0, 'R'],
+  ]);
+}
+P.sentryFront = sentryFront();
+
 /** OVERLORD (final boss, phase 1): skull-faced war machine, cannon on the right. */
 function overlord(firing) {
   const eye = firing ? 'Y' : 'R';
@@ -1654,6 +1680,7 @@ const BOX_FRAMES = {};
 for (const pose of ['idle', 'guardHigh', 'guardLow', 'windL', 'windR', 'punchL', 'punchR', 'upWind', 'upper', 'hitFace', 'hitBody', 'dizzy', 'down']) BOX_FRAMES[`gbox_${pose}`] = single(`gbox_${pose}`, 48, 60);
 for (const pose of ['idle', 'block', 'punchL', 'punchR', 'punchHL', 'punchHR', 'star', 'down']) BOX_FRAMES[`ubox_${pose}`] = single(`ubox_${pose}`, 28, 40);
 
+BOX_FRAMES.sentry_front = single('sentryFront', 64, 64);
 const FRAMES = { ...CHARACTER_FRAMES, ...MINI_FRAMES, ...SHOT_FRAMES, ...ITEM_FRAMES, ...BOX_FRAMES };
 
 // --- render ----------------------------------------------------------------------

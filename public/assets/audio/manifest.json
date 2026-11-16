@@ -16,7 +16,12 @@
     "reef": "music_reef.mp3",
     "boss": "music_boss.mp3",
     "race": "music_race.mp3",
-    "boxing": "music_boxing.mp3"
+    "boxing": "music_boxing.mp3",
+    "rpg": "music_rpg.mp3",
+    "fighter": "music_fighter.mp3",
+    "shooter": "music_shooter.mp3",
+    "bomb": "music_bomb.mp3",
+    "hop": "music_hop.mp3"
   },
   "sfx": {
     "shoot": "sfx_shoot.mp3",
@@ -63,7 +68,16 @@
     "glitch": "sfx_glitch.mp3",
     "punch": "sfx_punch.mp3",
     "punchBlock": "sfx_punchBlock.mp3",
-    "whoosh": "sfx_whoosh.mp3"
+    "whoosh": "sfx_whoosh.mp3",
+    "fuse": "sfx_fuse.mp3",
+    "explode": "sfx_explode.mp3",
+    "laser": "sfx_laser.mp3",
+    "alienDie": "sfx_alienDie.mp3",
+    "fireball": "sfx_fireball.mp3",
+    "uppercut": "sfx_uppercut.mp3",
+    "rpgHit": "sfx_rpgHit.mp3",
+    "rpgSpell": "sfx_rpgSpell.mp3",
+    "victory": "sfx_victory.mp3"
   },
   "voice": {
     "volt_challenge": "voice_volt_challenge.mp3",
@@ -81,6 +95,27 @@
     "jared_getup": "voice_jared_getup.mp3",
     "box_fight": "voice_box_fight.mp3",
     "box_ko": "voice_box_ko.mp3",
-    "box_down": "voice_box_down.mp3"
+    "box_down": "voice_box_down.mp3",
+    "magma_challenge": "voice_magma_challenge.mp3",
+    "magma_wins": "voice_magma_wins.mp3",
+    "magma_loses": "voice_magma_loses.mp3",
+    "overlord_challenge": "voice_overlord_challenge.mp3",
+    "overlord_loses": "voice_overlord_loses.mp3",
+    "shade_challenge": "voice_shade_challenge.mp3",
+    "shade_wins": "voice_shade_wins.mp3",
+    "shade_loses": "voice_shade_loses.mp3",
+    "fight_round1": "voice_fight_round1.mp3",
+    "fight_round2": "voice_fight_round2.mp3",
+    "fight_final": "voice_fight_final.mp3",
+    "fight_go": "voice_fight_go.mp3",
+    "fight_ko": "voice_fight_ko.mp3",
+    "fight_perfect": "voice_fight_perfect.mp3",
+    "fight_youwin": "voice_fight_youwin.mp3",
+    "fight_youlose": "voice_fight_youlose.mp3",
+    "toad_challenge": "voice_toad_challenge.mp3",
+    "toad_wins": "voice_toad_wins.mp3",
+    "toad_loses": "voice_toad_loses.mp3",
+    "sentry_challenge": "voice_sentry_challenge.mp3",
+    "sentry_loses": "voice_sentry_loses.mp3"
   }
 }

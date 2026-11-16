@@ -32,13 +32,21 @@ a change of direction partway:
 | Scrapyard | barrel chutes, compactor presses, crane platforms and conveyor stairs |
 | Reef | currents (`{` / `}`) and bubble columns; a trench current that drags you toward spikes |
 
-Two bosses change the game entirely. VOLT challenges you to a race instead of a fight: a side-view
-motocross race on four lanes (JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, LEFT/RIGHT to tilt
-in the air; land at the wrong angle and you crash). The GATEKEEPER (Fortress Gate) drops his weapons
-for a behind-the-back boxing match: dodge, block, punch high or low, counter when he winds up, earn
-stars for a star uppercut, three rounds with Coach Jared in your corner. Both are separate scenes
-(`src/scenes/RaceScene.ts`, `src/scenes/BoxingScene.ts`) entered through a dialogue and a pixelate
-warp (`src/scenes/cutscene.ts`); win and you get the boss reward, lose and you retry from the door.
+Some fights change the game entirely. Each is its own scene, entered through a dialogue and a
+pixelate warp (`src/scenes/cutscene.ts`), and wired up in `src/scenes/encounters.ts`:
+
+| Fight | Mode | Scene |
+|---|---|---|
+| Volt (Power Plant) | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
+| Gatekeeper (Fortress Gate) | behind-the-back boxing, three rounds, Coach Jared in your corner | `BoxingScene.ts` |
+| Magma (Caldera) | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
+| Briar Toad (Canopy miniboss) | lane-crossing hop: dodge the trail, ride logs and pads, fill all three pads in time | `HopScene.ts` |
+| Vault Sentry (guards the UltraBlaster) | turn-based 1v1 RPG battle: FIGHT, SPELL, GUARD, ITEM (uses your E-tanks) | `RpgScene.ts` |
+| Overlord (finale) | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
+| Shade (finale, after the Overlord) | one-on-one fighting game, best of three; QCF+FIRE fireball, DP+FIRE uppercut | `FighterScene.ts` |
+
+Win and you carry on (the boss reward, the next fight in a chain, or the part); lose and you retry from
+the last checkpoint. Any upgrade part can have a guardian (`PART_GUARDIANS` in `encounters.ts`).
 
 Each boss stage has a miniboss halfway through, and an energy tank (E-tank) on a ledge just before it.
 You can carry up to 4 E-tanks (saved); use one from the pause menu to refill your life. Enemies drop

@@ -150,6 +150,18 @@ const P = {
     'KDooK...KDooK',
     'KKKKK...KKKKK',
   ],
+  // Fighting poses (Shade's duel).
+  armPunch: ['KKKKKKK.', 'KOOOOOLK', 'KoOOOOOK', 'KKKKKKK.'],
+  legsKick: [
+    '.KSXK.' + 'K'.repeat(11) + '.',
+    '.KsSKK' + 'SSSSSSSXZOO' + 'K',
+    '.KZLK.' + 'K'.repeat(11) + '.',
+    'KZLOOK' + '.'.repeat(12),
+    'KLOOoK' + '.'.repeat(12),
+    'KDooDK' + '.'.repeat(12),
+    'KKKKKK' + '.'.repeat(12),
+  ],
+  legsCrouch: ['.KZLK..KZLK.', 'KZLOOKKZLOOK', 'KDooDKKDooDK', 'KKKKKKKKKKKK'],
   legsClimb: [
     '.KSXK..KSXK.',
     '.KsSK..KsSK.',
@@ -207,6 +219,12 @@ const FRAMES = {
     ['torso', 6, 11],
     ['armUp', 17, 5],
   ],
+  punch: body('legsIdle', { front: ['armPunch', 16, 12] }),
+  kick: [['armBack', 4, 12], ['legsKick', 6, 17], ['head', 6, 2], ['torso', 6, 11], ['armFront', 15, 12]],
+  crouch: [['armBack', 4, 15], ['legsCrouch', 6, 20], ['head', 6, 5], ['torso', 6, 14], ['armFront', 15, 15]],
+  crouchPunch: [['armBack', 4, 15], ['legsCrouch', 6, 20], ['head', 6, 5], ['torso', 6, 14], ['armPunch', 16, 15]],
+  block: [['armBack', 4, 12], ['legsIdle', 6, 17], ['head', 6, 2], ['torso', 6, 11], ['armUp', 14, 6], ['armUp', 16, 7]],
+  win: body('legsIdle', { front: ['armUp', 17, 5] }),
 };
 
 // --- rendering -----------------------------------------------------------------

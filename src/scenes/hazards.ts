@@ -66,7 +66,7 @@ export class Hazards {
   private flash = 0;
   /** Moving belt surfaces drawn over conveyor runs, scrolled the way they push. */
   private belts: { sprite: Phaser.GameObjects.TileSprite; dir: number }[] = [];
-  private lava: { y: number; start: number; top: number; on: boolean; fill: Phaser.GameObjects.TileSprite } | null = null;
+  private lava: { y: number; start: number; top: number; x0: number; x1: number; on: boolean; fill: Phaser.GameObjects.TileSprite } | null = null;
 
   constructor(private host: HazardHost) {
     const { scene, level } = host;
@@ -127,7 +127,7 @@ export class Hazards {
         }
       }
       const fill = scene.add.tileSprite(x0, start, x1 - x0, SCREEN_H * 4, `lava_${host.theme}`).setOrigin(0).setDepth(14).setAlpha(0.95);
-      this.lava = { y: start, start, top, on: false, fill };
+      this.lava = { y: start, start, top, x0, x1, on: false, fill };
     }
   }
 
@@ -285,7 +285,8 @@ export class Hazards {
     L.fill.setY(Math.round(L.y));
     L.fill.tilePositionY = 0;
     L.fill.tilePositionX = (this.t * 0.3) % TILE;
-    if (p.alive && p.bottom > L.y + 6) p.die(true);
+    // Only where the lava actually is: once you're past the climb, other screens are safe.
+    if (p.alive && p.bottom > L.y + 6 && p.cx >= L.x0 && p.cx < L.x1) p.die(true);
   }
 
   /** After a death: lava back down, presses back up. */

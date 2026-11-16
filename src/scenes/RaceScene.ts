@@ -5,7 +5,8 @@ import { Controls } from '../input';
 import type { StageId } from '../level/Level';
 import { pixelText } from '../pixelFont';
 import { sfx } from '../sfx';
-import { pixelateIn, pixelateOut } from './cutscene';
+import { pixelateIn } from './cutscene';
+import { ModeData, returnToGame } from './encounters';
 
 /**
  * VOLT'S RACE: a side-view motocross race against Volt, in place of his boss
@@ -19,6 +20,7 @@ import { pixelateIn, pixelateOut } from './cutscene';
 
 export interface RaceData {
   stage: StageId;
+  ret?: ModeData['ret'];
 }
 
 const TRACK_LEN = 6200;
@@ -137,8 +139,12 @@ export class RaceScene extends Phaser.Scene {
     super('race');
   }
 
+  /** Where we came from (sent back at the end). */
+  private mode: ModeData = { stage: 'powerplant', ret: { kind: 'boss', step: 0 } };
+
   create(data: RaceData): void {
     this.stageId = data?.stage ?? 'powerplant';
+    this.mode = { stage: this.stageId, ret: data?.ret ?? { kind: 'boss', step: 0 } };
     this.controls = new Controls(this);
     ({ ramps: this.ramps, patches: this.patches } = buildCourse());
     this.acc = 0;
@@ -409,7 +415,7 @@ export class RaceScene extends Phaser.Scene {
 
   private finish(): void {
     const won = this.result === 'win';
-    pixelateOut(this, 700, () => this.scene.start('game', { stage: this.stageId, resume: won ? 'bossWon' : 'bossLost' }));
+    returnToGame(this, this.mode, won);
   }
 
   // --- drawing ------------------------------------------------------------------------

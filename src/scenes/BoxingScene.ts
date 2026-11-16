@@ -5,7 +5,8 @@ import { Controls } from '../input';
 import type { StageId } from '../level/Level';
 import { pixelText } from '../pixelFont';
 import { sfx } from '../sfx';
-import { Line, dialogue, pixelateIn, pixelateOut } from './cutscene';
+import { Line, dialogue, pixelateIn } from './cutscene';
+import { ModeData, returnToGame } from './encounters';
 
 /**
  * THE GATEKEEPER, in the ring: a behind-the-back boxing match in place of the
@@ -19,6 +20,7 @@ import { Line, dialogue, pixelateIn, pixelateOut } from './cutscene';
 
 export interface BoxingData {
   stage: StageId;
+  ret?: ModeData['ret'];
 }
 
 const MAX_HP = 96;
@@ -82,8 +84,12 @@ export class BoxingScene extends Phaser.Scene {
     super('boxing');
   }
 
+  /** Where we came from (sent back at the end). */
+  private mode: ModeData = { stage: 'fortress1', ret: { kind: 'boss', step: 0 } };
+
   create(data: BoxingData): void {
     this.stageId = data?.stage ?? 'fortress1';
+    this.mode = { stage: this.stageId, ret: data?.ret ?? { kind: 'boss', step: 0 } };
     this.controls = new Controls(this);
     Object.assign(this, {
       acc: 0, frame: 0, round: 1, clock: ROUND_FRAMES, phase: 'corner', phaseT: 0, story: null,
@@ -255,7 +261,7 @@ export class BoxingScene extends Phaser.Scene {
     if (this.phase === 'over') {
       if (this.phaseT === 240) {
         const won = this.result === 'win';
-        pixelateOut(this, 800, () => this.scene.start('game', { stage: this.stageId, resume: won ? 'bossWon' : 'bossLost' }));
+        returnToGame(this, this.mode, won);
       }
       return;
     }
