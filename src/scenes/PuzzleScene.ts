@@ -10,6 +10,11 @@ import { ModeScene } from './ModeScene';
  * crush them. Crushes (and chains of them) dump scrap blocks into Scrap's bin;
  * his crushes dump them into yours. Scrap clears when a crush happens next to
  * it. Fill up to the top and you lose.
+ *
+ * Every crush counts: four sends 2 scrap, each extra block 1 more, and each
+ * step of a chain adds 3. Your crushes cancel scrap headed your way first.
+ * Scrap lands at most MAX_DROP per piece, so a big chain arrives over a few
+ * turns (the counter over the bin shows what's coming).
  */
 
 const COLS = 6;
@@ -18,6 +23,8 @@ const CELL = 13;
 const KINDS = 4;
 const JUNK = 9; // garbage
 const SPAWN_C = 2;
+/** Most scrap that lands on one piece; the rest waits for the next. */
+const MAX_DROP = 6;
 const BOARD_Y = 30;
 const LEFT_X = Math.round(VIEW_W / 2 - 150);
 const RIGHT_X = Math.round(VIEW_W / 2 + 150 - COLS * CELL);
@@ -62,6 +69,8 @@ export class PuzzleScene extends ModeScene {
   private g!: Phaser.GameObjects.Graphics;
   private scrapImg!: Phaser.GameObjects.Image;
   private chainText!: ReturnType<typeof pixelText>;
+  private youWarn!: ReturnType<typeof pixelText>;
+  private scrapWarn!: ReturnType<typeof pixelText>;
 
   constructor() {
     super('puzzle');
@@ -80,8 +89,10 @@ export class PuzzleScene extends ModeScene {
     this.aiT = 0;
     this.scrapImg = this.add.image(VIEW_W / 2, 150, 'scrap_idle').setScale(1.5).setDepth(5);
     this.chainText = pixelText(this, VIEW_W / 2, 196, '', { color: '#ffe14a', stroke: '#000000' }).setOrigin(0.5).setDepth(20);
-    pixelText(this, LEFT_X + (COLS * CELL) / 2, BOARD_Y - 12, 'ULTRAGUY', { color: '#f28c28', stroke: '#000000' }).setOrigin(0.5, 0).setDepth(20);
-    pixelText(this, RIGHT_X + (COLS * CELL) / 2, BOARD_Y - 12, 'SCRAP', { color: '#c8ccd8', stroke: '#000000' }).setOrigin(0.5, 0).setDepth(20);
+    this.youWarn = pixelText(this, LEFT_X + COLS * CELL, BOARD_Y - 24, '', { color: '#fff1e0', stroke: '#000000' }).setOrigin(1, 0).setDepth(20);
+    this.scrapWarn = pixelText(this, RIGHT_X + COLS * CELL, BOARD_Y - 24, '', { color: '#fff1e0', stroke: '#000000' }).setOrigin(1, 0).setDepth(20);
+    pixelText(this, LEFT_X + (COLS * CELL) / 2, BOARD_Y - 24, 'ULTRAGUY', { color: '#f28c28', stroke: '#000000' }).setOrigin(0.5, 0).setDepth(20);
+    pixelText(this, RIGHT_X + (COLS * CELL) / 2, BOARD_Y - 24, 'SCRAP', { color: '#c8ccd8', stroke: '#000000' }).setOrigin(0.5, 0).setDepth(20);
     pixelText(this, VIEW_W / 2, 56, 'NEXT', { color: '#8a8fa8', stroke: '#000000' }).setOrigin(0.5, 0).setDepth(20);
     this.help('LEFT/RIGHT MOVE   DOWN DROP   JUMP/FIRE TURN');
   }
@@ -164,7 +175,8 @@ export class PuzzleScene extends ModeScene {
 
   /** How much scrap a pop sends: more for bigger crushes and longer chains. */
   private static attack(popped: number, chain: number): number {
-    return Math.max(0, popped - 3) + (chain - 1) * 4 + (chain >= 2 ? 1 : 0);
+    if (popped < 4) return 0;
+    return 2 + (popped - 4) + (chain - 1) * 3;
   }
 
   private lock(b: Board): void {
@@ -206,7 +218,7 @@ export class PuzzleScene extends ModeScene {
     }
     // Done: take any scrap that's coming, then a new pair.
     if (b.incoming > 0) {
-      const n = Math.min(b.incoming, 18);
+      const n = Math.min(b.incoming, MAX_DROP);
       b.incoming -= n;
       this.dropJunk(b, n);
       sfx.crush();
@@ -393,8 +405,10 @@ export class PuzzleScene extends ModeScene {
           this.block(b.x + c * CELL, BOARD_Y + r * CELL, v, pop);
         }
       if (b.piece) for (const [c, r, v] of this.cells(b.piece)) if (r >= 0) this.block(b.x + c * CELL, BOARD_Y + r * CELL, v);
-      // Incoming scrap, as pips over the bin.
-      for (let i = 0; i < Math.min(b.incoming, 18); i++) g.fillStyle(0x8a8fa8).fillRect(b.x + i * 4 + 1, BOARD_Y - 8, 3, 3);
+      // Incoming scrap: pips over the bin (the next drop bright, the rest dim) and a count.
+      for (let i = 0; i < Math.min(b.incoming, 18); i++) g.fillStyle(i < MAX_DROP ? 0xc8ccd8 : 0x55607a).fillRect(b.x + i * 4 + 1, BOARD_Y - 11, 3, 3);
+      const warn = b === this.you ? this.youWarn : this.scrapWarn;
+      warn.setText(b.incoming > 0 ? `+${b.incoming}` : '').setColor(b.incoming >= MAX_DROP && this.frame % 20 < 10 ? '#ff5050' : '#fff1e0');
     }
     // Next pairs.
     this.block(VIEW_W / 2 - 16, 68, this.you.next[1]);

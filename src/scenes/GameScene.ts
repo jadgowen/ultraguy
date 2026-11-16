@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { playMusic, stageMusic, stopMusic } from '../audio';
+import { playMusic, playVoice, stageMusic, stopMusic } from '../audio';
+import { BOSS_INTROS, INTRO, IntroCard } from './bossIntro';
 import { DEV_TOOLS, PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
 import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
 import { Player } from '../entities/Player';
@@ -191,6 +192,10 @@ export class GameScene extends Phaser.Scene {
   private partGuardianBeaten = false;
   /** Stage title card (only when a stage starts, not after a death). */
   private titleCard: Phaser.GameObjects.Container | null = null;
+  /** Bosses whose full intro has played this visit (retries get the quick one). */
+  private introSeen = new Set<BossKind>();
+  /** The full boss intro on screen: letterbox bars and the name card. */
+  private intro: { bars: Phaser.GameObjects.Rectangle[]; card: Phaser.GameObjects.Container; name: PixelText; title: PixelText; full: string; data: IntroCard; done: boolean } | null = null;
   private titleT = 0;
   private clearTimer = 0;
   /** An EX rematch (see Boss.ex). */
@@ -215,6 +220,8 @@ export class GameScene extends Phaser.Scene {
     wearSavedSkin();
     // Scene instances are reused on restart, so reset all state here.
     this.stageId = data?.stage ?? 'foundry';
+    this.introSeen = new Set();
+    this.intro = null;
     this.bullets = [];
     this.enemies = [];
     this.shots = [];
@@ -541,13 +548,18 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.boss?.inIntro) {
       // Player is frozen while the boss drops in and its health bar fills;
-      // the boss's name is shown meanwhile.
+      // the boss's name is shown meanwhile (a full name card the first time).
       this.boss.step();
-      const name = this.bossName(this.boss);
-      if (name) this.banner.setText(name).setVisible(this.boss.state === 'fill');
-      if (!this.boss.inIntro) this.banner.setVisible(false);
+      this.stepEffects();
+      if (this.intro) this.stepBossIntro(this.boss);
+      else {
+        const name = this.bossName(this.boss);
+        if (name) this.banner.setText(name).setVisible(this.boss.state === 'fill');
+        if (!this.boss.inIntro) this.banner.setVisible(false);
+      }
       return;
     }
+    if (this.intro && !this.intro.done) this.endBossIntro();
 
     const p = this.player;
     this.cycleWeapon();
@@ -1118,7 +1130,95 @@ export class GameScene extends Phaser.Scene {
       floor: at.y,
     };
     this.boss = createBoss(kind, this, at, this.bossRoom);
+    this.beginBossIntro(this.boss);
     playMusic(this, kind === 'overlord' ? 'finalboss' : 'boss');
+  }
+
+  // --- boss intro ---------------------------------------------------------------
+
+  /**
+   * The first time you meet a stage boss: letterbox bars, the boss lands and
+   * strikes its pose with a flash, a name card slides in (the name types out,
+   * then its title), it calls out a line, and only then does its bar fill.
+   */
+  private beginBossIntro(boss: Boss): void {
+    this.endBossIntro(true);
+    const card = BOSS_INTROS[boss.kind];
+    const name = this.bossName(boss);
+    if (!card || !name || this.introSeen.has(boss.kind)) return;
+    this.introSeen.add(boss.kind);
+    boss.fillDelay = INTRO.fill;
+    boss.introHold = INTRO.hold;
+    const accent = card.color ?? THEMES[this.level.data.theme].solid.light;
+    const bars = [
+      this.add.rectangle(0, 0, VIEW_W, 16, 0x000000).setOrigin(0, 0),
+      this.add.rectangle(0, VIEW_H, VIEW_W, 16, 0x000000).setOrigin(0, 1),
+    ].map((b) => b.setScrollFactor(0).setDepth(45).setScale(1, 0));
+    // The card: a dark stripe edged in the stage's color, chevrons leading in.
+    const y = 92;
+    const g = this.add.graphics();
+    g.fillStyle(0x1a1428, 0.9).fillPoints([{ x: 18, y }, { x: VIEW_W, y }, { x: VIEW_W - 18, y: y + 40 }, { x: 0, y: y + 40 }], true);
+    g.fillStyle(accent).fillRect(0, y, VIEW_W, 2).fillRect(0, y + 38, VIEW_W, 2);
+    for (let i = 0; i < 3; i++) g.fillPoints([{ x: 30 + i * 10, y: y + 8 }, { x: 36 + i * 10, y: y + 8 }, { x: 30 + i * 10, y: y + 32 }, { x: 24 + i * 10, y: y + 32 }], true);
+    for (let i = 0; i < 3; i++) g.fillPoints([{ x: VIEW_W - 36 - i * 10, y: y + 8 }, { x: VIEW_W - 30 - i * 10, y: y + 8 }, { x: VIEW_W - 36 - i * 10, y: y + 32 }, { x: VIEW_W - 42 - i * 10, y: y + 32 }], true);
+    const nameText = pixelText(this, VIEW_W / 2, y + 6, '', { fontFamily: 'monospace', fontSize: '16px', color: '#fff1e0', stroke: '#000000', strokeThickness: 3 }).setOrigin(0.5, 0);
+    const css = `#${accent.toString(16).padStart(6, '0')}`;
+    const titleText = pixelText(this, VIEW_W / 2, y + 26, card.title, { fontFamily: 'monospace', fontSize: '8px', color: css }).setOrigin(0.5, 0).setAlpha(0);
+    const parts: Phaser.GameObjects.GameObject[] = [g, nameText, titleText];
+    if (this.exMode) parts.push(pixelText(this, VIEW_W - 64, y + 4, 'EX', { fontFamily: 'monospace', fontSize: '12px', color: '#ff5050', stroke: '#000000', strokeThickness: 3 }));
+    const container = this.add.container(VIEW_W, 0, parts).setScrollFactor(0).setDepth(58);
+    this.intro = { bars, card: container, name: nameText, title: titleText, full: name, data: card, done: false };
+  }
+
+  private stepBossIntro(boss: Boss): void {
+    const it = this.intro!;
+    const t = boss.introT;
+    const ease = (k: number) => 1 - (1 - Math.min(1, Math.max(0, k))) ** 3;
+    // Bars close in as it drops, and stay through the card.
+    const k = ease(boss.state === 'drop' ? 0.5 : 0.5 + (t + 1) / 16);
+    for (const b of it.bars) b.setScale(1, k);
+    if (t < 0) return;
+    // The card slides in from the right.
+    it.card.x = VIEW_W * (1 - ease((t - INTRO.cardIn) / 14));
+    // The pose: a white flash across the screen.
+    if (t === 24) {
+      this.cameras.main.flash(140, 255, 255, 255);
+      // Its signature flourish: particles thrown off it, and its sound.
+      const fx = it.data.fx;
+      if (fx) {
+        sfx[fx.sound]();
+        const n = fx.n ?? 8;
+        for (let i = 0; i < n; i++) {
+          const a = (i / n) * Math.PI * 2 + Math.random() * 0.4;
+          const sp = 1 + Math.random() * 1.6;
+          this.addEffect(boss.cx, boss.cy, Math.cos(a) * sp, Math.sin(a) * sp - 0.8, fx.tex === 'bubble_fx' ? -0.02 : 0.06, 28, false, fx.tex);
+        }
+      }
+    }
+    // The name types out, a tick per letter; then the title fades up.
+    const shown = Math.max(0, Math.floor((t - INTRO.type) / 2));
+    if (shown <= it.full.length && it.name.text.length !== shown) {
+      it.name.setText(it.full.slice(0, shown));
+      if (shown > 0 && it.full[shown - 1] !== ' ') sfx.tick();
+    }
+    const titleAt = INTRO.type + it.full.length * 2 + 4;
+    it.title.setAlpha(Math.min(1, Math.max(0, (t - titleAt) / 10)));
+    if (t === INTRO.voice && it.data.voice) playVoice(this, it.data.voice);
+  }
+
+  /** Card slides off to the left, bars pull away (or vanish at once). */
+  private endBossIntro(now = false): void {
+    const it = this.intro;
+    if (!it) return;
+    it.done = true;
+    this.intro = null;
+    if (now) {
+      it.card.destroy();
+      for (const b of it.bars) b.destroy();
+      return;
+    }
+    this.tweens.add({ targets: it.card, x: -VIEW_W, duration: 260, ease: 'Cubic.easeIn', onComplete: () => it.card.destroy() });
+    for (const b of it.bars) this.tweens.add({ targets: b, scaleY: 0, duration: 260, onComplete: () => b.destroy() });
   }
 
   /** Dialogue, then warp into the encounter's mode. */
@@ -1328,6 +1428,7 @@ export class GameScene extends Phaser.Scene {
       // The final boss has a second phase: Shade drops in once the machine is gone.
       if (boss.kind === 'overlord' && this.level.boss && this.bossRoom) {
         this.boss = createBoss('shade', this, this.level.boss, this.bossRoom);
+        this.beginBossIntro(this.boss);
         return;
       }
       // Miniboss: the camera unlocks, it leaves a big refill, and the stage goes on.

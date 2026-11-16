@@ -68,6 +68,10 @@ EN, your ARMOR takes a quarter off every hit.
 | Helmet (Glacier) | THE HYDRONATOR | offers glasses of water that hit harder each time; GUARD declines and resets it; chapstick heals him fully once |
 | Armor (Stratos) | CEEJ GEIGAN, a general | BLITZKRIEG: a WW2 history fact, delivered as damage; artillery barrages, digging in, rallying |
 
+The first time you reach a stage boss it gets a full intro: letterbox bars, the boss lands and strikes its
+signature pose (with its own flourish), a name card with its title slides in, it calls out a voice line, and
+then its health bar fills (`src/scenes/bossIntro.ts`). Retries after a death skip straight to the quick version.
+
 Each boss stage has a miniboss halfway through, and an energy tank (E-tank) on a ledge just before it.
 You can carry up to 4 E-tanks (saved); use one from the pause menu to refill your life. Enemies drop
 small and large life and weapon-energy pellets.

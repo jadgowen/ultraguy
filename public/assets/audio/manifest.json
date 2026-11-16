@@ -167,6 +167,17 @@
     "tide_loses": "voice_tide_loses.mp3",
     "mantis_challenge": "voice_mantis_challenge.mp3",
     "mantis_wins": "voice_mantis_wins.mp3",
-    "mantis_loses": "voice_mantis_loses.mp3"
+    "mantis_loses": "voice_mantis_loses.mp3",
+    "anvil_intro": "voice_anvil_intro.mp3",
+    "mantis_intro": "voice_mantis_intro.mp3",
+    "frostline_intro": "voice_frostline_intro.mp3",
+    "gale_intro": "voice_gale_intro.mp3",
+    "volt_intro": "voice_volt_intro.mp3",
+    "magma_intro": "voice_magma_intro.mp3",
+    "scrap_intro": "voice_scrap_intro.mp3",
+    "tide_intro": "voice_tide_intro.mp3",
+    "jared_intro": "voice_jared_intro.mp3",
+    "gate_intro": "voice_gate_intro.mp3",
+    "overlord_intro": "voice_overlord_intro.mp3"
   }
 }

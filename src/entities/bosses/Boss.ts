@@ -41,6 +41,9 @@ export abstract class Boss {
   protected flash = 0;
   protected alpha = 1;
   readonly sprite: Phaser.GameObjects.Image;
+  /** Intro staging (set by the scene for a full intro): steps before the bar fills, and the earliest the fight starts. */
+  fillDelay = 0;
+  introHold = 0;
   /** EX rematch (after the game is beaten): tougher, quicker, and an extra attack. */
   readonly ex: boolean;
 
@@ -83,6 +86,10 @@ export abstract class Boss {
   }
   get bottom(): number {
     return this.y + this.h;
+  }
+  /** Steps since landing while posing for the intro (-1 otherwise). */
+  get introT(): number {
+    return this.state === 'fill' ? this.t : -1;
   }
   get inIntro(): boolean {
     return this.state === 'drop' || this.state === 'fill';
@@ -197,11 +204,11 @@ export abstract class Boss {
           this.g.shake(2);
           sfx.charge(2);
         }
-        if (this.t % 3 === 0 && this.barHp < this.maxHp) {
+        if (this.t >= this.fillDelay && this.t % 3 === 0 && this.barHp < this.maxHp) {
           this.barHp++;
           sfx.tick();
         }
-        if (this.barHp >= this.maxHp && this.t > Boss.INTRO_POSE_AT + 30) {
+        if (this.barHp >= this.maxHp && this.t > Boss.INTRO_POSE_AT + 30 && this.t >= this.introHold) {
           this.state = 'fight';
           this.t = 0;
           this.begin();
