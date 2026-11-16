@@ -402,7 +402,7 @@ export class ShooterScene extends Phaser.Scene {
   }
 }
 
-function makeShooterTextures(scene: Phaser.Scene): void {
+export function makeShooterTextures(scene: Phaser.Scene): void {
   if (scene.textures.exists('sh_ship')) return;
   const g = scene.make.graphics({ x: 0, y: 0 }, false);
   const K = 0x1a1428;

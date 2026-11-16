@@ -20,7 +20,13 @@
     "rpg": "music_rpg.mp3",
     "shooter": "music_shooter.mp3",
     "bomb": "music_bomb.mp3",
-    "hop": "music_hop.mp3"
+    "hop": "music_hop.mp3",
+    "breaker": "music_breaker.mp3",
+    "hockey": "music_hockey.mp3",
+    "puzzle": "music_puzzle.mp3",
+    "skies": "music_skies.mp3",
+    "pinball": "music_pinball.mp3",
+    "dungeon": "music_dungeon.mp3"
   },
   "sfx": {
     "shoot": "sfx_shoot.mp3",
@@ -143,6 +149,24 @@
     "beard_saw": "voice_beard_saw.mp3",
     "beard_hammer": "voice_beard_hammer.mp3",
     "beard_nails": "voice_beard_nails.mp3",
-    "beard_forge": "voice_beard_forge.mp3"
+    "beard_forge": "voice_beard_forge.mp3",
+    "anvil_challenge": "voice_anvil_challenge.mp3",
+    "anvil_wins": "voice_anvil_wins.mp3",
+    "anvil_loses": "voice_anvil_loses.mp3",
+    "frostline_challenge": "voice_frostline_challenge.mp3",
+    "frostline_wins": "voice_frostline_wins.mp3",
+    "frostline_loses": "voice_frostline_loses.mp3",
+    "scrap_challenge": "voice_scrap_challenge.mp3",
+    "scrap_wins": "voice_scrap_wins.mp3",
+    "scrap_loses": "voice_scrap_loses.mp3",
+    "gale_challenge": "voice_gale_challenge.mp3",
+    "gale_wins": "voice_gale_wins.mp3",
+    "gale_loses": "voice_gale_loses.mp3",
+    "tide_challenge": "voice_tide_challenge.mp3",
+    "tide_wins": "voice_tide_wins.mp3",
+    "tide_loses": "voice_tide_loses.mp3",
+    "mantis_challenge": "voice_mantis_challenge.mp3",
+    "mantis_wins": "voice_mantis_wins.mp3",
+    "mantis_loses": "voice_mantis_loses.mp3"
   }
 }

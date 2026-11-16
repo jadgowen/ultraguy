@@ -42,6 +42,12 @@ const MUSIC = {
 /** Music for the special modes, in a 16-bit console style. */
 const STYLE16 = 'instrumental 16-bit chiptune in the style of classic SNES-era sports games, punchy FM-style lead, slap bass, sampled drums, seamless loop';
 const MUSIC16 = {
+  breaker: 'Forge brick-breaker theme, bouncy and metallic, steady driving beat, hammer-like percussion',
+  hockey: 'Ice hockey arena theme, upbeat and cool, crisp percussion, organ-like stabs, sporty energy',
+  puzzle: 'Falling-block puzzle duel theme, catchy and quirky, junkyard clank percussion, building tension',
+  skies: 'Vertical sky shooter theme, soaring and fast, heroic lead over rushing wind-like arpeggios',
+  pinball: 'Undersea pinball table theme, bouncy and bubbly, playful bass and sparkling lead',
+  dungeon: 'Top-down jungle dungeon theme, mysterious and adventurous, minor key, steady exploration groove',
   race: 'High-energy motocross race theme, fast tempo, revving rock energy, exciting and competitive',
   boxing: 'Boxing match theme, punchy and heroic, driving beat, tension and triumph, arena energy',
   rpg: 'Classic Japanese role-playing game battle theme, heroic and bouncy, brass and strings over a marching beat',
@@ -52,6 +58,24 @@ const MUSIC16 = {
 
 /** Spoken lines: [voice id, text]. Played with the dialogue boxes. */
 const VOICE = {
+  anvil_challenge: ['VR6AewLTigWG4xSOukaG', "You want a rematch? Then break through my forge wall. Every brick I lay, I lay twice as hard!"],
+  anvil_wins: ['VR6AewLTigWG4xSOukaG', "Hammered flat. Back to the anvil with you."],
+  anvil_loses: ['VR6AewLTigWG4xSOukaG', "My wall... my beautiful wall. Fine work, little bot."],
+  frostline_challenge: ['D38z5RcWu1voky8WS1ja', "No blasters on my ice. Puck, sticks, and nerves of steel. First to three takes it!"],
+  frostline_wins: ['D38z5RcWu1voky8WS1ja', "Ha! Put that one on ice."],
+  frostline_loses: ['D38z5RcWu1voky8WS1ja', "Brrr... you skate like a pro. Good game."],
+  scrap_challenge: ['CYw3kZ02Hs0563khs1Fj', "Junk in, junk out, kid! Let's see who gets buried first!"],
+  scrap_wins: ['CYw3kZ02Hs0563khs1Fj', "Buried! Straight to the scrap heap!"],
+  scrap_loses: ['CYw3kZ02Hs0563khs1Fj', "Aw, nuts and bolts... you sorted me right out."],
+  gale_challenge: ['XB0fDUnXU5powFXDhCwa', "Up here, the wind decides who flies. Let's see if it decides for you!"],
+  gale_wins: ['XB0fDUnXU5powFXDhCwa', "Grounded. Try flapping harder."],
+  gale_loses: ['XB0fDUnXU5powFXDhCwa', "You rode my storm... and won. Impressive."],
+  tide_challenge: ['cgSgspJ2msm6clMCkdW9', "Welcome to my tide pool! Bounce, roll, and try not to wash out!"],
+  tide_wins: ['cgSgspJ2msm6clMCkdW9', "Washed out! The tide always wins."],
+  tide_loses: ['cgSgspJ2msm6clMCkdW9', "Beached... by a pinball. How embarrassing."],
+  mantis_challenge: ['SOYHLrjzK2X1ezoPC6cr', "You found my thicket. Few find their way to its heart. Fewer leave."],
+  mantis_wins: ['SOYHLrjzK2X1ezoPC6cr', "The thicket keeps what it catches."],
+  mantis_loses: ['SOYHLrjzK2X1ezoPC6cr', "Swift... and patient. You have earned your way out."],
   volt_challenge: ['TX3LPaxmHKxFdv7VOQHJ', "Heh. You can't beat me in a fight... but maybe you can beat me in a race. Winner takes all!"],
   volt_wins: ['TX3LPaxmHKxFdv7VOQHJ', 'Too slow! Better luck next lap.'],
   volt_loses: ['TX3LPaxmHKxFdv7VOQHJ', 'No way... you actually beat me!'],

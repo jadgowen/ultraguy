@@ -38,13 +38,19 @@ change the game entirely; each is its own scene, entered through a dialogue and 
 
 | Where | Fight | Mode | Scene |
 |---|---|---|---|
+| Boss Hall capsule | Anvil | brick-breaker: smash his forge wall and hit him behind it; dodge his sparks; he patches holes | `BreakerScene.ts` |
+| Boss Hall capsule | Mantis | top-down dungeon: four rooms, keys, a hookshot that swings you across chasms; Mantis guards until you stun him | `DungeonScene.ts` |
+| Boss Hall capsule | Frostline | one-on-one ice hockey: slippery skating, shots and body checks, first to 3 | `HockeyScene.ts` |
+| Boss Hall capsule | Gale | vertical sky shooter: kites, wind gusts that shove your ship, then Gale's feathers, blades and tornado | `SkiesScene.ts` |
 | Boss Hall capsule | Volt | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
+| Boss Hall capsule | Scrap | versus falling-block puzzle: crush four of a kind, chains bury him in scrap | `PuzzleScene.ts` |
+| Boss Hall capsule | Tide | undersea pinball: hit Tide while his shell is open; lanes pry it open, targets start a multiball | `PinballScene.ts` |
 | Boss Hall capsule | Magma | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
 | Boss Hall bonus | Gatekeeper | behind-the-back boxing, three rounds, Coach Jared in your corner | `BoxingScene.ts` |
 | Boss Hall bonus (after beating the game) | Overlord | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
 | Canopy miniboss | Briar Toad | lane-crossing hop: dodge the trail, ride logs and pads, fill all three pads in time | `HopScene.ts` |
 
-In the Boss Hall, the other six capsules are normal arena rematches; the exit opens once all eight
+Every Boss Hall capsule is its own game (they share `ModeScene.ts`); the exit opens once all eight
 stage bosses are beaten (bonus capsules are optional). Win a mode and you're back where you were
 (the Hall remembers which capsules are done); lose and you retry from the last checkpoint.
 

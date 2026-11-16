@@ -52,6 +52,30 @@ export function returnToGame(scene: Phaser.Scene, data: ModeData, won: boolean):
  * weapons and parts matter); in the Hall, these send you into their own game.
  */
 export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
+  anvil: {
+    scene: 'breaker',
+    lines: () => [{ name: 'ANVIL', text: "You want a rematch? Then break through my forge wall. Every brick I lay, I lay twice as hard!", portrait: { key: 'anvil_idle' }, voice: 'anvil_challenge', color: 0xf28c28 }],
+  },
+  frostline: {
+    scene: 'hockey',
+    lines: () => [{ name: 'FROSTLINE', text: "No blasters on my ice. Puck, sticks, and nerves of steel. First to three takes it!", portrait: { key: 'frostline_idle' }, voice: 'frostline_challenge', color: 0x9ee8ff }],
+  },
+  scrap: {
+    scene: 'puzzle',
+    lines: () => [{ name: 'SCRAP', text: "Junk in, junk out, kid! Let's see who gets buried first!", portrait: { key: 'scrap_idle' }, voice: 'scrap_challenge', color: 0xc8ccd8 }],
+  },
+  gale: {
+    scene: 'skies',
+    lines: () => [{ name: 'GALE', text: "Up here, the wind decides who flies. Let's see if it decides for you!", portrait: { key: 'gale_idle' }, voice: 'gale_challenge', color: 0xa8e070 }],
+  },
+  tide: {
+    scene: 'pinball',
+    lines: () => [{ name: 'TIDE', text: "Welcome to my tide pool! Bounce, roll, and try not to wash out!", portrait: { key: 'tide_idle' }, voice: 'tide_challenge', color: 0x6ab8e8 }],
+  },
+  mantis: {
+    scene: 'dungeon',
+    lines: () => [{ name: 'MANTIS', text: "You found my thicket. Few find their way to its heart. Fewer leave.", portrait: { key: 'mantis_idle' }, voice: 'mantis_challenge', color: 0x6cc04a }],
+  },
   volt: {
     scene: 'race',
     lines: () => [
