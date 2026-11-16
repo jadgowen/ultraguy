@@ -167,7 +167,7 @@ export class Sky {
         const fast = k.t > CRUMBLE_HOLD / 2;
         for (const { c, r } of k.cells) layer.getTileAt(c, r)?.setAlpha(k.t % (fast ? 4 : 8) < (fast ? 2 : 4) ? 0.55 : 1);
       } else if (k.t === CRUMBLE_HOLD) {
-        sfx.wind();
+        sfx.crumble();
         for (const { c, r } of k.cells) {
           level.setTile(c, r, Tile.Empty);
           layer.removeTileAt(c, r);

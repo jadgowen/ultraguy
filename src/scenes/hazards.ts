@@ -102,7 +102,7 @@ export class Hazards {
           const id = level.screenIdAt(c * TILE, r * TILE);
           if (!id || !rise.screens.includes(id)) continue;
           start = Math.max(start, r * TILE + SCREEN_H + 4 * TILE);
-          top = Math.min(top, r * TILE + 3 * TILE);
+          top = Math.min(top, r * TILE + 5 * TILE);
           x0 = Math.min(x0, c * TILE);
           x1 = Math.max(x1, c * TILE + SCREEN_W);
         }
@@ -145,7 +145,7 @@ export class Hazards {
             const onScreen = k.x > v.x - CRUSH_W && k.x < v.x + VIEW_W && k.floor > v.y && k.floor < v.y + VIEW_H + TILE;
             if (onScreen) {
               this.host.shake(3);
-              sfx.land();
+              sfx.crush();
             }
           }
           break;
@@ -193,7 +193,12 @@ export class Hazards {
         layer.getTileAt(s.c, s.r)?.setAlpha(left % 8 < 4 ? 0.45 : 1);
       }
     }
-    if (u === 0 || u === half) sfx.tick();
+    if ((u === 0 || u === half) && this.switchesOnScreen()) sfx.switchBlock();
+  }
+
+  private switchesOnScreen(): boolean {
+    const v = this.host.view();
+    return this.switches.some(({ c, r }) => c * TILE > v.x - TILE && c * TILE < v.x + VIEW_W && r * TILE > v.y - TILE && r * TILE < v.y + VIEW_H);
   }
 
   private stepRollers(): void {
@@ -203,7 +208,7 @@ export class Hazards {
       if (!near) continue;
       if (++r.t % ROLL_EVERY !== 0) continue;
       this.host.spawnShot({ x: r.x - 7, y: r.y - 14, w: 14, h: 14, vx: -1.7, vy: 0, tex: `roller_${this.host.theme}`, dmg: 4, rolls: true, spin: -0.15, life: 900 });
-      sfx.land();
+      sfx.chute();
     }
   }
 
@@ -239,7 +244,11 @@ export class Hazards {
     const p = this.host.player();
     const rise = this.host.level.data.rise!;
     const id = this.host.level.screenIdAt(p.cx, p.cy);
-    if (!L.on && id && rise.screens.includes(id)) L.on = true;
+    if (!L.on && id && rise.screens.includes(id)) {
+      L.on = true;
+      sfx.lavaRise();
+      this.host.shake(4);
+    }
     if (L.on && p.alive && L.y > L.top) {
       // Rise faster if you're far ahead, so it always keeps up the pressure.
       const gap = L.y - p.bottom;

@@ -23,6 +23,7 @@ const hall = miniHall('#');
 export const FOUNDRY: StageData = {
   id: 'foundry',
   name: 'FOUNDRY',
+  tagline: "MIND THE PRESSES",
   theme: 'foundry',
   boss: 'anvil',
   bossName: 'ANVIL',

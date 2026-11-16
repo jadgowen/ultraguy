@@ -22,6 +22,7 @@ const hall = miniHall('#');
 export const STRATOS: StageData = {
   id: 'stratos',
   name: 'STRATOS',
+  tagline: "RIDE THE WIND",
   theme: 'sky',
   boss: 'gale',
   bossName: 'GALE',

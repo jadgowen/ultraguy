@@ -36,6 +36,18 @@
     "flame": "sfx_flame.mp3",
     "bubble": "sfx_bubble.mp3",
     "zap": "sfx_zap.mp3",
-    "wind": "sfx_wind.mp3"
+    "wind": "sfx_wind.mp3",
+    "crush": "sfx_crush.mp3",
+    "spring": "sfx_spring.mp3",
+    "switchBlock": "sfx_switchBlock.mp3",
+    "crumble": "sfx_crumble.mp3",
+    "lavaRise": "sfx_lavaRise.mp3",
+    "splash": "sfx_splash.mp3",
+    "chute": "sfx_chute.mp3",
+    "checkpoint": "sfx_checkpoint.mp3",
+    "door": "sfx_door.mp3",
+    "ready": "sfx_ready.mp3",
+    "jump": "sfx_jump.mp3",
+    "land": "sfx_land.mp3"
   }
 }

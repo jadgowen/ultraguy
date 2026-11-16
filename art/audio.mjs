@@ -61,6 +61,19 @@ const SFX = {
   bubble: ['retro 8-bit bubble pop shot, watery bloop', 0.5],
   zap: ['retro 8-bit electric zap, crackling arc', 0.6],
   wind: ['retro 8-bit gust of wind, airy rush', 1],
+  // Stage mechanics and events (16-bit console style).
+  crush: ['16-bit SNES game sound, heavy hydraulic press slamming down, metal clang with a thud', 0.7],
+  spring: ['16-bit SNES game sound, springy boing, bouncy launch', 0.5],
+  switchBlock: ['16-bit SNES game sound, energy blocks phasing in, short electronic shimmer click', 0.5],
+  crumble: ['16-bit SNES game sound, brittle block cracking and crumbling apart, short debris', 0.6],
+  lavaRise: ['16-bit SNES game sound, deep ominous volcanic rumble, lava starting to rise', 1.5],
+  splash: ['16-bit SNES game sound, small water splash, diving in', 0.5],
+  chute: ['16-bit SNES game sound, heavy barrel dropped out of a pipe, hollow thunk', 0.5],
+  checkpoint: ['16-bit SNES game sound, checkpoint reached, bright two-note chime', 0.7],
+  door: ['16-bit SNES game sound, heavy boss door sliding open, mechanical whoosh', 1.2],
+  ready: ['16-bit SNES game sound, short stage start jingle, heroic and punchy', 1.8],
+  jump: ['16-bit SNES game sound, short light jump, quick upward swish', 0.5],
+  land: ['16-bit SNES game sound, soft metal boots landing, short thud', 0.5],
 };
 
 // Same lookup as the other local projects: env var first, then ~/.elevenlabs_api_key.

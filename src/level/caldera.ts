@@ -23,6 +23,7 @@ const hall = miniHall('#');
 export const CALDERA: StageData = {
   id: 'caldera',
   name: 'CALDERA',
+  tagline: "DON'T STOP CLIMBING",
   theme: 'volcano',
   boss: 'magma',
   bossName: 'MAGMA',

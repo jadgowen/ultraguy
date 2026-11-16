@@ -24,6 +24,7 @@ const hall = miniHall('#');
 export const SCRAPYARD: StageData = {
   id: 'scrapyard',
   name: 'SCRAPYARD',
+  tagline: "EVERYTHING MOVES",
   theme: 'scrap',
   boss: 'scrap',
   bossName: 'SCRAP',

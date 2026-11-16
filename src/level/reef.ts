@@ -22,6 +22,7 @@ const hall = miniHall('#', true);
 export const REEF: StageData = {
   id: 'reef',
   name: 'REEF',
+  tagline: "GO WITH THE FLOW",
   theme: 'water',
   boss: 'tide',
   bossName: 'TIDE',

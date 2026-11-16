@@ -23,6 +23,7 @@ const hall = miniHall('I');
 export const GLACIER: StageData = {
   id: 'glacier',
   name: 'GLACIER',
+  tagline: "THE ICE WON'T HOLD",
   theme: 'ice',
   boss: 'frostline',
   bossName: 'FROSTLINE',

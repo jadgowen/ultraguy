@@ -182,6 +182,7 @@ export class Player {
     if (c.justPressed('jump') && this.grounded) {
       this.vy = this.inWater ? -PHYS.waterJump : -PHYS.jump;
       this.grounded = false;
+      sfx.jump();
     } else if (c.justPressed('jump') && canAirJump) {
       // Rising air: you can always jump again while inside it.
       this.vy = Math.min(this.vy, -PHYS.updraftJump);
@@ -267,6 +268,14 @@ export class Player {
   private applyMotion(): void {
     const L = this.g.level;
     const water = this.inWater;
+    // A splash going into (or out of) water.
+    if (water !== this.wasInWater) {
+      if (this.wasInWater !== null) {
+        sfx.splash();
+        this.g.burst(this.cx, this.cy, 'bubble_fx', 5);
+      }
+      this.wasInWater = water;
+    }
     this.vy = Math.min(this.vy + (water ? PHYS.waterGravity : PHYS.gravity), water ? PHYS.waterMaxFall : PHYS.maxFall);
     if (this.inUpdraft) this.vy = Math.max(this.vy - PHYS.updraftLift, -PHYS.updraftMax);
     if (water && Math.random() < 0.03) this.g.burst(this.cx + this.facing * 4, this.y + 4, 'bubble_fx', 1);
@@ -291,12 +300,15 @@ export class Player {
       this.grounded = false;
       this.sprung = true;
       this.airJumps = this.has('boots') ? 1 : 0;
-      sfx.bubble();
+      sfx.spring();
       this.g.burst(this.cx, this.bottom, 'spark', 4);
       return;
     }
     if (this.grounded && !wasGrounded) sfx.land();
   }
+
+  /** Water state last step (null until the first step), for splashes. */
+  private wasInWater: boolean | null = null;
 
   /** Launched by a spring and still rising. */
   private sprung = false;

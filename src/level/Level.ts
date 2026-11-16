@@ -98,6 +98,8 @@ export interface StageData {
   wind?: { screens: string; dirs: (1 | -1)[] };
   /** Screens that are dark: you see a small circle around you, plus flashes. */
   dark?: string;
+  /** Short line under the stage name on the title card. */
+  tagline?: string;
   /** Lava rises through these screens once you enter them (px per step). */
   rise?: { screens: string; speed: number };
 }
@@ -488,6 +490,18 @@ export class Level {
   /** Tile indices for the main Phaser tilemap layer (-1 = empty). Water is drawn on its own layer. */
   tileIndexGrid(): number[][] {
     return this.grid((t) => (isWaterTile(t) || t === Tile.Fake || t === Tile.Updraft ? -1 : t === Tile.Melt ? MELT_INDEX : t - 1));
+  }
+
+  /**
+   * Which sides of a cell have a block (solid or fake wall) next to them, as
+   * bits: 1 up, 2 right, 4 down, 8 left. Used to pick auto-tile frames.
+   */
+  blockMask(c: number, r: number): number {
+    const block = (x: number, y: number) => {
+      const t = this.tileAt(x, y);
+      return t === Tile.Solid || t === Tile.Fake;
+    };
+    return (block(c, r - 1) ? 1 : 0) | (block(c + 1, r) ? 2 : 0) | (block(c, r + 1) ? 4 : 0) | (block(c - 1, r) ? 8 : 0);
   }
 
   /** Fake walls, drawn as solid wall on a layer over the sprites (so you vanish into them). */

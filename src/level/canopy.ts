@@ -23,6 +23,7 @@ const hall = miniHall('#');
 export const CANOPY: StageData = {
   id: 'canopy',
   name: 'CANOPY',
+  tagline: "BOUNCE HIGH",
   theme: 'jungle',
   boss: 'mantis',
   bossName: 'MANTIS',

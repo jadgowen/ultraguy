@@ -21,6 +21,7 @@ const hall = miniHall('#');
 export const POWERPLANT: StageData = {
   id: 'powerplant',
   name: 'POWER PLANT',
+  tagline: "LIGHTS OUT",
   theme: 'power',
   boss: 'volt',
   bossName: 'VOLT',

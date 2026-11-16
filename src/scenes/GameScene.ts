@@ -13,9 +13,12 @@ import { Box, moveY, overlaps } from '../physics';
 import { MAX_TANKS, loadSave, recordClear, recordPart, setTanks } from '../save';
 import { sfx } from '../sfx';
 import { WEAPONS, WeaponId } from '../weapons';
+import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
 import { Hazards } from './hazards';
 import { Sky } from './sky';
 
+/** How long the stage title card shows, in steps. */
+const TITLE_CARD_FRAMES = 130;
 const TRANSITION_FRAMES = 64;
 const DOOR_PAN_FRAMES = 80;
 const DOOR_TILE_FRAMES = 5; // frames per door tile opening/closing
@@ -165,10 +168,16 @@ export class GameScene extends Phaser.Scene {
   private doorSeq: DoorSequence | null = null;
   private checkpoint!: Point;
   private readyTimer = 0;
+  /** Stage title card (only when a stage starts, not after a death). */
+  private titleCard: Phaser.GameObjects.Container | null = null;
+  private titleT = 0;
   private clearTimer = 0;
 
   private layer!: Phaser.Tilemaps.TilemapLayer;
-  private bg!: Phaser.GameObjects.TileSprite;
+  /** Wall drawn over a hidden room until the player steps inside it. */
+  private secret: { cells: Set<number>; layer: Phaser.Tilemaps.TilemapLayer } | null = null;
+  /** Background layers and how fast each scrolls with the camera. */
+  private bgLayers: { sprite: Phaser.GameObjects.TileSprite; factor: number }[] = [];
   private hud!: Phaser.GameObjects.Graphics;
   private hudKey = '';
   private goalSprite: Phaser.GameObjects.Image | null = null;
@@ -220,11 +229,22 @@ export class GameScene extends Phaser.Scene {
 
     const theme = THEMES[stage.theme];
     this.cameras.main.setBackgroundColor(theme.sky);
-    this.bg = this.add.tileSprite(0, 0, VIEW_W, VIEW_H, `bg_${stage.theme}`).setOrigin(0).setScrollFactor(0).setDepth(-10);
+    // 16-bit themes: auto-tiled blocks and layered parallax. Others: flat tiles, one background.
+    const env = hasEnvArt(stage.theme);
+    this.bgLayers = env
+      ? PARALLAX.map(({ layer, factor }) => ({
+          sprite: this.add.tileSprite(0, 0, VIEW_W, VIEW_H, `bgl_${stage.theme}_${layer}`).setOrigin(0).setScrollFactor(0).setDepth(-12 + layer),
+          factor,
+        }))
+      : [{ sprite: this.add.tileSprite(0, 0, VIEW_W, VIEW_H, `bg_${stage.theme}`).setOrigin(0).setScrollFactor(0).setDepth(-10), factor: 0.25 }];
+    const autoTile = (grid: number[][], is: (t: Tile) => boolean) =>
+      env ? grid.map((row, r) => row.map((v, c) => (is(this.level.tileAt(c, r)) ? autoIndex(this.level.blockMask(c, r), c, r) : v))) : grid;
 
-    const map = this.make.tilemap({ data: this.level.tileIndexGrid(), tileWidth: TILE, tileHeight: TILE });
+    const map = this.make.tilemap({ data: autoTile(this.level.tileIndexGrid(), (t) => t === Tile.Solid), tileWidth: TILE, tileHeight: TILE });
     const tileset = map.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
-    this.layer = map.createLayer(0, tileset, 0, 0)!.setDepth(0);
+    const sets = [tileset];
+    if (env) sets.push(map.addTilesetImage('auto', `auto_${stage.theme}`, TILE, TILE, 0, 0, AUTO_GID)!);
+    this.layer = map.createLayer(0, sets, 0, 0)!.setDepth(0);
     // Water sits on its own translucent layer drawn over the sprites.
     if (this.level.hasWater()) {
       const waterMap = this.make.tilemap({ data: this.level.waterIndexGrid(), tileWidth: TILE, tileHeight: TILE });
@@ -233,10 +253,12 @@ export class GameScene extends Phaser.Scene {
     }
     // Fake walls hide what's behind them: drawn over the sprites.
     if (this.level.findTiles(Tile.Fake).length) {
-      const fakeMap = this.make.tilemap({ data: this.level.fakeIndexGrid(), tileWidth: TILE, tileHeight: TILE });
-      const fakeSet = fakeMap.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!;
-      fakeMap.createLayer(0, fakeSet, 0, 0)!.setDepth(16);
+      const fakeMap = this.make.tilemap({ data: autoTile(this.level.fakeIndexGrid(), (t) => t === Tile.Fake), tileWidth: TILE, tileHeight: TILE });
+      const fakeSets = [fakeMap.addTilesetImage('tiles', `tiles_${stage.theme}`, TILE, TILE, 0, 0)!];
+      if (env) fakeSets.push(fakeMap.addTilesetImage('auto', `auto_${stage.theme}`, TILE, TILE, 0, 0, AUTO_GID)!);
+      fakeMap.createLayer(0, fakeSets, 0, 0)!.setDepth(16);
     }
+    this.secret = this.coverSecretRoom(env, stage.theme);
     this.sky = new Sky(
       {
         scene: this,
@@ -321,6 +343,81 @@ export class GameScene extends Phaser.Scene {
 
     playMusic(this, stageMusic(stage));
     this.respawn();
+    this.showTitleCard(stage.name, stage.tagline, theme.solid.light);
+  }
+
+  /**
+   * The room holding the upgrade capsule, if it's enclosed (behind a fake or
+   * frozen wall), is covered with wall until you step in, so the camera can't
+   * give it away.
+   */
+  private coverSecretRoom(env: boolean, theme: string): { cells: Set<number>; layer: Phaser.Tilemaps.TilemapLayer } | null {
+    const L = this.level;
+    if (!L.upgrade || !env) return null;
+    const start = { c: Math.floor(L.upgrade.x / TILE), r: Math.floor((L.upgrade.y - 1) / TILE) };
+    const cells = new Set<number>();
+    const queue = [start];
+    const key = (c: number, r: number) => r * L.cols + c;
+    while (queue.length) {
+      const { c, r } = queue.pop()!;
+      if (r < 0 || r >= L.rows || c < 0 || c >= L.cols || cells.has(key(c, r))) continue;
+      const t = L.tileAt(c, r);
+      if (L.isSolid(c, r) || t === Tile.Fake) continue;
+      cells.add(key(c, r));
+      if (cells.size > 80) return null; // open space, not a room
+      queue.push({ c: c + 1, r }, { c: c - 1, r }, { c, r: r + 1 }, { c, r: r - 1 });
+    }
+    const data = Array.from({ length: L.rows }, (_, r) => Array.from({ length: L.cols }, (_, c) => (cells.has(key(c, r)) ? autoIndex(15, c, r) : -1)));
+    const map = this.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
+    const set = map.addTilesetImage('auto', `auto_${theme}`, TILE, TILE, 0, 0, AUTO_GID)!;
+    return { cells, layer: map.createLayer(0, set, 0, 0)!.setDepth(16) };
+  }
+
+  /** Fade the cover off a hidden room once the player is inside. */
+  private revealSecret(): void {
+    const s = this.secret;
+    if (!s) return;
+    const p = this.player;
+    if (!s.cells.has(Math.floor(p.cy / TILE) * this.level.cols + Math.floor(p.cx / TILE))) return;
+    this.tweens.add({ targets: s.layer, alpha: 0, duration: 350 });
+    this.secret = null;
+    sfx.checkpoint();
+  }
+
+  /** The band that slides in with the stage's name before READY. */
+  private showTitleCard(name: string, tagline: string | undefined, accent: number): void {
+    this.titleCard?.destroy();
+    this.titleCard = null;
+    this.titleT = 0;
+    if (this.stageId === 'intro') return; // the intro has its own opening
+    const y = VIEW_H / 2 - 10;
+    const band = this.add.rectangle(0, y, VIEW_W, 58, 0x1a1428, 0.92).setOrigin(0, 0.5);
+    const top = this.add.rectangle(0, y - 29, VIEW_W, 2, accent).setOrigin(0, 0.5);
+    const bottom = this.add.rectangle(0, y + 29, VIEW_W, 2, accent).setOrigin(0, 0.5);
+    const title = this.add
+      .text(VIEW_W / 2, y - 7, name, { fontFamily: 'monospace', fontSize: '20px', color: '#fff1e0', stroke: '#000000', strokeThickness: 4 })
+      .setOrigin(0.5);
+    const sub = this.add
+      .text(VIEW_W / 2, y + 15, tagline ?? '', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' })
+      .setOrigin(0.5);
+    this.titleCard = this.add.container(0, 0, [band, top, bottom, title, sub]).setScrollFactor(0).setDepth(66);
+    this.titleT = TITLE_CARD_FRAMES;
+    sfx.ready();
+  }
+
+  /** Slide in, hold, slide out. */
+  private stepTitleCard(): void {
+    const c = this.titleCard!;
+    const t = TITLE_CARD_FRAMES - --this.titleT;
+    const ease = (k: number) => 1 - (1 - k) ** 3;
+    const slide = 18;
+    if (t < slide) c.x = -VIEW_W * (1 - ease(t / slide));
+    else if (this.titleT < slide) c.x = VIEW_W * (1 - ease(this.titleT / slide));
+    else c.x = 0;
+    if (this.titleT === 0) {
+      c.destroy();
+      this.titleCard = null;
+    }
   }
 
   // --- main loop ------------------------------------------------------------
@@ -346,6 +443,11 @@ export class GameScene extends Phaser.Scene {
     if (this.clearTimer > 0) {
       this.stepEffects();
       if (--this.clearTimer === 0) this.scene.start(this.exitScene(true));
+      return;
+    }
+    if (this.titleT > 0) {
+      this.stepTitleCard();
+      this.player.sprite.setVisible(false);
       return;
     }
     if (this.readyTimer > 0) {
@@ -406,6 +508,7 @@ export class GameScene extends Phaser.Scene {
     p.update();
     this.sky.stepCrumbles();
     this.hazards.step();
+    this.revealSecret();
     if (!p.alive && p.deadTimer <= 0) {
       this.respawn();
       return;
@@ -450,7 +553,7 @@ export class GameScene extends Phaser.Scene {
 
     const cam = this.cameras.main;
     cam.setScroll(Math.round(this.camX), Math.round(this.camY));
-    this.bg.tilePositionX = Math.round(this.camX * 0.25);
+    for (const b of this.bgLayers) b.sprite.tilePositionX = Math.round(this.camX * b.factor);
     this.drawHud();
   }
 
@@ -1220,6 +1323,7 @@ export class GameScene extends Phaser.Scene {
         endX,
       };
       p.charge = 0;
+      sfx.door();
       return;
     }
   }
@@ -1448,7 +1552,11 @@ export class GameScene extends Phaser.Scene {
   /** Checkpoints activate when the player gets close. */
   private updateCheckpoint(): void {
     for (const c of this.level.checkpoints) {
-      if (Math.abs(this.player.cx - c.x) < 48 && Math.abs(this.player.bottom - c.y) < 96) this.checkpoint = c;
+      if (Math.abs(this.player.cx - c.x) < 48 && Math.abs(this.player.bottom - c.y) < 96 && this.checkpoint !== c) {
+        // A chime for a new checkpoint (not the one you started or respawned at).
+        if (this.checkpoint.x !== c.x || this.checkpoint.y !== c.y) sfx.checkpoint();
+        this.checkpoint = c;
+      }
     }
   }
 

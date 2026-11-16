@@ -11,107 +11,191 @@ const CEIL = '################';
 const guardRoom = bossRoom();
 const FLOOR = '################';
 
-/** Fortress 1: GATE. Conveyors, barriers, lava and a flooded hall. */
+/**
+ * Fortress 1: GATE. An industrial remix: crushers over switch blocks, barrels
+ * rolling under presses on a belt, a lift over lava and switch blocks up from
+ * it, then a drop to the lower works: springs under crushers over spikes,
+ * barrels across a switch-block bridge, and a press line on a belt that rushes
+ * you along. Then the GATEKEEPER.
+ *
+ * Layout:  row 0:  A B C D E
+ *          row 1:  . . . . F G H J | X Y
+ */
 export const FORTRESS_1: StageData = {
   id: 'fortress1',
   name: 'FORTRESS GATE',
+  tagline: 'NO TURNING BACK',
   theme: 'fortress',
   boss: 'gatekeeper',
   bossName: 'GATEKEEPER',
-  layout: ['ABCDEF', '.....GHIJKL|XY'],
+  layout: ['ABCDE', '....FGHJ|XY'],
   screens: {
-    A: [CEIL, CEIL, ...rows(SKY, 8), '..........###...', SKY, '..P.......w.....', FLOOR, FLOOR],
-    B: [CEIL, CEIL, ...rows(SKY, 6), '..........t.....', '.........###....', SKY, SKY, '...........g....', '###>>>>^^#######', FLOOR],
-    C: [CEIL, CEIL, ...rows(SKY, 7), '...###....###...', '....Z......Z....', '....Z......Z....', '..c.Z...k..Z....', FLOOR, FLOOR],
-    D: [CEIL, CEIL, ...rows(SKY, 5), '.....f.....f....', SKY, SKY, '.......###......', SKY, '..h.............', '######...#######', '######...#######'],
-    E: [CEIL, CEIL, ...rows(SKY, 7), '..........j.....', '.........####...', '......#######...', '.o.##########...', FLOOR, FLOOR],
-    F: [CEIL, CEIL, ...rows('...............#', 10), '...w...........#', '############H###', '############H###'],
-    G: ['############H###', ...rows('#...........H..#', 9), '#...........H...', '#..........cH...', '#...........H...', FLOOR, FLOOR],
-    H: [...rows(CEIL, 6), ...rows(SKY, 6), '.....p..........', 'IIIIIIII^^IIIIII', FLOOR],
-    I: [...rows(CEIL, 6), ...rows(SKY, 6), '...e....e.......', '##LLL##LLL######', FLOOR],
-    // Flooded hall: big underwater jumps over the urchins.
-    J: water([...rows(CEIL, 6), SKY, SKY, SKY, '......u.........', SKY, SKY, '...q.......q....', FLOOR, FLOOR]),
-    K: water([...rows(CEIL, 6), ...rows(SKY, 4), '.....###........', SKY, SKY, '##^^^^^^^^^^####', FLOOR]),
-    // Boss door, then the guardian's room.
-    L: [...rows(CEIL, 6), ...rows('...............#', 4), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
+    A: [CEIL, CEIL, ...rows(SKY, 10), '..P.......w.....', FLOOR, FLOOR],
+    // Presses slam onto switch blocks over spikes.
+    B: [CEIL, CEIL, '....!.....!.....', ...rows(SKY, 9), SKY, '####[[[[]]]]####', '####^^^^^^^^####'],
+    // Barrels roll at you under the presses, on a belt dragging you back.
+    C: [CEIL, CEIL, '..!.....!.......', ...rows(SKY, 9), '.c............@.', '<<<<<<<<<<<<<<<<', FLOOR],
+    // A lift over lava, then switch blocks up to the ledge.
+    D: [
+      CEIL,
+      CEIL,
+      ...rows(SKY, 6),
+      '..............##',
+      '...........]]]##',
+      '..............##',
+      '........[[[...##',
+      '..............##',
+      '##=-----......##',
+      '##LLLLLLLLLLLL##',
+    ],
+    // Drop down the hole.
+    E: [CEIL, CEIL, ...rows('...............#', 5), '..........t....#', '##...###########', ...rows('##...###########', 6)],
+    // Springs between spikes, presses slamming onto them.
+    F: ['##...###########', '##...###########', '#......!...!....', ...rows('#...............', 9), '#.c....%...%...%', '#####^^#^^^#^^^#', FLOOR],
+    // Barrels roll across a switch-block bridge.
+    G: [CEIL, CEIL, ...rows(SKY, 9), '..............@.', '............####', '###[[[]]][[[####', '###^^^^^^^^^####'],
+    // A press line on a belt that rushes you along.
+    H: [CEIL, CEIL, '..!...!...!.....', ...rows(SKY, 9), SKY, '>>>>>>>>>>>>>>>>', FLOOR],
+    J: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
     X: guardRoom.left,
     Y: guardRoom.right,
   },
 };
 
-/** Fortress 2: DEPTHS. Two ladders down through ice, lava, barriers and water. */
+/**
+ * Fortress 2: DEPTHS. An elemental remix: snowballs across ice, cracking ice
+ * that drops you into a flooded vault, currents in the dark (one with you,
+ * one against), a bubble column under a backward current, cracking ice over
+ * lava, then a climb with lava rising after you: a spring, cracking ice,
+ * switch blocks, a ladder, a lift. Then the ABYSS EYE.
+ *
+ * Layout:  row 0:  A B . . . H I J | X Y
+ *          row 1:  . C D E F G
+ */
 export const FORTRESS_2: StageData = {
   id: 'fortress2',
   name: 'FORTRESS DEPTHS',
+  tagline: 'THE DEPTHS RISE',
   theme: 'fortress',
   boss: 'abyss',
   bossName: 'ABYSS EYE',
-  layout: ['ABC', '..DEFG', '.....HIJKL|XY'],
+  layout: ['AB...HIJ|XY', '.CDEFG'],
+  dark: 'DE',
+  rise: { screens: 'GH', speed: 0.35 },
   screens: {
-    A: [CEIL, CEIL, ...rows(SKY, 8), '.....#####......', SKY, '..P.....l.......', FLOOR, FLOOR],
-    B: [CEIL, CEIL, ...rows(SKY, 7), '..........s.....', '.........###....', SKY, '...h............', '######^^########', FLOOR],
-    C: [CEIL, CEIL, ...rows('...............#', 8), '.......f.......#', '...............#', '...w...........#', '############H###', '############H###'],
-    D: ['############H###', ...rows('#...........H..#', 9), '#...........H...', '#..........cH...', '#...........H...', 'IIIIIIIIIIIIIIII', FLOOR],
-    E: [...rows(CEIL, 6), '...i......i.....', ...rows(SKY, 5), '.........p......', 'IIIIIII..IIIIIII', 'IIIIIII..IIIIIII'],
-    F: [...rows(CEIL, 6), ...rows(SKY, 4), '.........##.....', SKY, '...m.....e......', '#######LLL######', FLOOR],
-    G: [...rows(CEIL, 6), ...rows('...............#', 7), '############H###', '############H###'],
-    H: ['############H###', ...rows('#...........H..#', 9), '#...........H...', '#..........cH...', '#...........H...', '>>>>>>>>>>>>>>>>', FLOOR],
-    I: [...rows(CEIL, 6), SKY, SKY, SKY, '..###....###....', '...Z......Z.....', '...Z......Z.....', '...Z..o...Z.....', FLOOR, FLOOR],
-    J: [...rows(CEIL, 6), SKY, SKY, '...........g....', '..........###...', '.......######...', '....#########...', '.############...', FLOOR, FLOOR],
-    K: water([...rows(CEIL, 6), SKY, SKY, '....u.....u.....', SKY, SKY, SKY, '..q.........q...', FLOOR, FLOOR]),
-    // Boss door, then the guardian's room.
-    L: [...rows(CEIL, 6), ...rows('...............#', 4), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
+    A: [CEIL, CEIL, ...rows(SKY, 10), '..P...........@.', 'IIIIIIIIIIIIIIII', FLOOR],
+    // Cracking ice: it drops you into the flooded vault below.
+    B: [CEIL, CEIL, ...rows(SKY, 10), '.c..............', 'IIIxxxxxxxxxIIII', '###.........####'],
+    C: water([
+      '###.........####',
+      ...rows('#...............', 5),
+      '#...}}}}}}}}}}}}',
+      '#...}}}}}}}}}}}}',
+      ...rows('#...............', 3),
+      '#........u......',
+      '#...............',
+      '####^^^^^^^^####',
+      FLOOR,
+    ]),
+    // In the dark: a current pushing back. Swim under it.
+    D: water([CEIL, CEIL, SKY, SKY, '{{{{{{{{{{{{{{{{', '{{{{{{{{{{{{{{{{', '{{{{{{{{{{{{{{{{', SKY, '......u.........', SKY, '...###....###...', SKY, SKY, '###^^^###^^^####', FLOOR]),
+    // Still dark: a bubble column up into a current pushing you off the wall.
+    E: water([CEIL, CEIL, SKY, '{{{{{{{{{{......', '..........###...', ...rows('.......yyy###...', 8), FLOOR, FLOOR]),
+    // Out of the water: cracking ice over lava.
+    F: [CEIL, CEIL, ...rows(SKY, 9), '.c..........m...', SKY, '####xxx..xxx####', '####LLLLLLLL####'],
+    // The lava starts rising: spring, cracking ice, switch blocks, ladder.
+    G: [
+      '###########H####',
+      '#..........H...#',
+      '#..........H...#',
+      '#.........]]]..#',
+      '#..............#',
+      '#....[[[.......#',
+      '#..............#',
+      '####...........#',
+      '#..............#',
+      '#...xxxx.......#',
+      '...............#',
+      '.........%.....#',
+      '.........#.....#',
+      FLOOR,
+      FLOOR,
+    ],
+    // Keep climbing: spring, cracking ice, a lift, and out the top right.
+    H: [
+      CEIL,
+      '#...............',
+      '#...............',
+      '#............c..',
+      '#..........#####',
+      '#..............#',
+      '#......=----...#',
+      '#..............#',
+      '#..xxx.........#',
+      ...rows('#..............#', 3),
+      '#......%.......#',
+      '###########H####',
+      '###########H####',
+    ],
+    // Snowballs across cracking bridges over lava, then down to the door.
+    I: [CEIL, CEIL, SKY, '..............@.', '###xxx.xxx.xxx##', ...rows(SKY, 9), 'LLLLLLLLLLLLLLLL'],
+    J: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
     X: guardRoom.left,
     Y: guardRoom.right,
   },
 };
 
-/** Fortress 3: SPIRE. Climb the tower (clouds and ladders), then run the roof. */
+/**
+ * Fortress 3: SPIRE. A sky remix up the tower: a lift under a press over
+ * spikes, switch blocks in the wind, then the climb: an updraft, a moving
+ * platform, a spring up through a gap, a lift over spikes in the wind, an
+ * updraft to the roof. On the roof: cracking tiles and a lift in the wind,
+ * then springs under presses. Then the SPIRE WARDEN.
+ *
+ * Layout:  row 0:  . . . J K L M | X Y
+ *          row 1:  . . G H
+ *          row 2:  . . E F
+ *          row 3:  A B C D
+ */
 export const FORTRESS_3: StageData = {
   id: 'fortress3',
   name: 'FORTRESS SPIRE',
+  tagline: 'TO THE TOP',
   theme: 'fortress',
   boss: 'warden',
   bossName: 'SPIRE WARDEN',
-  layout: ['..IJKL|XY', '..GH', '..EF', 'ABCD'],
+  layout: ['...JKLM|XY', '..GH', '..EF', 'ABCD'],
+  wind: { screens: 'CGHJKL', dirs: [1, -1] },
   screens: {
-    A: [CEIL, CEIL, ...rows(SKY, 8), '.........###....', SKY, '..P.......w.....', FLOOR, FLOOR],
-    B: [CEIL, CEIL, ...rows(SKY, 10), '.........h......', '<<<<<<<<<<<<<<<<', FLOOR],
-    C: [CEIL, CEIL, ...rows(SKY, 6), '..........t.....', '.........###....', SKY, SKY, '..c.............', '#####^^#########', FLOOR],
-    D: ['############H###', '############H###', ...rows('............H..#', 10), '...w........H..#', FLOOR, FLOOR],
-    // Climbing room: clouds up and to the left, then the ladder in E.
+    A: [CEIL, CEIL, ...rows(SKY, 10), '..P.............', FLOOR, FLOOR],
+    // Ride the lift under a press, over spikes.
+    B: [CEIL, CEIL, '.......!........', ...rows(SKY, 9), SKY, '##=------..xxx##', '##^^^^^^^^^^^^##'],
+    // Switch blocks over spikes, in the wind.
+    C: [CEIL, CEIL, ...rows(SKY, 10), '.c..............', '###[[[]]][[[####', '###^^^^^^^^^####'],
+    // An updraft up through the ceiling.
+    D: ['##########yyy###', '##########yyy###', ...rows('..........yyy..#', 11), FLOOR, FLOOR],
+    // Off the moving platform onto the ledge, then the spring up through the gap
+    // (fall off the ledge and the floor spring bounces you back up).
     E: [
-      '####H###########',
-      '####H###########',
-      '#...H...........',
-      '#...H...........',
-      '#...H...........',
-      '#...###########.',
-      ...rows('#...............', 7),
+      '###...##########',
+      ...rows('#...............', 4),
+      '#...%.....=-----',
+      '#########.......',
+      ...rows('#...............', 5),
+      '#.........%.....',
       FLOOR,
       FLOOR,
     ],
-    F: [
-      CEIL,
-      CEIL,
-      ...rows('...............#', 5),
-      '.CCC.....CCC...#',
-      '...............#',
-      '....CCC........#',
-      '...............#',
-      '.........CCC...#',
-      '...............#',
-      '############H###',
-      '############H###',
-    ],
-    G: [CEIL, CEIL, ...rows('#...............', 7), '#............CCC', '#...............', '#.......CCC.....', '#...............', '####H###########', '####H###########'],
-    H: ['############H###', '############H###', ...rows('............H..#', 5), '..###########..#', '...............#', '........f......#', '...............#', '...............#', '...............#', FLOOR, FLOOR],
-    // The roof: open sky.
-    I: [...rows(SKY, 10), '....###.........', SKY, '.........w......', FLOOR, FLOOR],
-    J: [SKY, SKY, '......b.........', ...rows(SKY, 9), '...c............', '############H###', '############H###'],
-    K: [...rows(SKY, 4), '.......z........', ...rows(SKY, 6), '....CCC...CCC...', SKY, '###.........####', '###.........####'],
-    // Boss door at the top of the spire, then the guardian's room.
-    L: [...rows(SKY, 4), ...rows('...............#', 6), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
+    F: [CEIL, '...............#', '...............#', '...............#', '...........z...#', '------####yyy..#', ...rows('..........yyy..#', 7), '##########yyy###', '##########yyy###'],
+    // Windy: across to a lift over spikes, then the updraft to the roof.
+    G: [CEIL, ...rows(SKY, 9), '.........b......', SKY, SKY, '###...####..xxx.', '###...####^^^^^^'],
+    H: ['############yyy#', ...rows('............yyy#', 12), '=-------.#######', '^^^^^^^^^#######'],
+    // The roof, in the wind.
+    J: [SKY, SKY, '.....b..........', ...rows(SKY, 6), '............yyy#', ...rows('............yyy#', 4), '############yyy#'],
+    K: [SKY, SKY, SKY, '......z.........', ...rows(SKY, 5), '##..xxx...=----.', ...rows(SKY, 5)],
+    // Springs under presses.
+    L: [CEIL, '..!.......!.....', ...rows(SKY, 7), '..%...%...%...##', ...rows('..#...#...#...##', 5)],
+    M: [...rows('...............#', 10), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
     X: guardRoom.left,
     Y: guardRoom.right,
   },
@@ -123,6 +207,7 @@ const finalRoom = bossRoom();
 export const FINALE: StageData = {
   id: 'finale',
   name: 'THRONE',
+  tagline: 'THE LAST DOOR',
   theme: 'fortress',
   boss: 'overlord',
   bossName: 'OVERLORD',
@@ -145,6 +230,7 @@ const rematchRoom = bossRoom();
 export const GAUNTLET: StageData = {
   id: 'gauntlet',
   name: 'BOSS HALL',
+  tagline: 'ALL EIGHT, ONE MORE TIME',
   theme: 'fortress',
   layout: ['AB', 'XY'],
   screens: {

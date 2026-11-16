@@ -98,6 +98,28 @@ const synth = {
     setTimeout(() => tone(659, 659, 0.15), 150);
     setTimeout(() => tone(784, 1046, 0.4), 300);
   },
+  // Stage mechanics and events.
+  crush: () => {
+    noise(0.25, 0.1);
+    tone(160, 50, 0.2, 'square', 0.07);
+  },
+  spring: () => tone(300, 1200, 0.18, 'triangle', 0.08),
+  switchBlock: () => tone(1100, 1600, 0.05, 'square', 0.03),
+  crumble: () => noise(0.18, 0.06),
+  lavaRise: () => tone(90, 40, 1.0, 'sawtooth', 0.05),
+  splash: () => noise(0.15, 0.05),
+  chute: () => tone(140, 70, 0.1, 'triangle', 0.07),
+  checkpoint: () => {
+    tone(880, 880, 0.08, 'square', 0.04);
+    setTimeout(() => tone(1320, 1320, 0.12, 'square', 0.04), 90);
+  },
+  door: () => tone(200, 80, 0.5, 'sawtooth', 0.04),
+  ready: () => {
+    tone(392, 392, 0.1);
+    setTimeout(() => tone(523, 523, 0.1), 110);
+    setTimeout(() => tone(659, 784, 0.25), 220);
+  },
+  jump: () => tone(400, 700, 0.06, 'square', 0.025),
 };
 
 /** Plays a loaded sample by name; returns false if there isn't one. */
