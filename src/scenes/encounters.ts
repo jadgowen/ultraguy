@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { StageId } from '../level/Level';
 import type { PartId } from '../parts';
 import { Line, pixelateOut } from './cutscene';
+import { GUARDIANS } from './rpgGuardians';
 
 /**
  * Encounters fought in another game style. Each starts with dialogue in the
@@ -89,11 +90,10 @@ export const MINI_ENCOUNTERS: Partial<Record<StageId, Encounter>> = {
   },
 };
 
-export const PART_GUARDIANS: Partial<Record<PartId, Encounter>> = {
-  blaster: {
-    scene: 'rpg',
-    lines: () => [
-      { name: 'VAULT SENTRY', text: 'Halt. The UltraBlaster is sealed. Prove your worth... in combat.', portrait: { key: 'sentry_front' }, voice: 'sentry_challenge', color: 0x5ef0c8 },
-    ],
-  },
-};
+/** Every hidden part has a guardian, fought in a turn-based RPG battle (see rpgGuardians.ts). */
+export const PART_GUARDIANS: Partial<Record<PartId, Encounter>> = Object.fromEntries(
+  Object.values(GUARDIANS).map((g) => [
+    g.part,
+    { scene: 'rpg', lines: () => [{ name: g.name, text: g.challenge, portrait: { key: g.sprite }, voice: `${g.id}_challenge`, color: g.color }] },
+  ]),
+);

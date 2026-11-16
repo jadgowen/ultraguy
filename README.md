@@ -41,12 +41,25 @@ pixelate warp (`src/scenes/cutscene.ts`), and wired up in `src/scenes/encounters
 | Gatekeeper (Fortress Gate) | behind-the-back boxing, three rounds, Coach Jared in your corner | `BoxingScene.ts` |
 | Magma (Caldera) | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
 | Briar Toad (Canopy miniboss) | lane-crossing hop: dodge the trail, ride logs and pads, fill all three pads in time | `HopScene.ts` |
-| Vault Sentry (guards the UltraBlaster) | turn-based 1v1 RPG battle: FIGHT, SPELL, GUARD, ITEM (uses your E-tanks) | `RpgScene.ts` |
 | Overlord (finale) | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
-| Shade (finale, after the Overlord) | one-on-one fighting game, best of three; QCF+FIRE fireball, DP+FIRE uppercut | `FighterScene.ts` |
+| Shade (finale, after the Overlord) | one-on-one fighting game, best of three; DOWN, FORWARD + FIRE fireball, FORWARD, DOWN + FIRE uppercut | `FighterScene.ts` |
 
 Win and you carry on (the boss reward, the next fight in a chain, or the part); lose and you retry from
 the last checkpoint. Any upgrade part can have a guardian (`PART_GUARDIANS` in `encounters.ts`).
+
+Every hidden part is guarded, and each guardian is fought in a turn-based RPG battle (`RpgScene.ts`,
+guardians in `src/scenes/rpgGuardians.ts`): FIGHT, SPELL, GUARD, ITEM (your E-tanks), RUN. Spells are
+CHARGE SHOT, REPAIR and every boss weapon you've collected, each with its own effect (QUAKE topples,
+THORN hits twice, FROST freezes, CYCLONE spoils his aim, SPARK stuns, FLAME burns, SAW cuts through
+his guard, BUBBLE shields you). Each guardian has weak spots and resistances. Your HELMET adds HP and
+EN, your ARMOR takes a quarter off every hit.
+
+| Part | Guardian | Gimmick |
+|---|---|---|
+| UltraBlaster (Foundry) | BEARDSMITH, a dwarven robot | a different tool every turn: drill (through your guard), saw, hammer (dazes), nail gun; a forge-heated hammer |
+| Jump Boots (Canopy) | JUCK MCBUCK, a hunter | misses a lot (and complains), but his rifle hits hard; careful aim never misses |
+| Helmet (Glacier) | THE HYDRONATOR | offers glasses of water that hit harder each time; GUARD declines and resets it; chapstick heals him fully once |
+| Armor (Stratos) | CEEJ GEIGAN, a general | BLITZKRIEG: a WW2 history fact, delivered as damage; artillery barrages, digging in, rallying |
 
 Each boss stage has a miniboss halfway through, and an energy tank (E-tank) on a ledge just before it.
 You can carry up to 4 E-tanks (saved); use one from the pause menu to refill your life. Enemies drop

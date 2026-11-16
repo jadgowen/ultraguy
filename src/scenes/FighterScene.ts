@@ -130,7 +130,8 @@ export class FighterScene extends Phaser.Scene {
     this.timeText = pixelText(this, VIEW_W / 2, 8, '60', { fontSize: '16px', color: '#ffe14a', stroke: '#000000' }).setOrigin(0.5, 0).setDepth(41);
     pixelText(this, 8, 22, 'ULTRAGUY', { color: '#f28c28', stroke: '#000000' }).setDepth(41);
     pixelText(this, VIEW_W - 8, 22, 'SHADE', { color: '#ff3050', stroke: '#000000' }).setOrigin(1, 0).setDepth(41);
-    pixelText(this, 8, VIEW_H - 12, 'FIRE JAB  JUMP KICK  UP JUMP  BACK BLOCK  v>+FIRE SHOT  >v>+FIRE UPPER', { color: '#8a8fa8', stroke: '#000000' }).setDepth(41);
+    pixelText(this, 8, VIEW_H - 22, 'FIRE PUNCH   JUMP KICK   UP JUMP   HOLD BACK BLOCK (DOWN TOO FOR LOWS)', { color: '#8a8fa8', stroke: '#000000' }).setDepth(41);
+    pixelText(this, 8, VIEW_H - 12, 'FIREBALL: DOWN, FORWARD + FIRE    UPPERCUT: FORWARD, DOWN + FIRE', { color: '#c8ccd8', stroke: '#000000' }).setDepth(41);
     stopMusic();
     pixelateIn(this, 800);
     this.time.delayedCall(400, () => playMusic(this, 'fighter'));
@@ -221,12 +222,22 @@ export class FighterScene extends Phaser.Scene {
     return 5 + h + v * 3;
   }
 
-  private motion(f: Fighter, seq: number[]): boolean {
-    // Look for the sequence, in order, within the last 18 steps.
-    const recent = f.dirs.filter((d) => this.frame - d.f <= 18).map((d) => d.d);
-    let i = 0;
-    for (const d of recent) if (d === seq[i]) i++;
-    return i >= seq.length;
+  /** Directions held at any point in the last ~half second (a held one counts until it's let go). */
+  private recentDirs(f: Fighter): number[] {
+    return f.dirs.filter((_d, i) => this.frame - (f.dirs[i + 1]?.f ?? this.frame) <= 30).map((d) => d.d);
+  }
+
+  /**
+   * Forgiving special-move inputs (a keyboard can't always hit the diagonal):
+   *   fireball  DOWN, then FORWARD (+FIRE): ends holding forward, down (or down-forward) before it
+   *   uppercut  FORWARD, then DOWN (+FIRE): ends holding down or down-forward, forward before it
+   */
+  private special(f: Fighter, d: number): 'shot' | 'upper' | null {
+    const recent = this.recentDirs(f).slice(0, -1);
+    const downish = (x: number) => x === 1 || x === 2 || x === 3;
+    if (d === 6 && recent.some(downish)) return 'shot';
+    if ((d === 2 || d === 3) && recent.includes(6)) return 'upper';
+    return null;
   }
 
   private inputYou(): void {
@@ -243,8 +254,9 @@ export class FighterScene extends Phaser.Scene {
     const free = f.state === 'idle' || f.state === 'walk' || f.state === 'crouch' || f.state === 'block';
     if (f.state === 'jump' && f.move === null && (punch || kick)) return this.attack(f, 'air');
     if (!free) return;
-    if (punch && this.motion(f, [2, 3, 6]) && !this.shots.some((s) => s.owner === f)) return this.attack(f, 'shot');
-    if (punch && this.motion(f, [6, 2, 3])) return this.attack(f, 'upper');
+    const sp = punch ? this.special(f, d) : null;
+    if (sp === 'shot' && !this.shots.some((s) => s.owner === f)) return this.attack(f, 'shot');
+    if (sp === 'upper') return this.attack(f, 'upper');
     const crouch = d === 1 || d === 2 || d === 3;
     if (punch) return this.attack(f, crouch ? 'cjab' : 'jab');
     if (kick) return this.attack(f, crouch ? 'sweep' : 'kick');
@@ -433,24 +445,32 @@ export class FighterScene extends Phaser.Scene {
 
   private aiBlocking = false;
   private aiCrouchBlock = false;
+  private aiWasBusy = false;
 
   private thinkShade(): void {
     const s = this.shade;
     const p = this.you;
     const dist = Math.abs(p.x - s.x);
-    const level = this.round + (this.shade.wins > this.you.wins ? 0 : 1);
+    const level = Math.min(2, this.round - 1 + (this.shade.wins > this.you.wins ? 0 : 1));
     // Reactions every step: block what's coming (sometimes).
     const threat = (p.state === 'attack' && p.t <= MOVES[p.move!].startup + 2) || this.shots.some((sh) => sh.owner === p && Math.abs(sh.x - s.x) < 70);
-    this.aiBlocking = threat && Math.random() < 0.45 + level * 0.08;
+    this.aiBlocking = threat && Math.random() < 0.32 + level * 0.08;
     this.aiCrouchBlock = this.aiBlocking && p.crouching;
+    // Getting hit, blocking or knocked down leaves him a beat behind.
+    const free = s.state === 'idle' || s.state === 'walk' || s.state === 'crouch';
+    if (!free) this.aiWasBusy = true;
+    else if (this.aiWasBusy) {
+      this.aiWasBusy = false;
+      this.aiT = Math.max(this.aiT, Phaser.Math.Between(12, 20) - level * 3);
+    }
     if (--this.aiT > 0) {
       this.control(s, s.state === 'walk' ? (s.vx * s.facing > 0 ? 6 : 4) : 5, false, false);
       return;
     }
-    this.aiT = Phaser.Math.Between(8, 16) - level * 2;
+    this.aiT = Phaser.Math.Between(9, 17) - level * 2;
     const r = Math.random();
     // Anti-air a jumping player.
-    if (p.y < -10 && (p.x - s.x) * s.facing > 0 && dist < 80 && r < 0.55) {
+    if (p.y < -10 && (p.x - s.x) * s.facing > 0 && dist < 80 && r < 0.3 + level * 0.1) {
       s.dirs.push({ d: 6, f: this.frame - 3 }, { d: 2, f: this.frame - 2 }, { d: 3, f: this.frame - 1 });
       return this.control(s, 3, true, false);
     }

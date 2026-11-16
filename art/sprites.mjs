@@ -46,6 +46,13 @@ const PALETTE = {
   T: 0xa8704a, // skin
   t: 0x7a4a30, // skin shade
   n: 0xe0b070, // bun
+  F: 0xf2c8a0, // fair skin
+  f: 0xc8946c, // fair skin shade
+  L: 0x6a7040, // olive drab
+  l: 0x444a28, // olive drab shade
+  A: 0xc8b078, // khaki
+  H: 0x6a4428, // beard brown
+  h: 0x9a6a40, // beard brown light
 };
 
 const ANGRY = { Y: 'R', y: 'r', d: 'R' }; // boss eyes/core glow red when attacking
@@ -1096,31 +1103,176 @@ P.mantisIdle = mantisShape('idle');
 P.mantisJump = mantisShape('jump');
 P.mantisThrow = mantisShape('throw');
 
-/** VAULT SENTRY, the UltraBlaster's guardian, seen head-on for the RPG battle. 64 x 64. */
-function sentryFront() {
+// --- Part guardians, seen head-on for the RPG battles. 64 x 64 each. ----------------------
+
+/** CEEJ GEIGAN: an old-school general. Peaked cap, handlebar mustache, ribbons, binoculars. */
+function ceejFront() {
   return shapes(64, 64, [
-    // Thruster glow under the floating base.
-    ['ellipse', 32, 60, 9, 3, 'O'], ['ellipse', 32, 59, 5, 2, 'Y'],
-    ['poly', [[20, 50], [44, 50], [40, 57], [24, 57]], 'g'], ['rect', 22, 50, 20, 2, 'G'],
-    // Body.
-    ['poly', [[16, 24], [48, 24], [44, 50], [20, 50]], 'G'],
-    ['rect', 18, 24, 28, 2, 'w'],
-    ['ellipse', 32, 37, 7, 7, 'd'], ['ellipse', 32, 37, 5, 5, 'C'], ['ellipse', 32, 37, 2.5, 2.5, 'W'],
-    ['line', 21, 44, 43, 44, 'g'], ['px', 22, 28, 'w'], ['px', 41, 28, 'w'], ['px', 22, 46, 'w'], ['px', 41, 46, 'w'],
-    // Shoulders.
-    ['ellipse', 13, 25, 8, 6, 'S'], ['ellipse', 51, 25, 8, 6, 'S'], ['line', 7, 22, 19, 22, 's'], ['line', 45, 22, 57, 22, 's'],
-    // Left arm: a shield. Right arm: a cannon.
-    ['rect', 7, 30, 6, 10, 'g'], ['poly', [[1, 36], [14, 34], [14, 52], [7, 56], [1, 52]], 'S'], ['line', 7, 37, 7, 53, 'V'],
-    ['rect', 51, 30, 6, 10, 'g'], ['rect', 49, 40, 10, 14, 'G'], ['rect', 50, 52, 8, 4, 'd'], ['rect', 52, 53, 4, 2, 'R'],
-    ['line', 49, 43, 58, 43, 'g'], ['line', 49, 47, 58, 47, 'g'],
-    // Neck and dome head with one big eye.
-    ['rect', 28, 20, 8, 5, 'g'],
-    ['ellipse', 32, 13, 12, 10, 'G'], ['ellipse', 30, 9, 6, 3, 'w'],
-    ['rect', 21, 13, 22, 6, 'd'], ['ellipse', 32, 16, 5, 2.6, 'R'], ['ellipse', 32, 16, 2.4, 1.6, 'Y'], ['px', 31, 15, 'W'],
-    ['line', 32, 2, 32, 0, 'g'], ['px', 32, 0, 'R'],
+    // Jacket, lapels, collar and tie.
+    ['poly', [[10, 40], [22, 35], [30, 35], [32, 41], [34, 35], [42, 35], [54, 40], [58, 64], [6, 64]], 'L'],
+    ['line', 10, 41, 7, 63, 'l'], ['line', 54, 41, 57, 63, 'l'],
+    ['poly', [[26, 35], [32, 41], [38, 35]], 'A'],
+    ['poly', [[31, 38], [33, 38], [34, 45], [32, 47], [30, 45]], 'l'],
+    ['line', 25, 35, 30, 47, 'l'], ['line', 39, 35, 34, 47, 'l'],
+    // Shoulder boards with stars.
+    ['rect', 12, 37, 10, 3, 'l'], ['rect', 42, 37, 10, 3, 'l'],
+    ['px', 14, 38, 'Y'], ['px', 17, 38, 'Y'], ['px', 20, 38, 'Y'], ['px', 44, 38, 'Y'], ['px', 47, 38, 'Y'], ['px', 50, 38, 'Y'],
+    // Ribbon rack and a medal.
+    ['rect', 38, 44, 3, 2, 'R'], ['rect', 41, 44, 3, 2, 'B'], ['rect', 44, 44, 3, 2, 'Y'],
+    ['rect', 38, 46, 3, 2, 'E'], ['rect', 41, 46, 3, 2, 'W'], ['rect', 44, 46, 3, 2, 'R'],
+    ['line', 42, 48, 42, 49, 'R'], ['ellipse', 42, 51, 1.6, 1.6, 'Y'],
+    // Binoculars on a strap.
+    ['line', 28, 36, 23, 46, 'M'], ['rect', 19, 46, 4, 7, 'd'], ['rect', 24, 46, 4, 7, 'd'], ['rect', 23, 48, 1, 3, 'g'],
+    ['px', 20, 52, 'B'], ['px', 25, 52, 'B'],
+    // Buttons, belt and buckle.
+    ['px', 32, 50, 'Y'], ['px', 32, 54, 'Y'],
+    ['rect', 8, 57, 49, 3, 'M'], ['rect', 30, 56, 5, 5, 'Y'], ['rect', 31, 57, 3, 3, 'y'],
+    // A swagger stick in his hand.
+    ['line', 3, 38, 11, 56, 'M', 2], ['px', 3, 38, 'Y'], ['ellipse', 10, 54, 3, 3, 'F'],
+    // Neck, ears and face.
+    ['rect', 28, 32, 8, 4, 'f'],
+    ['ellipse', 21.5, 22, 2, 3, 'F'], ['ellipse', 42.5, 22, 2, 3, 'F'],
+    ['ellipse', 32, 22, 10, 11, 'F'],
+    ['line', 24, 30, 28, 33, 'f'], ['line', 40, 30, 36, 33, 'f'],
+    // Bushy gray brows, squinting eyes, a big nose.
+    ['rect', 25, 17, 6, 2, 'w'], ['rect', 34, 17, 6, 2, 'w'],
+    ['line', 26, 20, 29, 20, 'd'], ['line', 35, 20, 38, 20, 'd'], ['px', 27, 21, 'f'], ['px', 36, 21, 'f'],
+    ['rect', 31, 21, 3, 4, 'f'], ['px', 31, 21, 'F'],
+    // Handlebar mustache and a confident grin.
+    ['poly', [[24, 26], [32, 25], [40, 26], [43, 24], [42, 28], [37, 28], [32, 27], [27, 28], [22, 28], [21, 24]], 'w'],
+    ['line', 26, 28, 38, 28, 'G'],
+    ['line', 29, 30, 35, 30, 'd'], ['px', 28, 29, 'd'], ['px', 36, 29, 'd'], ['line', 30, 31, 34, 31, 'f'],
+    // Peaked cap: crown, band, gold cord, black visor, star badge.
+    ['poly', [[19, 11], [45, 11], [49, 5], [43, 1], [21, 1], [15, 5]], 'L'],
+    ['line', 22, 2, 42, 2, 'A'], ['line', 17, 6, 47, 6, 'l'],
+    ['rect', 19, 10, 26, 3, 'l'], ['line', 20, 11, 44, 11, 'y'],
+    ['poly', [[18, 13], [46, 13], [43, 16], [21, 16]], 'd'], ['line', 22, 14, 42, 14, 'g'],
+    ['px', 32, 3, 'Y'], ['line', 31, 4, 33, 4, 'Y'], ['line', 29, 5, 35, 5, 'Y'], ['px', 31, 6, 'Y'], ['px', 33, 6, 'Y'], ['px', 30, 7, 'Y'], ['px', 34, 7, 'Y'],
   ]);
 }
-P.sentryFront = sentryFront();
+P.ceejFront = ceejFront();
+
+/** JUCK MCBUCK: a hunter in blaze orange over camo, squinting down his scoped rifle. */
+function juckFront() {
+  return shapes(64, 64, [
+    // Camo jacket.
+    ['poly', [[8, 40], [22, 34], [42, 34], [56, 40], [60, 64], [4, 64]], 'e'],
+    ['ellipse', 12, 50, 4, 3, 'M'], ['ellipse', 30, 58, 5, 3, 'l'], ['ellipse', 52, 48, 4, 3, 'l'], ['ellipse', 24, 44, 3, 2, 'E'],
+    ['ellipse', 48, 60, 4, 2, 'M'], ['ellipse', 32, 40, 3, 2, 'M'], ['ellipse', 8, 60, 3, 2, 'E'],
+    // Blaze-orange vest.
+    ['poly', [[18, 36], [28, 35], [29, 64], [13, 64]], 'O'], ['poly', [[36, 35], [46, 36], [51, 64], [35, 64]], 'O'],
+    ['line', 28, 36, 29, 63, 'o'], ['line', 36, 36, 35, 63, 'o'], ['rect', 39, 44, 5, 4, 'o'],
+    // The rifle, held across his body: wood stock, scope, long barrel.
+    ['poly', [[2, 56], [13, 51], [17, 56], [6, 63]], 'M'], ['line', 4, 58, 13, 54, 'H'],
+    ['line', 14, 54, 48, 36, 'M', 3], ['line', 15, 56, 47, 39, 'H'],
+    ['line', 46, 37, 63, 28, 'g', 2], ['px', 63, 27, 'd'],
+    ['line', 26, 44, 40, 37, 'd', 3], ['px', 25, 46, 'B'], ['px', 41, 36, 'B'], ['line', 28, 42, 38, 37, 'g'],
+    ['line', 22, 50, 24, 53, 'd'],
+    // Hands on the grip and the fore-end.
+    ['ellipse', 21, 51, 3, 3, 'F'], ['ellipse', 44, 39, 3, 3, 'F'], ['px', 20, 53, 'f'], ['px', 43, 41, 'f'],
+    // Neck, ears, face.
+    ['rect', 28, 30, 8, 5, 'f'],
+    ['ellipse', 22.5, 21, 2, 3, 'F'], ['ellipse', 41.5, 21, 2, 3, 'F'],
+    ['ellipse', 32, 21, 9, 10, 'F'],
+    // Scruffy beard and a grimace.
+    ['poly', [[23, 23], [25, 30], [32, 33], [39, 30], [41, 23], [39, 27], [36, 28], [28, 28], [25, 27]], 'H'],
+    ['px', 26, 25, 'h'], ['px', 38, 25, 'h'], ['px', 30, 31, 'h'], ['px', 35, 30, 'h'], ['px', 28, 29, 'h'],
+    ['line', 29, 28, 35, 28, 'd'], ['px', 30, 27, 'H'], ['px', 34, 27, 'H'],
+    // One eye squinting down the sights, the other wide open. Brows knitted.
+    ['line', 26, 17, 30, 18, 'H'], ['line', 34, 18, 38, 16, 'H'],
+    ['line', 26, 20, 29, 20, 'd'], ['rect', 35, 19, 2, 2, 'd'], ['px', 35, 19, 'W'],
+    ['rect', 31, 21, 2, 4, 'f'],
+    // Blaze-orange cap.
+    ['ellipse', 32, 9, 12, 7, 'O'], ['line', 25, 4, 37, 4, 'Y'], ['line', 21, 10, 43, 10, 'o'],
+    ['poly', [[19, 12], [45, 12], [48, 15], [16, 15]], 'o'], ['line', 18, 14, 46, 14, 'r'],
+    ['rect', 30, 6, 4, 2, 'W'],
+  ]);
+}
+P.juckFront = juckFront();
+
+/** THE HYDRONATOR: a friendly bearded guy in a trucker cap, holding out a glass of water. */
+function hydroFront() {
+  return shapes(64, 64, [
+    // A plain tee.
+    ['poly', [[8, 42], [22, 35], [42, 35], [56, 42], [58, 64], [6, 64]], 's'],
+    ['line', 9, 43, 7, 63, 'S'], ['line', 55, 43, 57, 63, 'S'], ['poly', [[26, 35], [32, 39], [38, 35]], 'f'],
+    // Left arm at his side.
+    ['poly', [[8, 42], [14, 44], [13, 60], [7, 60]], 's'], ['ellipse', 10, 61, 3, 3, 'F'],
+    // Right arm reaching out to you with the glass.
+    ['poly', [[44, 40], [54, 44], [50, 54], [40, 50]], 'F'], ['line', 41, 50, 50, 54, 'f'],
+    // The glass: rim, water, highlight, a couple of bubbles.
+    ['poly', [[33, 34], [51, 34], [49, 58], [35, 58]], 'c'],
+    ['poly', [[34, 41], [50, 41], [49, 57], [35, 57]], 'B'],
+    ['line', 34, 41, 50, 41, 'C'], ['line', 37, 36, 37, 56, 'W'], ['line', 38, 43, 38, 55, 'C'],
+    ['px', 45, 47, 'c'], ['px', 43, 52, 'c'], ['px', 46, 44, 'C'], ['line', 33, 34, 51, 34, 'W'],
+    ['line', 35, 57, 49, 57, 'b'],
+    // Fingers wrapped around the front of the glass.
+    ['rect', 46, 45, 5, 2, 'F'], ['rect', 46, 48, 5, 2, 'F'], ['rect', 46, 51, 4, 2, 'F'],
+    ['line', 46, 47, 50, 47, 'f'], ['line', 46, 50, 50, 50, 'f'],
+    // Neck, ears, face.
+    ['rect', 28, 30, 8, 5, 'f'],
+    ['ellipse', 22.5, 21, 2, 3, 'F'], ['ellipse', 41.5, 21, 2, 3, 'F'],
+    ['ellipse', 32, 21, 9, 10, 'F'],
+    // Full beard, mustache and a big friendly smile.
+    ['poly', [[22, 19], [24, 29], [28, 34], [32, 35], [36, 34], [40, 29], [42, 19], [40, 25], [36, 27], [28, 27], [24, 25]], 'H'],
+    ['px', 25, 27, 'h'], ['px', 39, 27, 'h'], ['px', 29, 32, 'h'], ['px', 34, 33, 'h'], ['px', 32, 34, 'h'],
+    ['line', 28, 26, 36, 26, 'H'], ['rect', 29, 28, 7, 2, 'd'], ['line', 30, 28, 34, 28, 'W'],
+    // Kind eyes, raised brows, rosy cheeks.
+    ['line', 26, 16, 29, 16, 'H'], ['line', 35, 16, 38, 16, 'H'],
+    ['rect', 27, 18, 2, 2, 'd'], ['rect', 35, 18, 2, 2, 'd'], ['px', 27, 18, 'W'], ['px', 35, 18, 'W'],
+    ['px', 25, 22, 'P'], ['px', 39, 22, 'P'], ['rect', 31, 20, 2, 4, 'f'],
+    // Trucker cap with a water-drop patch.
+    ['ellipse', 32, 8, 12, 7, 'b'], ['rect', 21, 4, 4, 6, 'w'], ['rect', 39, 4, 4, 6, 'w'],
+    ['rect', 27, 3, 10, 7, 'W'], ['px', 32, 4, 'B'], ['line', 31, 5, 33, 5, 'B'], ['rect', 30, 6, 5, 2, 'B'], ['line', 31, 8, 33, 8, 'b'],
+    ['poly', [[19, 11], [45, 11], [47, 14], [17, 14]], 'S'], ['line', 18, 13, 46, 13, 'd'],
+    // Sparkles off the glass.
+    ['px', 54, 33, 'C'], ['px', 53, 31, 'c'], ['px', 30, 40, 'C'],
+  ]);
+}
+P.hydroFront = hydroFront();
+
+/**
+ * BEARDSMITH: a stout dwarven robot. Riveted helmet, glowing eyes, a huge black
+ * beard with gold-ringed braids (and a bare patch in one eyebrow), a hammer
+ * raised high, a drill in the other hand and a belt full of tools.
+ */
+function beardFront() {
+  return shapes(64, 64, [
+    // Squat riveted body and shoulder pads.
+    ['poly', [[6, 36], [18, 30], [46, 30], [58, 36], [60, 64], [4, 64]], 'G'],
+    ['line', 7, 37, 5, 63, 'g'], ['line', 57, 37, 59, 63, 'g'],
+    ['px', 10, 42, 'w'], ['px', 10, 50, 'w'], ['px', 54, 42, 'w'], ['px', 54, 50, 'w'],
+    ['ellipse', 9, 36, 7, 6, 'g'], ['ellipse', 55, 36, 7, 6, 'g'], ['line', 4, 34, 13, 32, 'w'], ['line', 51, 32, 60, 34, 'w'],
+    // Tool belt: nail gun, saw blade, wrench.
+    ['rect', 5, 57, 54, 5, 'M'], ['line', 5, 57, 58, 57, 'h'], ['rect', 29, 57, 6, 5, 'Y'], ['rect', 31, 58, 2, 3, 'y'],
+    ['rect', 10, 53, 7, 5, 'O'], ['rect', 15, 55, 3, 2, 'g'], ['px', 11, 54, 'Y'],
+    ['ellipse', 47, 56, 4.5, 4.5, 'w'], ['ellipse', 47, 56, 1.5, 1.5, 'g'], ['px', 47, 51, 'G'], ['px', 52, 56, 'G'], ['px', 47, 61, 'G'], ['px', 42, 56, 'G'],
+    ['line', 22, 56, 24, 62, 'w'], ['rect', 21, 55, 3, 2, 'w'],
+    // The drill (viewer's left).
+    ['rect', 2, 32, 11, 10, 'Y'], ['line', 2, 41, 12, 41, 'y'], ['rect', 4, 34, 3, 3, 'd'], ['rect', 5, 42, 5, 6, 'd'], ['ellipse', 9, 47, 4, 4, 'G'],
+    ['rect', 6, 29, 3, 3, 'g'], ['line', 7, 28, 7, 19, 'w', 2], ['px', 6, 26, 'G'], ['px', 8, 23, 'G'], ['px', 6, 20, 'G'], ['px', 7, 18, 'w'],
+    // The hammer, raised (viewer's right).
+    ['line', 55, 46, 58, 15, 'M', 2], ['line', 54, 46, 57, 15, 'h'],
+    ['rect', 49, 6, 15, 9, 'g'], ['rect', 50, 7, 13, 3, 'G'], ['line', 50, 7, 62, 7, 'w'], ['rect', 49, 6, 2, 9, 'd'], ['rect', 62, 6, 2, 9, 'd'],
+    ['ellipse', 55, 42, 4, 4, 'G'], ['px', 54, 41, 'w'],
+    // Helmet: dome, crest, riveted rim.
+    ['ellipse', 32, 11, 13, 9, 'G'], ['line', 32, 2, 32, 14, 'w'], ['line', 25, 5, 29, 4, 'w'],
+    ['rect', 18, 14, 28, 3, 'g'], ['px', 21, 15, 'w'], ['px', 27, 15, 'w'], ['px', 37, 15, 'w'], ['px', 43, 15, 'w'],
+    // Metal face plate, glowing eyes, round nose.
+    ['rect', 21, 17, 22, 9, 'w'],
+    ['rect', 25, 20, 4, 3, 'd'], ['px', 26, 21, 'O'], ['px', 27, 21, 'Y'],
+    ['rect', 35, 20, 4, 3, 'd'], ['px', 36, 21, 'O'], ['px', 37, 21, 'Y'],
+    // Thick black brows; a bare patch in the right one.
+    ['rect', 23, 17, 8, 2, 'd'], ['rect', 33, 17, 3, 2, 'd'], ['rect', 39, 17, 3, 2, 'd'], ['px', 37, 18, 'G'], ['px', 38, 17, 'P'],
+    // The beard: huge, black, with strands, a mustache, and two braids with gold rings.
+    ['poly', [[18, 24], [46, 24], [50, 34], [46, 46], [38, 51], [32, 53], [26, 51], [18, 46], [14, 34]], 'd'],
+    ['line', 23, 32, 24, 43, 'S'], ['line', 29, 34, 29, 48, 'S'], ['line', 35, 34, 35, 48, 'S'], ['line', 41, 32, 40, 43, 'S'],
+    ['poly', [[22, 26], [32, 24], [42, 26], [44, 30], [32, 28], [20, 30]], 'd'], ['line', 24, 29, 31, 27, 'S'], ['line', 33, 27, 40, 29, 'S'],
+    ['ellipse', 32, 24, 3, 2.5, 'G'], ['px', 31, 23, 'W'],
+    ['rect', 26, 51, 3, 7, 'd'], ['rect', 26, 54, 3, 1, 'Y'], ['rect', 35, 51, 3, 7, 'd'], ['rect', 35, 54, 3, 1, 'Y'],
+  ]);
+}
+P.beardFront = beardFront();
 
 /** OVERLORD (final boss, phase 1): skull-faced war machine, cannon on the right. */
 function overlord(firing) {
@@ -1680,7 +1832,7 @@ const BOX_FRAMES = {};
 for (const pose of ['idle', 'guardHigh', 'guardLow', 'windL', 'windR', 'punchL', 'punchR', 'upWind', 'upper', 'hitFace', 'hitBody', 'dizzy', 'down']) BOX_FRAMES[`gbox_${pose}`] = single(`gbox_${pose}`, 48, 60);
 for (const pose of ['idle', 'block', 'punchL', 'punchR', 'punchHL', 'punchHR', 'star', 'down']) BOX_FRAMES[`ubox_${pose}`] = single(`ubox_${pose}`, 28, 40);
 
-BOX_FRAMES.sentry_front = single('sentryFront', 64, 64);
+for (const g of ['ceej', 'juck', 'hydro', 'beard']) BOX_FRAMES[`${g}_front`] = single(`${g}Front`, 64, 64);
 const FRAMES = { ...CHARACTER_FRAMES, ...MINI_FRAMES, ...SHOT_FRAMES, ...ITEM_FRAMES, ...BOX_FRAMES };
 
 // --- render ----------------------------------------------------------------------
