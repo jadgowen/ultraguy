@@ -320,68 +320,6 @@ const P = {
   anvilLegShort: ['..KSSSSK..', '..KGwGGK..', '.KKKKKKKK.', 'KwWwGGGGgK', 'KGGGGGGGgK', 'KKKKKKKKKK'],
   anvilLegCrouch: ['..KGwGGK..', '.KKKKKKKK.', 'KwWwGGGGgK', 'KKKKKKKKKK'],
 
-  // MANTIS (boss)
-  mantisHead: [
-    '...KKKKK....',
-    '..KEEEEEKK..',
-    '.KENEEEEEEK.',
-    'KEERRREEEEEK',
-    'KERRYRKEEEeK',
-    'KEERRRKEEeK.',
-    '.KEEEEEEeK..',
-    '..KKEEeeK...',
-    '....KKKK....',
-  ],
-  mantisBody: [
-    '............KKKKK.....',
-    '...........KEEEEEK....',
-    '..KKKKKKKKKEENEEEK....',
-    '.KeEEEEEEEKEEEEEEK....',
-    'KeEEEEEEEEEKEEEEEK....',
-    'KeEENEEENEEEKEEEK.....',
-    'KeeEEEEEEEEEKEEEK.....',
-    '.KeeeEEEEEEKKEEEK.....',
-    '..KKKeeeeeK.KEEEK.....',
-    '.....KKKKK..KEEEK.....',
-    '............KeeeK.....',
-    '............KKKKK.....',
-  ],
-  mantisLegs: [
-    '......KeK...KeK.......',
-    '.....KeK.....KeK......',
-    '....KeK.......KeK.....',
-    '...KeK.........KeK....',
-    '..KeK...........KeK...',
-    '..KeK...........KeK...',
-    '..KeK...........KeK...',
-    '..KeK...........KeK...',
-    '.KeeK...........KeeK..',
-    '.KKKK...........KKKK..',
-  ],
-  mantisLegsJump: [
-    '......KeK...KeK.......',
-    '.....KeK.....KeK......',
-    '....KeK.......KeK.....',
-    '...KeK.........KeK....',
-    '..KeeK.........KeeK...',
-    '..KKKK.........KKKK...',
-  ],
-  mantisScythe: [
-    '......KK',
-    '.....KWK',
-    '....KWcK',
-    '...KWcK.',
-    '..KWcK..',
-    '.KWcK...',
-    'KcKEK...',
-    'KKEEK...',
-    '..KEK...',
-    '..KEEK..',
-    '...KEK..',
-    '....KK..',
-  ],
-  mantisThrowArm: ['.KKKKKK.....', 'KEEEEEEKKKK.', 'KeeeeeeKcccK', '.KKKKKKKKKK.'],
-
   // FROSTLINE (boss)
   frostBody: [
     '.........KKKKKKKKKK.........',
@@ -393,11 +331,11 @@ const P = {
     '..KBBBBBBBBBBBKWWWKBBBBOOOK.',
     '.KBBBBBBBBBBBBBKKKBBBBBOOOOK',
     '.KBBBBBBccccccccBBBBBBBKKKK.',
-    'KBBBBBBcccccccccccBBBBBBBK..',
+    'KBBBBBBcccWccccWccBBBBBBBK..',
     'KBBBBBccccccccccccccBBBBBK..',
-    'KbBBBBccccccccccccccBBBBbK..',
+    'KbBBBBcccWcccccccWccBBBBbK..',
     'KbBBBBcccccCcccccccBBBBBbK..',
-    'KbbBBBBccccccccccccBBBBbbK..',
+    'KbbBBBBcccccWccccccBBBBbbK..',
     '.KbbBBBBccccccccccBBBBbbK...',
     '.KbbbBBBBBBBBBBBBBBBBbbbK...',
     '..KbbbbBBBBBBBBBBBBbbbbK....',
@@ -410,24 +348,26 @@ const P = {
     '....KbbbbbbbK..KbbbbbbbK....',
     '....KKKKKKKKK..KKKKKKKKK....',
   ],
-  frostFlipper: ['..KKK.', '.KbBK.', 'KbBBK.', 'KbBBK.', 'KbBBK.', 'KbbK..', 'KKK...'],
+  frostFlipper: ['..KKK.', '.KbBK.', 'KbBBK.', 'KbBBK.', 'KbBBK.', 'KcbK..', 'KKK...'],
   frostFlipperUp: ['..KK..', '.KcCK.', 'KcCCK.', '.KBBK.', '.KBBK.', 'KBBBK.', 'KbbK..', 'KKK...'],
   iceSkid: ['.c..c...c..c', 'c..C...c..C.'],
+  // An ice-crystal crest on his head.
+  frostCrest: ['..K....K....', '.KcK..KCK...', '.KCK.KcCK.K.', 'KcCcKKCcCKcK'],
 
   // GALE (boss)
-  galeProp: ['KKKKKKKKK....KKKKKKKKK', 'KwwwwwwwwKKKKwwwwwwwwK', 'KKKKKKKKKKYYKKKKKKKKKK'],
+  galeProp: ['KKKKKKKKK....KKKKKKKKK', 'KWwwwwwwwKKKKwwwwwwwWK', 'KKKKKKKKKKYYKKKKKKKKKK'],
   galeHub: ['.KYYK.', '.KyyK.', 'KKKKKK'],
   galeBody: [
     '...KKKKKKKKKK...',
     '..KWWWWWWWWWWK..',
     '.KWWwwwwwwWWWWK.',
     'KWWwWWWWKKKKKWWK',
-    'KWwWWWWKSSSSVKWK',
+    'KWwWWWWKSSSWVKWK',
     'KWwWWWWKSSSVVKWK',
     'KWWWWWWWKKKKKWWK',
-    'KBBBBBBBBBBBBBBK',
-    'KbBBBBBBBBBBBBbK',
-    'KWWWWWWWWWWWWWWK',
+    'KBBYBBBBBBBBYBBK',
+    'KbBBbBBbBBbBBBbK',
+    'KWWdWWWWWWWWdWWK',
     'KwWWWWWWWWWWWWwK',
     '.KwWWWWWWWWWWwK.',
     '..KwwWWWWWWwwK..',
@@ -435,10 +375,10 @@ const P = {
     '.....KKKKKK.....',
     '......KbbK......',
   ],
-  galeWing: ['.......KK', '.....KKBK', '...KKBBBK', '.KKBBBBbK', 'KBBBBBbbK', 'KbBBBbbK.', '.KbbbbK..', '..KKKK...'],
-  galeWingUp: ['KK.......', 'KBKK.....', 'KBBBKK...', 'KbBBBBKK.', '.KbBBBBBK', '..KbbBBBK', '...KKbbbK', '.....KKKK'],
-  galeWingDown: ['.....KKKK', '...KKbbbK', '..KbbBBBK', '.KbBBBBBK', 'KbBBBBKK.', 'KBBBKK...', 'KBKK.....', 'KK.......'],
-  galeTalons: ['..KbK..KbK..', '..KbK..KbK..', '.KYYYK.KYYYK', '.KKKKK.KKKKK'],
+  galeWing: ['.......KK', '.....KKBK', '...KKBcBK', '.KKBcBBbK', 'KBcBBBbbK', 'KbBcBbbK.', '.KbbbbK..', '..KKKK...'],
+  galeWingUp: ['KK.......', 'KBKK.....', 'KBcBKK...', 'KbBcBBKK.', '.KbBcBBBK', '..KbbBcBK', '...KKbbbK', '.....KKKK'],
+  galeWingDown: ['.....KKKK', '...KKbbbK', '..KbbBcBK', '.KbBcBBBK', 'KbBcBBKK.', 'KBcBKK...', 'KBKK.....', 'KK.......'],
+  galeTalons: ['..KbK..KbK..', '..KbK..KbK..', '.KYWYK.KYWYK', '.KKKKK.KKKKK'],
 
   // --- player shots -------------------------------------------------------------
   bullet: ['.YYYY.', 'YYWWWY', 'yYWWWY', '.yYYY.'],
@@ -828,14 +768,14 @@ const P = {
   // --- TIDE (boss) -------------------------------------------------------------------
   tideBody: [
     '.............KK...................',
-    '............KbbK..................',
-    '...........KbBBK..................',
+    '............KbcK..................',
+    '...........KbBcK..................',
     '.......KKKKKbBBBKKKKKKK...........',
     '....KKKbbbbBBBBBBBBBBBBBKKK.......',
-    '..KKbbbBBBBBBBBBBBBBBBBBBBBKK.....',
-    'KKbbBBBBBBBBBBBBBBBBBBBBBKWWSBKK..',
-    'KbKbBBBBBBBBBBBBBBBBBBBBBBKWWBBBK.',
-    'KbbKBBBBBBBBBBBBBBBBBBBBBBBBBBBBBK',
+    '..KKbbbBBBBcBBBBBBBBBBBBBBBKK.....',
+    'KKbbBBBBBBBBccBBBBBBBBBBBKWWSBKK..',
+    'KbKbBBBBBBBBBBBBBBBbBbBbBBKWWBBBK.',
+    'KbbKBBBBBBBBBBBBBBBbBbBbBBBBBBBBBK',
     'KbbbKBBBBBBBBBBBBBBBBBBBBBBKWKWKWK',
     'KbbKcccccccccccccccccccccccKKKKKK.',
     'KbK.KccccccccccccccccccccccWKWKWK.',
@@ -876,23 +816,19 @@ const anvil = (pose) => {
 const mantis = (pose) => ({
   w: 30,
   h: 32,
-  layers: [
-    [pose === 'jump' ? 'mantisLegsJump' : 'mantisLegs', 2, 22],
-    ['mantisBody', 2, 10],
-    ['mantisHead', 14, 1],
-    pose === 'throw' ? ['mantisThrowArm', 17, 13] : ['mantisScythe', 22, 6],
-  ],
+  layers: [[pose === 'jump' ? 'mantisJump' : pose === 'throw' ? 'mantisThrow' : 'mantisIdle', 0, 0]],
 });
 
 const frost = (pose) => {
   if (pose === 'slide') {
-    return { w: 32, h: 28, layers: [['iceSkid', 0, 25], ['frostBody', 2, 9], ['frostFlipper', 22, 18]] };
+    return { w: 32, h: 28, layers: [['iceSkid', 0, 25], ['frostCrest', 11, 6], ['frostBody', 2, 9], ['frostFlipper', 22, 18]] };
   }
   return {
     w: 32,
     h: 28,
     layers: [
       ['frostFeet', 2, 24],
+      ['frostCrest', 11, 2],
       ['frostBody', 2, 5],
       pose === 'shoot' ? ['frostFlipperUp', 26, 9] : ['frostFlipper', 0, 14],
     ],
@@ -1020,6 +956,145 @@ function boxes(w, h, rects) {
   }
   return out.map((r) => r.join(''));
 }
+
+/**
+ * Build a sprite from shapes, later ones on top, then outline it like boxes():
+ *   ['rect', x, y, w, h, ch]          ['px', x, y, ch]
+ *   ['ellipse', cx, cy, rx, ry, ch]   ['poly', [[x, y], ...], ch]
+ *   ['line', x0, y0, x1, y1, ch, thickness = 1]
+ */
+function shapes(w, h, ops) {
+  const g = Array.from({ length: h }, () => Array(w).fill('.'));
+  const put = (x, y, ch) => {
+    x = Math.round(x);
+    y = Math.round(y);
+    if (y >= 0 && y < h && x >= 0 && x < w) g[y][x] = ch;
+  };
+  for (const op of ops) {
+    const [kind, ...a] = op;
+    if (kind === 'rect') {
+      const [x, y, rw, rh, ch] = a;
+      for (let yy = y; yy < y + rh; yy++) for (let xx = x; xx < x + rw; xx++) put(xx, yy, ch);
+    } else if (kind === 'px') put(a[0], a[1], a[2]);
+    else if (kind === 'ellipse') {
+      const [cx, cy, rx, ry, ch] = a;
+      for (let y = Math.floor(cy - ry); y <= Math.ceil(cy + ry); y++)
+        for (let x = Math.floor(cx - rx); x <= Math.ceil(cx + rx); x++)
+          if (((x + 0.5 - cx) / rx) ** 2 + ((y + 0.5 - cy) / ry) ** 2 <= 1) put(x, y, ch);
+    } else if (kind === 'poly') {
+      const [pts, ch] = a;
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      for (let y = Math.floor(Math.min(...ys)); y <= Math.ceil(Math.max(...ys)); y++) {
+        for (let x = Math.floor(Math.min(...xs)); x <= Math.ceil(Math.max(...xs)); x++) {
+          const px = x + 0.5;
+          const py = y + 0.5;
+          let inside = false;
+          for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+            const [xi, yi] = pts[i];
+            const [xj, yj] = pts[j];
+            if (yi > py !== yj > py && px < ((xj - xi) * (py - yi)) / (yj - yi) + xi) inside = !inside;
+          }
+          if (inside) put(x, y, ch);
+        }
+      }
+    } else if (kind === 'line') {
+      const [x0, y0, x1, y1, ch, t = 1] = a;
+      const n = Math.max(Math.abs(x1 - x0), Math.abs(y1 - y0), 1);
+      for (let i = 0; i <= n; i++) {
+        const x = x0 + ((x1 - x0) * i) / n;
+        const y = y0 + ((y1 - y0) * i) / n;
+        for (let dy = 0; dy < t; dy++) for (let dx = 0; dx < t; dx++) put(x + dx - (t - 1) / 2, y + dy - (t - 1) / 2, ch);
+      }
+    }
+  }
+  const out = g.map((row) => row.slice());
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      if (g[y][x] !== '.') continue;
+      const near = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => g[y + dy]?.[x + dx] && g[y + dy][x + dx] !== '.' && g[y + dy][x + dx] !== 'K');
+      if (near) out[y][x] = 'K';
+    }
+  }
+  return out.map((r) => r.join(''));
+}
+
+/**
+ * MANTIS (Canopy boss), redesigned: an upright praying-mantis warrior with a
+ * triangular head and big compound eyes, a raised serrated scythe forelimb,
+ * folded veined wings over a segmented abdomen, and four thin jointed legs.
+ * 30 x 32, facing right.
+ */
+function mantisShape(pose) {
+  const jump = pose === 'jump';
+  const throwing = pose === 'throw';
+  // Legs splay wide so they read as separate limbs.
+  const legs = jump
+    ? [
+        ['line', 12, 22, 6, 24, 'E'], ['line', 6, 24, 9, 28, 'E'],
+        ['line', 16, 21, 21, 23, 'E'], ['line', 21, 23, 19, 27, 'E'],
+      ]
+    : [
+        ['line', 12, 23, 6, 26, 'E'], ['line', 6, 26, 2, 31, 'E'],
+        ['line', 14, 23, 12, 28, 'E'], ['line', 12, 28, 11, 31, 'E'],
+        ['line', 16, 21, 21, 25, 'E'], ['line', 21, 25, 23, 31, 'E'],
+        ['line', 16, 22, 17, 27, 'E'], ['line', 17, 27, 16, 31, 'E'],
+      ];
+  const wings = jump
+    ? [
+        ['poly', [[16, 11], [3, 4], [1, 8], [6, 13], [15, 15]], 'N'],
+        ['line', 15, 12, 3, 6, 'E'], ['line', 11, 12, 4, 9, 'E'],
+      ]
+    : [
+        ['poly', [[17, 11], [7, 21], [5, 25], [9, 24], [17, 16]], 'N'],
+        ['line', 16, 13, 7, 23, 'E'], ['line', 13, 17, 8, 22, 'e'],
+        // A dark edge along the top of the wing keeps it apart from the body.
+        ['line', 17, 11, 7, 21, 'e'],
+      ];
+  const arm = jump
+    ? [
+        ['line', 18, 11, 23, 4, 'E', 2],
+        ['poly', [[22, 3], [28, 0], [29, 3], [24, 6]], 'c'], ['px', 25, 3, 'w'], ['px', 27, 2, 'w'],
+      ]
+    : throwing
+      ? [
+          ['line', 18, 12, 25, 11, 'E', 2],
+          ['poly', [[24, 9], [29, 11], [29, 13], [24, 13]], 'c'], ['px', 26, 13, 'w'], ['px', 28, 13, 'w'],
+        ]
+      : [
+          // Praying forelimb: femur up and forward, the blade folded back down with spikes.
+          ['line', 18, 12, 25, 6, 'E', 2],
+          ['poly', [[24, 5], [27, 7], [24, 16], [21, 16]], 'c'],
+          ['px', 23, 9, 'w'], ['px', 22, 11, 'w'], ['px', 22, 13, 'w'], ['px', 21, 15, 'w'],
+        ];
+  return shapes(30, 32, [
+    ...legs,
+    // Abdomen with segments, curving down behind.
+    ['ellipse', 11, 21, 5, 3.5, 'e'],
+    ['line', 8, 19, 8, 24, 'E'], ['line', 11, 18, 11, 24, 'E'], ['line', 14, 19, 14, 23, 'E'],
+    ...wings,
+    // Thorax: long and slender.
+    ['poly', [[15, 10], [19, 10], [18, 22], [15, 23]], 'E'],
+    ['line', 16, 11, 16, 21, 'N'],
+    ['rect', 17, 7, 3, 4, 'E'],
+    // Red collar between head and thorax.
+    ['rect', 16, 10, 4, 1, 'R'],
+    // Head: a triangle with bulging eyes at the top corners, antennae.
+    ['line', 16, 2, 11, 0, 'e'], ['line', 24, 2, 29, 0, 'e'],
+    ['poly', [[15, 2], [25, 2], [21, 9], [19, 9]], 'E'],
+    ['line', 18, 3, 22, 3, 'N'],
+    ['ellipse', 15.5, 3.5, 2.2, 2.4, 'Y'], ['ellipse', 24.5, 3.5, 2.2, 2.4, 'Y'],
+    ['ellipse', 15.5, 4.6, 1.8, 1.2, 'O'], ['ellipse', 24.5, 4.6, 1.8, 1.2, 'O'],
+    ['px', 16, 4, 'd'], ['px', 24, 4, 'd'], ['px', 15, 2, 'W'], ['px', 24, 2, 'W'],
+    ['px', 20, 9, 'r'], ['px', 20, 6, 'e'], ['px', 19, 7, 'e'], ['px', 21, 7, 'e'],
+    // Yellow spots on the abdomen.
+    ['px', 9, 22, 'Y'], ['px', 12, 23, 'Y'],
+    ...arm,
+  ]);
+}
+P.mantisIdle = mantisShape('idle');
+P.mantisJump = mantisShape('jump');
+P.mantisThrow = mantisShape('throw');
 
 /** OVERLORD (final boss, phase 1): skull-faced war machine, cannon on the right. */
 function overlord(firing) {
