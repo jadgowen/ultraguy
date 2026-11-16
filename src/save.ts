@@ -1,5 +1,6 @@
 import { ALL_STAGE_IDS, StageId } from './level/Level';
 import { PART_ORDER, PartId } from './parts';
+import { SKIN_IDS, SkinId, setCurrentSkin, unlockedSkins } from './skins';
 import { SLOT_COUNT, loadSettings } from './settings';
 import { WEAPON_ORDER, WeaponId } from './weapons';
 
@@ -13,6 +14,8 @@ export interface SaveData {
   parts: PartId[];
   /** Stages whose boss has been beaten in an EX rematch. */
   exCleared: StageId[];
+  /** The hero color scheme worn (EX wins unlock them). */
+  skin: SkinId;
 }
 
 export const MAX_TANKS = 4;
@@ -31,7 +34,7 @@ export function activeSlot(): number {
 }
 
 function fresh(): SaveData {
-  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [] };
+  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic' };
 }
 
 /** Load the active slot (or `slot`). */
@@ -50,7 +53,9 @@ export function loadSave(slot = activeSlot()): SaveData {
       ? PART_ORDER.filter((x) => (data.parts as string[]).includes(x))
       : cleared.some((id) => id !== 'intro') ? [...PART_ORDER] : [];
     const exCleared = (data.exCleared ?? []).filter((s): s is StageId => ALL_STAGE_IDS.includes(s as StageId));
-    return { weapons: WEAPON_ORDER.filter((w) => weapons.includes(w)), cleared, tanks, parts, exCleared };
+    // A scheme only counts if it's still unlocked.
+    const skin = SKIN_IDS.includes(data.skin as SkinId) && unlockedSkins(exCleared).some((s) => s.id === data.skin) ? (data.skin as SkinId) : 'classic';
+    return { weapons: WEAPON_ORDER.filter((w) => weapons.includes(w)), cleared, tanks, parts, exCleared, skin };
   } catch {
     return fresh(); // corrupt or blocked storage: start fresh
   }
@@ -79,6 +84,19 @@ export function recordExClear(stage: StageId): void {
   const data = loadSave();
   if (!data.exCleared.includes(stage)) data.exCleared.push(stage);
   write(data);
+}
+
+/** Wear a color scheme (saved), and show it from now on. */
+export function setSkin(skin: SkinId): void {
+  const data = loadSave();
+  data.skin = skin;
+  write(data);
+  setCurrentSkin(skin);
+}
+
+/** Put on the active slot's saved color scheme (when a scene starts). */
+export function wearSavedSkin(): void {
+  setCurrentSkin(loadSave().skin);
 }
 
 /** EX rematches open once the game has been beaten. */

@@ -5,10 +5,12 @@ import { conveyorUnder, moveX, moveY, standingOnIce, touchesSpike, touchesTile }
 import { Tile } from '../level/Level';
 import { sfx } from '../sfx';
 import type { GameScene } from '../scenes/GameScene';
-import { heroFrames } from '../heroSprites';
+import { heroFrames, LAND_STEPS, heroFrameName } from '../heroSprites';
 import { WEAPON_ORDER, WeaponId, heroTexture } from '../weapons';
 
-export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'climb' | 'hurt' | 'dead';
+export type PlayerState = 'idle' | 'run' | 'jump' | 'fall' | 'climb' | 'hurt' | 'slide' | 'dead';
+
+const STAND_H = 22;
 
 /**
  * The hero, written as a state machine. Each state owns its own update so
@@ -18,7 +20,8 @@ export class Player {
   x = 0;
   y = 0;
   readonly w = 12;
-  readonly h = 22;
+  /** Body height: shorter while sliding. */
+  h = STAND_H;
   vx = 0;
   vy = 0;
   facing: 1 | -1 = 1;
@@ -42,7 +45,17 @@ export class Player {
   private knockDir = 0;
   deadTimer = 0;
   private animT = 0;
+  /** Steps into the current run (the run cycle starts on a push-off). */
+  private runT = 0;
+  /** Landing squash countdown, and whether we were on the ground last frame. */
+  private landT = 0;
+  private wasGrounded = true;
   private climbT = 0;
+  /** Steps of slide left (keeps going while there's no room to stand). */
+  private slideT = 0;
+  /** Double-tap detection: the last direction tapped and how long ago. */
+  private tapDir = 0;
+  private tapT = 99;
   private ladderCol = 0;
   readonly sprite: Phaser.GameObjects.Image;
   private readonly frames: Record<string, number>;
@@ -94,6 +107,9 @@ export class Player {
     this.airJumps = 0;
     this.invuln = this.shootPose = this.hurtTimer = this.deadTimer = this.charge = 0;
     this.airSlide = false;
+    this.h = STAND_H;
+    this.y = bottom - this.h;
+    this.slideT = 0;
     this.sprite.setVisible(true);
   }
 
@@ -105,10 +121,23 @@ export class Player {
     if (this.invuln > 0) this.invuln--;
     if (this.shootPose > 0) this.shootPose--;
     this.animT++;
+    // Run and landing timers, from where last step left us.
+    this.runT = this.state === 'run' ? this.runT + 1 : 0;
+    const onGround = this.grounded && this.state !== 'climb';
+    if (onGround && !this.wasGrounded && this.state !== 'hurt') this.landT = LAND_STEPS;
+    else if (this.landT > 0) this.landT--;
+    this.wasGrounded = onGround;
+
+    // Anything that ends a slide (a hit, a cutscene) stands you back up.
+    if (this.state !== 'slide' && this.h !== STAND_H && this.alive) this.standUp();
+    if (this.tapT < 99) this.tapT++;
 
     switch (this.state) {
       case 'hurt':
         this.updateHurt();
+        break;
+      case 'slide':
+        this.updateSlide();
         break;
       case 'climb':
         this.updateClimb();
@@ -161,6 +190,11 @@ export class Player {
     const c = this.g.controls;
     const L = this.g.level;
     const dir = (c.isDown('right') ? 1 : 0) - (c.isDown('left') ? 1 : 0);
+    if (this.grounded && dir !== 0) {
+      // Dust when you set off, and a scuff when you turn on the spot.
+      if (this.state === 'idle') this.g.dust(this.cx - dir * 4, this.bottom, -dir, 1);
+      else if (dir !== this.facing) this.g.dust(this.cx, this.bottom, -dir, 2);
+    }
     if (dir !== 0) this.facing = dir as 1 | -1;
 
     // Ladders: grab with up when overlapping one, or down when standing on its top.
@@ -176,6 +210,17 @@ export class Player {
     }
 
     if (this.grounded) this.airJumps = this.has('boots') ? 1 : 0;
+    // Slide: DOWN + JUMP, or a quick double-tap of a direction, on the ground.
+    const tapped = c.justPressed('left') ? -1 : c.justPressed('right') ? 1 : 0;
+    const doubleTap = tapped !== 0 && tapped === this.tapDir && this.tapT <= 12;
+    if (tapped !== 0) {
+      this.tapDir = tapped;
+      this.tapT = 0;
+    }
+    if (this.grounded && ((c.justPressed('jump') && c.isDown('down')) || doubleTap)) {
+      this.startSlide();
+      return;
+    }
     const lifted = this.inUpdraft;
     // Hovering at the top of an updraft bobs your middle in and out of it, so feet count for jumping.
     const canAirJump = lifted || L.isUpdraft(Math.floor(this.cx / TILE), Math.floor((this.bottom - 1) / TILE));
@@ -256,6 +301,68 @@ export class Player {
     }
   }
 
+  // --- slide ----------------------------------------------------------------
+
+  private startSlide(): void {
+    this.state = 'slide';
+    this.slideT = PHYS.slideFrames;
+    this.y += STAND_H - PHYS.slideHeight;
+    this.h = PHYS.slideHeight;
+    this.charge = 0;
+    sfx.slide();
+    this.g.dust(this.cx - this.facing * 6, this.bottom, -this.facing, 3);
+  }
+
+  /** Room overhead to stand back up. */
+  private canStand(): boolean {
+    const L = this.g.level;
+    const top = this.bottom - STAND_H;
+    const c0 = Math.floor((this.x + 0.5) / TILE);
+    const c1 = Math.floor((this.x + this.w - 0.5) / TILE);
+    for (let r = Math.floor(top / TILE); r <= Math.floor((this.y - 0.01) / TILE); r++)
+      for (let c = c0; c <= c1; c++) if (L.isSolid(c, r)) return false;
+    return true;
+  }
+
+  private standUp(): void {
+    this.y -= STAND_H - this.h;
+    this.h = STAND_H;
+  }
+
+  private updateSlide(): void {
+    const c = this.g.controls;
+    const dir = (c.isDown('right') ? 1 : 0) - (c.isDown('left') ? 1 : 0);
+    const room = this.canStand();
+    this.slideT--;
+    // Pushing the other way turns you around and ends it (if there's room).
+    if (dir === -this.facing && room) {
+      this.facing = dir as 1 | -1;
+      this.slideT = 0;
+    } else if (dir === -this.facing) this.facing = dir as 1 | -1;
+    if (c.justPressed('jump') && room) {
+      // Jump out of a slide (keeps a little of the speed).
+      this.standUp();
+      this.state = 'jump';
+      this.vy = this.inWater ? -PHYS.waterJump : -PHYS.jump;
+      this.vx = this.facing * PHYS.run;
+      this.grounded = false;
+      sfx.jump();
+      return;
+    }
+    this.vx = this.facing * PHYS.slide;
+    const wasX = this.x;
+    this.applyMotion();
+    const blocked = Math.abs(this.x - wasX) < 0.01;
+    if (this.animT % 5 === 0 && this.grounded) this.g.dust(this.cx - this.facing * 6, this.bottom, -this.facing, 1);
+    // Off a ledge, into a wall, or out of time: stand up (unless a ceiling is in the way).
+    const over = !this.grounded || this.slideT <= 0 || (blocked && room);
+    if (over && (room || !this.grounded)) {
+      if (room) this.standUp();
+      this.state = this.grounded ? 'idle' : 'fall';
+      this.slideT = 0;
+    } else if (this.slideT <= 0) this.slideT = 1; // tucked under a ceiling: keep sliding
+  }
+
   private updateHurt(): void {
     this.hurtTimer--;
     this.vx = this.knockDir * PHYS.knockback;
@@ -287,10 +394,16 @@ export class Player {
     if (current !== 0 && !this.g.controls.isDown('down')) this.vy = Math.min(this.vy, PHYS.currentSink);
     if (moveX(L, this, this.vx + this.g.wind + gust + belt + current)) this.vx = 0;
     const falling = this.vy > 0;
+    const fallSpeed = this.vy;
     const wasGrounded = this.grounded;
     const prevBottom = this.bottom;
     const hit = moveY(L, this, this.vy, true);
     this.grounded = hit && falling;
+    // Head bonk: a little knock back down, a tick and a spark off the helmet.
+    if (hit && !falling && fallSpeed < -1.5) {
+      sfx.tick();
+      this.g.burst(this.cx, this.y, 'spark', 2);
+    }
     if (hit) this.vy = 0;
     if (!this.grounded && this.vy >= 0 && this.g.landOnMover(this, prevBottom)) {
       this.grounded = true;
@@ -306,7 +419,11 @@ export class Player {
       this.g.burst(this.cx, this.bottom, 'spark', 4);
       return;
     }
-    if (this.grounded && !wasGrounded) sfx.land();
+    if (this.grounded && !wasGrounded) {
+      sfx.land();
+      // Coming down hard kicks up dust both ways.
+      if (fallSpeed > 3) this.g.dust(this.cx, this.bottom, 0, fallSpeed > 5.5 ? 4 : 2);
+    }
   }
 
   /** Water state last step (null until the first step), for splashes. */
@@ -360,6 +477,7 @@ export class Player {
     this.grounded = true;
     this.vy = 0;
     this.animT++;
+    this.runT++;
   }
 
   hurt(dmg: number, sourceX: number): void {
@@ -371,6 +489,11 @@ export class Player {
       return;
     }
     sfx.hurt();
+    // Hit while tucked under a ceiling: take it, but keep sliding (no room to be knocked back).
+    if (this.state === 'slide' && !this.canStand()) {
+      this.invuln = PHYS.invulnFrames;
+      return;
+    }
     this.state = 'hurt';
     this.hurtTimer = PHYS.hurtFrames;
     this.invuln = PHYS.invulnFrames;
@@ -404,26 +527,28 @@ export class Player {
       case 'hurt':
         name = 'hurt';
         break;
+      case 'slide':
+        name = 'slide';
+        break;
       case 'climb':
         if (s) name = 'climb_s';
-        else {
-          name = 'climb';
-          flip = Math.floor(this.climbT / 8) % 2 === 1; // climbing "animation" = mirror
-        }
-        break;
-      case 'jump':
-      case 'fall':
-        name = `jump${s}`;
-        break;
-      case 'run':
-        name = ['run1', 'run2', 'run3', 'run2'][Math.floor(this.animT / 7) % 4] + s;
+        else name = Math.floor(this.climbT / 8) % 2 === 0 ? 'climb' : 'climb2'; // hand over hand
         break;
       default:
-        name = `idle${s}`;
+        name = heroFrameName({
+          air: this.state === 'jump' || this.state === 'fall',
+          vy: this.vy,
+          running: this.state === 'run',
+          runT: this.runT,
+          animT: this.animT,
+          landT: this.landT,
+          shoot: !!s,
+        });
     }
     this.sprite.setTexture(heroTexture(this.weapon), this.frames[name]);
     this.sprite.setFlipX(flip);
-    this.sprite.setPosition(Math.round(this.cx), Math.round(this.bottom));
+    // One pixel low: the boot outline sits on the floor's ink line instead of above it.
+    this.sprite.setPosition(Math.round(this.cx), Math.round(this.bottom) + 1);
     // Flicker while invincible (but stay solid during the knockback pose).
     this.sprite.setVisible(this.state === 'hurt' || this.invuln === 0 || this.invuln % 4 < 2);
 

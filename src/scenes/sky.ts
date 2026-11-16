@@ -116,7 +116,7 @@ export class Sky {
     const p = this.host.player();
     const m = this.riding;
     this.riding = null;
-    if (m && p.alive && p.grounded && (p.state === 'idle' || p.state === 'run' || p.state === 'hurt')) {
+    if (m && p.alive && p.grounded && (p.state === 'idle' || p.state === 'run' || p.state === 'hurt' || p.state === 'slide')) {
       const L = this.host.level;
       moveX(L, p, m.x - m.prevX);
       const dy = m.y - m.prevY;

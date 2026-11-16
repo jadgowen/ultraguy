@@ -1,3 +1,5 @@
+import { currentSkin, skinTexture } from './skins';
+
 /**
  * Weapons. The arm cannon is always available and never runs out; boss
  * weapons are earned by beating bosses and use ammo (MAX_AMMO units, like HP).
@@ -145,7 +147,7 @@ export const WEAPONS: Record<WeaponId, WeaponDef> = {
 /** Display order in the pause menu. */
 export const WEAPON_ORDER: WeaponId[] = ['buster', 'quake', 'thorn', 'frost', 'cyclone', 'spark', 'flame', 'saw', 'bubble'];
 
-/** Texture key of the hero sheet recolored for this weapon. */
+/** Texture key of the hero sheet recolored for this weapon (the Ultra Gun wears the chosen color scheme). */
 export function heroTexture(id: WeaponId): string {
-  return `hero_${id}`;
+  return id === 'buster' ? skinTexture(currentSkin()) : `hero_${id}`;
 }

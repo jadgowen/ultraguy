@@ -66,6 +66,7 @@ const synth = {
     tone(400, 40, 0.6, 'square', 0.06);
   },
   land: () => tone(120, 60, 0.04, 'triangle', 0.05),
+  slide: () => noise(0.14, 0.05),
   pickup: () => tone(600, 1400, 0.12, 'square', 0.05),
   enemyShot: () => tone(700, 300, 0.05, 'triangle', 0.05),
   select: () => tone(900, 900, 0.05),

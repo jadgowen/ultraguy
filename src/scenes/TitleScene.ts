@@ -2,7 +2,7 @@ import { playMusic } from '../audio';
 import { VIEW_W } from '../constants';
 import { heroFrames } from '../heroSprites';
 import { ALL_BOSS_STAGES } from '../level/stages';
-import { loadSave } from '../save';
+import { loadSave, wearSavedSkin } from '../save';
 import { sfx, unlockAudio } from '../sfx';
 import { touchEnabled } from '../touch';
 import { heroTexture } from '../weapons';
@@ -19,6 +19,7 @@ export class TitleScene extends MenuScene {
   }
 
   create(): void {
+    wearSavedSkin();
     this.initMenu();
     playMusic(this, 'title');
     this.backdrop('foundry', 0.35);

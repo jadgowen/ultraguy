@@ -5,7 +5,8 @@ import { heroFrames } from '../heroSprites';
 import type { BossStageId } from '../level/Level';
 import { ALL_BOSS_STAGES, BOSS_STAGES, STAGE_GRID } from '../level/stages';
 import { THEMES } from '../level/themes';
-import { exUnlocked, loadSave } from '../save';
+import { exUnlocked, loadSave, setSkin, wearSavedSkin } from '../save';
+import { SKINS, currentSkin, unlockedSkins } from '../skins';
 import { sfx } from '../sfx';
 import { WEAPONS, heroTexture } from '../weapons';
 import type { GameSceneData } from './GameScene';
@@ -38,12 +39,15 @@ export class StageSelectScene extends MenuScene {
   private exMarks: Phaser.GameObjects.GameObject[] = [];
   private normalMarks: Phaser.GameObjects.GameObject[] = [];
   private hintText!: PixelText;
+  private heroImg!: Phaser.GameObjects.Image;
+  private skinText!: PixelText;
 
   constructor() {
     super('select');
   }
 
   create(): void {
+    wearSavedSkin();
     this.initMenu();
     playMusic(this, 'select');
     this.backKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.BACKSPACE);
@@ -70,17 +74,20 @@ export class StageSelectScene extends MenuScene {
 
       if (!id) {
         // Middle: the hero, or the way into the fortress once it's open.
-        this.add.image(x, y + 6, heroTexture('buster'), heroFrames(this).idle).setOrigin(0.5, 1);
+        this.heroImg = this.add.image(x, y + 6, heroTexture('buster'), heroFrames(this).idle).setOrigin(0.5, 1);
         if (this.fortressOpen) {
           this.normalMarks.push(
             pixelText(this, x, y + 9, 'FORTRESS', { fontFamily: FONT, fontSize: '8px', color: '#ff5050' }).setOrigin(0.5, 0),
             pixelText(this, x, y + 18, 'all bosses beaten', small).setOrigin(0.5, 0),
           );
         }
+        // In EX: the hero's color schemes (one per EX win); ENTER tries the next one on.
+        this.skinText = pixelText(this, x, y + 18, '', { ...small, color: '#ffe14a' }).setOrigin(0.5, 0);
         this.exMarks.push(
-          pixelText(this, x, y + 9, 'EX MODE', { fontFamily: FONT, fontSize: '8px', color: '#ff5050' }).setOrigin(0.5, 0),
-          pixelText(this, x, y + 18, `${ALL_BOSS_STAGES.filter((s) => save.exCleared.includes(s)).length}/${ALL_BOSS_STAGES.length} beaten`, small).setOrigin(0.5, 0),
+          pixelText(this, x, y + 9, `EX ${ALL_BOSS_STAGES.filter((s) => save.exCleared.includes(s)).length}/${ALL_BOSS_STAGES.length}`, { fontFamily: FONT, fontSize: '8px', color: '#ff5050' }).setOrigin(0.5, 0),
+          this.skinText,
         );
+        this.showSkin();
         return;
       }
       const stage = BOSS_STAGES[id];
@@ -119,7 +126,27 @@ export class StageSelectScene extends MenuScene {
     const toggle = this.exOpen ? (this.exOn ? '   X normal' : '   X EX mode') : '';
     const test = DEV_TOOLS ? '   B boss test' : '';
     this.hintText.setText(`ARROWS choose   ENTER/Z start${toggle}${test}   BKSP back`);
-    if (this.exOn && this.pick === CENTER) this.pick = 0;
+  }
+
+  /** The color scheme on the center panel. */
+  private showSkin(): void {
+    const owned = unlockedSkins(loadSave().exCleared);
+    const name = SKINS.find((k) => k.id === currentSkin())!.name;
+    this.skinText.setText(owned.length > 1 ? `${name} ${owned.findIndex((k) => k.id === currentSkin()) + 1}/${owned.length}` : 'win EX for colors');
+    this.heroImg.setTexture(heroTexture('buster'), heroFrames(this).idle);
+  }
+
+  /** Put on the next color scheme you've earned. */
+  private nextSkin(): void {
+    const owned = unlockedSkins(loadSave().exCleared);
+    if (owned.length < 2) {
+      sfx.tick();
+      return;
+    }
+    const i = owned.findIndex((k) => k.id === currentSkin());
+    setSkin(owned[(i + 1) % owned.length].id);
+    sfx.select();
+    this.showSkin();
   }
 
   private move(dx: number, dy: number): void {
@@ -128,8 +155,8 @@ export class StageSelectScene extends MenuScene {
     col = (col + dx + 3) % 3;
     row = (row + dy + 3) % 3;
     let next = row * 3 + col;
-    // The middle is only selectable once the fortress is open (and not in EX); skip over it.
-    if (next === CENTER && (!this.fortressOpen || this.exOn)) {
+    // The middle is only selectable once the fortress is open (or in EX, for colors); skip over it.
+    if (next === CENTER && !this.fortressOpen && !this.exOn) {
       col = (col + dx + 3) % 3;
       row = (row + dy + 3) % 3;
       next = row * 3 + col;
@@ -166,6 +193,10 @@ export class StageSelectScene extends MenuScene {
     }
     const id = STAGE_GRID[this.pick];
     if (!id) {
+      if (this.exOn) {
+        if (this.confirmed()) this.nextSkin();
+        return false;
+      }
       if (this.fortressOpen && this.confirmed()) {
         sfx.select();
         this.scene.start('fortress');

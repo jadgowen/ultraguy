@@ -1,5 +1,5 @@
 import { PHYS } from '../../constants';
-import { heroFrames } from '../../heroSprites';
+import { heroFrameName, heroFrames } from '../../heroSprites';
 import type { Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
@@ -23,6 +23,7 @@ export class Shade extends Boss {
   private hopCooldown = 40;
   private shieldT = 0;
   private animT = 0;
+  private runT = 0;
 
   constructor(g: GameScene, at: Point, room: Room) {
     super(g, 'shade', 12, 22, null, at, room);
@@ -38,6 +39,7 @@ export class Shade extends Boss {
     const p = this.g.player;
     this.facePlayer();
     this.animT++;
+    this.runT = this.grounded && Math.abs(this.vx) > 0 ? this.runT + 1 : 0;
     if (this.shootPose > 0) this.shootPose--;
     if (this.shieldT > 0 && --this.shieldT === 0) this.throwRing();
 
@@ -144,15 +146,13 @@ export class Shade extends Boss {
   }
 
   render(): void {
-    const s = this.shootPose > 0 ? '_s' : '';
-    let name: string;
-    if (!this.grounded) name = `jump${s}`;
-    else if (Math.abs(this.vx) > 0) name = ['run1', 'run2', 'run3', 'run2'][Math.floor(this.animT / 7) % 4] + s;
-    else name = `idle${s}`;
+    const running = this.grounded && Math.abs(this.vx) > 0;
+    let name = heroFrameName({ air: !this.grounded, vy: this.vy, running, runT: this.runT, animT: this.animT, landT: 0, shoot: this.shootPose > 0 });
     if (this.posing) name = 'idle_s'; // intro: arm cannon raised
     this.sprite.setTexture('hero_shade', this.frames[name]);
     this.sprite.setFlipX(this.facing < 0);
-    this.sprite.setPosition(Math.round(this.cx), Math.round(this.bottom));
+    // One pixel low: the boot outline sits on the floor's ink line instead of above it.
+    this.sprite.setPosition(Math.round(this.cx), Math.round(this.bottom) + 1);
     this.sprite.setAlpha(1);
     const charging = this.move === 'charge' && this.moveT > 0;
     if (this.flash > 0 && this.flash % 4 < 2) this.sprite.setTintFill(0xffffff);

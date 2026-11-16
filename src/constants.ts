@@ -17,6 +17,10 @@ export const STEP_MS = 1000 / 60;
 
 export const PHYS = {
   run: 1.375, // instant full speed, instant stop: no acceleration
+  // Slide (DOWN + JUMP, or double-tap a direction): fast and low, under shots and through 1-tile gaps.
+  slide: 2.75,
+  slideFrames: 26,
+  slideHeight: 14,
   jump: 5.0, // initial upward speed (~3 tiles of height)
   gravity: 0.25,
   maxFall: 7,

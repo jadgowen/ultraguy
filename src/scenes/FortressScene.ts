@@ -3,7 +3,7 @@ import { touch } from '../touch';
 import { VIEW_H, VIEW_W } from '../constants';
 import type { FortressStageId } from '../level/Level';
 import { FORTRESS_ORDER, FORTRESS_STAGES } from '../level/stages';
-import { loadSave } from '../save';
+import { loadSave, wearSavedSkin } from '../save';
 import { sfx } from '../sfx';
 import type { GameSceneData } from './GameScene';
 import { FONT, MenuScene } from './menu';
@@ -27,6 +27,7 @@ export class FortressScene extends MenuScene {
   }
 
   create(): void {
+    wearSavedSkin();
     this.initMenu();
     playMusic(this, 'select');
     this.launching = null;

@@ -157,7 +157,7 @@ export const JUCK_MISSES = [
   'Aw, shucks. Sun was in my eyes.',
   'I swear this thing pulls left!',
   'You got lucky, tin man!',
-  "My cousin's never gonna let me hear the end of this...",
+  "My dad's never gonna let me hear the end of this...",
 ];
 
 const JUCK: Guardian = {
@@ -174,7 +174,7 @@ const JUCK: Guardian = {
   resistText: "He's right at home in the brambles.",
   challenge: "Well, well. Juck McBuck, best shot in the county. Them boots are mine to guard... now hold real still.",
   intro: 'JUCK MCBUCK takes aim!',
-  loses: "Well, shoot. Go on, take the boots. Don't tell my cousin.",
+  loses: "Well, shoot. Go on, take the boots. Don't tell my dad.",
   wins: 'Yee-haw! Bagged me a robot!',
   act(b) {
     const f = b.flags;

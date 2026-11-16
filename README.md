@@ -83,7 +83,9 @@ Saves from before parts existed that had beaten a boss get all four.
 starts at the boss door with no E-tanks. The boss takes about 40% less damage, waits less between attacks,
 and has one new attack: Anvil's triple hammer hops, Mantis's thorn rain, Frostline's blizzard (find the gap),
 Gale's twin dive, Volt's lightning grid (stand on the dark strips), Magma's eruption ripple, Scrap's saw
-barrage and Tide's bubble rings. Each EX win puts a star on that boss's panel.
+barrage and Tide's bubble rings. Each EX win puts a star on that boss's panel and unlocks a hero color
+scheme (FORGE, MANTIS, GLACIER, SKYWARD, VOLTAGE, MAGMA, RUST, TIDE; `src/skins.ts`). Pick one from the
+middle panel of the EX stage select; it replaces the Ultra Gun colors (boss weapons keep their own).
 
 ## Audio
 `npm run audio` asks ElevenLabs for one looping chiptune track per area and a set of sound effects,
@@ -95,6 +97,7 @@ its built-in synthesized sound effects. Regenerate one item with `npm run audio 
 |---|---|---|
 | Move / climb | Arrows or WASD | D-pad / left stick |
 | Jump | Z, Space, K | A |
+| Slide (low and fast: under shots, through 1-tile gaps) | Down + Jump, or double-tap a direction | Down + A |
 | Fire (hold to charge the Ultra Gun) | X, J | B / X |
 | Switch weapon | Q / E | L1 / R1 |
 | Pause / weapon select / E-tanks | Enter, Esc, P | Start |
@@ -132,5 +135,5 @@ force-pushes `dist/` to the `gh-pages` branch, which GitHub Pages serves.
 - `src/level/` – `Level.ts` (format + legend), one file per stage, `themes.ts` (tile/background colors), `stages.ts` (registry).
 - `src/scenes/` – title, settings, boss select, and `GameScene` (fixed 60 Hz step, camera, combat, HUD, pause).
 - `src/textures.ts` – tiles, backgrounds, store scenery and small effects, drawn in code.
-- `art/hero.mjs`, `art/sprites.mjs` – sprite sheet generators (`npm run sprites`); `art/audio.mjs` – audio generator.
+- `art/hero.mjs`, `art/sprites.mjs` – sprite sheet generators (`npm run sprites`). The hero is posed by a small rig (hand-drawn helmet and chest, rig-drawn limbs): 8-frame run with bob, arm swing and head lag, breathing idle, rise/fall/land, two-frame climb. `art/mockups/hero.html` – the design mockups he was chosen from. `art/audio.mjs` – audio generator.
 - `src/audio.ts` – music player and sampled sound effects.

@@ -42,7 +42,7 @@ export class ControlsScene extends MenuScene {
     this.labels.forEach((t) => t.setFontSize(10));
     this.refresh();
     pixelText(this, VIEW_W / 2, VIEW_H - 26, 'GAMEPAD (fixed): D-PAD move  A jump  B/X fire  START pause  L1/R1 weapon', small).setOrigin(0.5);
-    pixelText(this, VIEW_W / 2, VIEW_H - 12, 'ENTER / Z: rebind   X: back', small).setOrigin(0.5);
+    pixelText(this, VIEW_W / 2, VIEW_H - 12, 'SLIDE: DOWN + JUMP (or double-tap)    ENTER / Z: rebind   X: back', small).setOrigin(0.5);
     this.prompt = pixelText(this, VIEW_W / 2, VIEW_H / 2, '', { fontFamily: FONT, fontSize: '12px', color: '#fff1e0', backgroundColor: '#000000', align: 'center', padding: { x: 10, y: 8 } })
       .setOrigin(0.5)
       .setDepth(10)

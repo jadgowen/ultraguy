@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_TANKS, clearSave, exUnlocked, loadSave, recordClear, recordExClear, recordPart, setTanks, slotKey, slotUsed } from '../src/save';
+import { MAX_TANKS, clearSave, exUnlocked, loadSave, recordClear, recordExClear, recordPart, setSkin, setTanks, slotKey, slotUsed } from '../src/save';
+import { unlockedSkins } from '../src/skins';
 import { updateSettings } from '../src/settings';
 
 const useSlot = (slot: number) =>
@@ -9,7 +10,7 @@ const useSlot = (slot: number) =>
 
 describe('save data', () => {
   it('starts fresh: just the Ultra Gun, nothing cleared', () => {
-    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [] });
+    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic' });
   });
 
   it('records cleared stages and weapons once, in weapon order', () => {
@@ -94,5 +95,17 @@ describe('save slots', () => {
     recordExClear('reef');
     recordExClear('reef');
     expect(loadSave().exCleared).toEqual(['reef']);
+  });
+
+  it('keeps a color scheme only while its EX win is saved', () => {
+    useSlot(1);
+    expect(unlockedSkins(loadSave().exCleared).map((k) => k.id)).toEqual(['classic']);
+    recordExClear('caldera');
+    expect(unlockedSkins(loadSave().exCleared).map((k) => k.id)).toEqual(['classic', 'magma']);
+    setSkin('magma');
+    expect(loadSave().skin).toBe('magma');
+    // A scheme that isn't earned (an edited save) falls back to classic.
+    localStorage.setItem(slotKey(1), JSON.stringify({ ...JSON.parse(localStorage.getItem(slotKey(1))!), skin: 'tide' }));
+    expect(loadSave().skin).toBe('classic');
   });
 });

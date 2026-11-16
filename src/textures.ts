@@ -377,6 +377,12 @@ function makeEffects(scene: Phaser.Scene): void {
     rect(g, C.white, 1, 1, 1, 1);
   });
   make(scene, 'windline', 10, 1, (g) => rect(g, 0xffffff, 0, 0, 10, 1));
+  // A puff of dust kicked up by feet (landing, sliding, turning).
+  make(scene, 'dust', 7, 5, (g) => {
+    rect(g, 0xb8b4c8, 1, 1, 5, 3);
+    rect(g, 0xb8b4c8, 2, 0, 3, 5);
+    rect(g, 0xe8e4f0, 2, 1, 2, 2);
+  });
   makeStoreArt(scene);
   make(scene, 'bubble_fx', 4, 4, (g) => {
     g.lineStyle(1, 0xd8f0ff, 0.9);

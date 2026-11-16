@@ -1,4 +1,5 @@
 import Phaser from 'phaser';
+import { wearSavedSkin } from '../save';
 import { VIEW_H, VIEW_W } from '../constants';
 import { heroFrames } from '../heroSprites';
 import { sfx } from '../sfx';
@@ -33,6 +34,7 @@ export class EndingScene extends MenuScene {
   }
 
   create(): void {
+    wearSavedSkin();
     this.initMenu();
     playMusic(this, 'ending');
     this.backdrop('sky', 0.3);

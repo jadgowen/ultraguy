@@ -10,7 +10,8 @@ import { PART_ORDER, PARTS } from '../parts';
 import { BOSS_STAGES, getStage } from '../level/stages';
 import { THEMES } from '../level/themes';
 import { Box, moveY, overlaps } from '../physics';
-import { MAX_TANKS, recordExClear, loadSave, recordClear, recordPart, setTanks } from '../save';
+import { skinForStage } from '../skins';
+import { MAX_TANKS, recordExClear, loadSave, recordClear, recordPart, setTanks, wearSavedSkin } from '../save';
 import { sfx } from '../sfx';
 import { WEAPONS, WeaponId } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
@@ -33,6 +34,8 @@ const ELECTRIC_PERIOD = 100;
 const WEAKNESS_DAMAGE = 4;
 /** Freeze-frames when a weakness hit lands. */
 const WEAK_HIT_STOP = 6;
+/** Freeze-frame when a full charge shot hits a boss. */
+const CHARGE_HIT_STOP = 3;
 
 /**
  * Boss Hall: which boss each teleporter (left to right) sends you to. The first
@@ -209,6 +212,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   create(data: GameSceneData): void {
+    wearSavedSkin();
     // Scene instances are reused on restart, so reset all state here.
     this.stageId = data?.stage ?? 'foundry';
     this.bullets = [];
@@ -624,7 +628,8 @@ export class GameScene extends Phaser.Scene {
 
     const f = p.facing;
     const muzzleX = p.cx + f * 12;
-    const muzzleY = p.y + 12;
+    // Measured from the feet, so a shot fired mid-slide comes out of the cannon, not the floor.
+    const muzzleY = p.bottom - (p.h < 20 ? 7 : 10);
     let b: Projectile;
     switch (def.id) {
       case 'quake':
@@ -703,6 +708,9 @@ export class GameScene extends Phaser.Scene {
     if (def.id !== 'buster') b.power = def.power;
     b.sprite.setFlipX(f < 0);
     this.bullets.push(b);
+    // Muzzle flash: a quick pop at the cannon (bigger for charged shots).
+    this.addEffect(muzzleX + f * 2, muzzleY, 0, 0, 0, charge ? 8 : 5, true);
+    if (charge === 2) this.shake(2);
     return true;
   }
 
@@ -873,12 +881,20 @@ export class GameScene extends Phaser.Scene {
           const weak = b.weapon === boss.weakness;
           const dmg = weak ? WEAKNESS_DAMAGE : b.weapon === 'buster' ? b.power : 1;
           boss.hit(dmg, weak);
+          this.impact(b);
           if (weak) {
             // Weakness hits land hard: a freeze-frame and a shake.
             sfx.weakHit();
             this.shake(5);
             this.hitStop = WEAK_HIT_STOP;
-          } else sfx.hit();
+          } else {
+            sfx.hit();
+            if (b.charge === 2) {
+              // A full charge connecting: a beat of freeze and a thump.
+              this.hitStop = CHARGE_HIT_STOP;
+              this.shake(3);
+            }
+          }
           if (b.pierce) b.hitTargets.add(boss);
           else b.dead = true;
           if (boss.hp === 0) this.startBossDeath();
@@ -896,6 +912,8 @@ export class GameScene extends Phaser.Scene {
         e.hp -= b.power;
         e.flash = 8;
         sfx.hit();
+        this.impact(b);
+        if (b.charge === 2) this.hitStop = Math.max(this.hitStop, 2);
         if (e.hp <= 0) this.killEnemy(e);
         else if (b.weapon === 'frost') {
           e.frozen = 180;
@@ -962,6 +980,8 @@ export class GameScene extends Phaser.Scene {
     e.spawn.alive = false;
     sfx.enemyDie();
     this.addEffect(e.cx, e.cy, 0, 0, 0, 14, true);
+    // A few bits of debris thrown up and out.
+    for (let i = 0; i < 4; i++) this.addEffect(e.cx, e.cy, (Math.random() - 0.5) * 3, -1.5 - Math.random() * 1.5, 0.15, 30, false, 'shard');
     const roll = Math.random();
     const hasAmmoWeapons = this.unlocked.length > 1;
     if (roll < 0.06) this.dropPickup(e.cx, e.cy, 10, 0, 'hp_big', 12, 10);
@@ -1014,6 +1034,23 @@ export class GameScene extends Phaser.Scene {
       const a = Math.random() * Math.PI * 2;
       const sp = 0.5 + Math.random();
       this.addEffect(x, y, Math.cos(a) * sp, Math.sin(a) * sp - 0.5, 0.05, 20, false, tex);
+    }
+  }
+
+  /** Sparks where a shot connects, thrown back the way it came. */
+  private impact(b: Projectile): void {
+    const x = b.vx >= 0 ? b.x + b.w : b.x;
+    const back = b.vx >= 0 ? -1 : 1;
+    for (let i = 0; i < (b.charge === 2 ? 5 : 3); i++) {
+      this.addEffect(x, b.y + b.h / 2, back * (0.6 + Math.random() * 1.2), (Math.random() - 0.5) * 1.6, 0.04, 12, false, 'spark');
+    }
+  }
+
+  /** Puffs of dust at someone's feet, drifting `dir` (-1 / 1, 0 = both ways). */
+  dust(x: number, y: number, dir: number, n: number): void {
+    for (let i = 0; i < n; i++) {
+      const d = dir || (i % 2 === 0 ? -1 : 1);
+      this.addEffect(x + d * i * 2, y - 2, d * (0.3 + Math.random() * 0.5), -0.15 - Math.random() * 0.25, 0, 16 + Math.floor(Math.random() * 6), true, 'dust');
     }
   }
 
@@ -1663,11 +1700,20 @@ export class GameScene extends Phaser.Scene {
   /** Won an EX rematch: a star on the stage select, then back there. */
   private exClear(): void {
     if (this.clearTimer > 0) return;
+    const first = !loadSave().exCleared.includes(this.stageId);
     recordExClear(this.stageId);
     stopMusic();
     sfx.victory();
-    this.clearTimer = 200;
-    this.banner.setText('EX CLEAR!').setVisible(true);
+    // The first win unlocks this boss's color scheme for the hero.
+    const skin = skinForStage(this.stageId);
+    if (first && skin) {
+      this.clearTimer = 300;
+      this.banner.setText(`EX CLEAR!\n\nNEW COLOR: ${skin.name}\n\nWear it from the middle of\nthe EX stage select.`).setFontSize(12).setVisible(true);
+      this.time.delayedCall(700, () => sfx.pickup());
+    } else {
+      this.clearTimer = 200;
+      this.banner.setText('EX CLEAR!').setVisible(true);
+    }
   }
 
   private stageClear(): void {
