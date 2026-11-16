@@ -242,8 +242,9 @@ export class PuzzleScene extends ModeScene {
       else this.thinkScrap();
       if (!b.piece) continue;
       // Gravity, faster as the match goes on.
-      const every = Math.max(14, 42 - Math.floor(this.playT / 600) * 3);
-      const fast = b === this.you ? this.controls.isDown('down') : this.aiPlan !== null && this.aiReady();
+      const every = Math.max(12, 30 - Math.floor(this.playT / 900) * 2);
+      // Only you can hurry a piece down; Scrap's fall at the natural pace.
+      const fast = b === this.you && this.controls.isDown('down');
       if (++b.fallT >= (fast ? 2 : every)) {
         b.fallT = 0;
         const moved = { ...b.piece, r: b.piece.r + 1 };
@@ -290,12 +291,6 @@ export class PuzzleScene extends ModeScene {
   }
 
   // --- Scrap -------------------------------------------------------------------------------
-
-  /** Scrap gets quicker as the match goes on. */
-  private aiReady(): boolean {
-    const p = this.scrap.piece!;
-    return this.aiPlan !== null && p.rot === this.aiPlan.rot && p.c === this.aiPlan.c;
-  }
 
   private thinkScrap(): void {
     const b = this.scrap;
@@ -349,8 +344,8 @@ export class PuzzleScene extends ModeScene {
         options.push({ rot, c, score });
       }
     options.sort((x, y) => y.score - x.score);
-    // Not perfect: sometimes he takes his second or third idea.
-    const pick = Math.random() < 0.35 ? options[Math.min(options.length - 1, 1 + Math.floor(Math.random() * 2))] : options[0];
+    // Not perfect: about half the time he takes one of his next few ideas.
+    const pick = Math.random() < 0.5 ? options[Math.min(options.length - 1, 1 + Math.floor(Math.random() * 4))] : options[0];
     return pick ? { rot: pick.rot, c: pick.c } : { rot: p.rot, c: p.c };
   }
 

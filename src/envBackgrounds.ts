@@ -88,11 +88,19 @@ function blob(ctx: Ctx, cx: number, cy: number, rx: number, ry: number, color: s
   ctx.fill();
 }
 
-/** Puffy cloud made of overlapping ellipses, with a shaded underside. */
-function cloud(ctx: Ctx, x: number, y: number, size: number, light: string, shade: string, rnd: Rnd): void {
+/**
+ * Puffy cloud made of overlapping ellipses, with a shaded underside. It wraps
+ * around a layer `w` wide, so a cloud over the right edge carries on at the
+ * left and the repeat has no seam.
+ */
+function cloud(ctx: Ctx, x: number, y: number, size: number, light: string, shade: string, rnd: Rnd, w: number): void {
   const parts = rnd.between(3, 5);
-  for (let i = 0; i < parts; i++) blob(ctx, x + i * size * 0.6, y + rnd.between(-2, 2), size * 0.7, size * 0.45, shade);
-  for (let i = 0; i < parts; i++) blob(ctx, x + i * size * 0.6, y - 3 + rnd.between(-2, 2), size * 0.6, size * 0.38, light);
+  const low = Array.from({ length: parts }, () => rnd.between(-2, 2));
+  const high = Array.from({ length: parts }, () => rnd.between(-2, 2));
+  for (const dx of [-w, 0, w]) {
+    for (let i = 0; i < parts; i++) blob(ctx, dx + x + i * size * 0.6, y + low[i], size * 0.7, size * 0.45, shade);
+    for (let i = 0; i < parts; i++) blob(ctx, dx + x + i * size * 0.6, y - 3 + high[i], size * 0.6, size * 0.38, light);
+  }
 }
 
 // --- painters ---------------------------------------------------------------------
@@ -306,16 +314,20 @@ const sky: Painter = {
       }
       ctx.globalAlpha = 1;
       blob(ctx, w * 0.7, 40, 12, 12, '#fffbe8');
-      for (let x = -20; x < w; x += rnd.between(50, 90)) cloud(ctx, x, rnd.between(150, 200), rnd.between(16, 24), '#e8f4ff', '#b8d4f0', rnd);
+      for (let x = 0; x < w - 30; x += rnd.between(50, 90)) cloud(ctx, x, rnd.between(150, 200), rnd.between(16, 24), '#e8f4ff', '#b8d4f0', rnd, w);
     } else if (layer === 1) {
-      for (let x = -10; x < w; x += rnd.between(90, 140)) cloud(ctx, x, rnd.between(120, 210), rnd.between(24, 34), '#ffffff', '#c4dcf4', rnd);
+      for (let x = 0; x < w - 40; x += rnd.between(90, 140)) cloud(ctx, x, rnd.between(120, 210), rnd.between(24, 34), '#ffffff', '#c4dcf4', rnd, w);
     } else {
       ctx.globalAlpha = 0.7;
       for (let i = 0; i < 6; i++) {
         const x = rnd.between(0, w);
         const y = rnd.between(20, 200);
-        px(ctx, '#ffffff', x, y, rnd.between(30, 60), 2);
-        px(ctx, '#e8f4ff', x + 10, y + 3, rnd.between(20, 40), 1);
+        const l1 = rnd.between(30, 60);
+        const l2 = rnd.between(20, 40);
+        for (const dx of [-w, 0]) {
+          px(ctx, '#ffffff', dx + x, y, l1, 2);
+          px(ctx, '#e8f4ff', dx + x + 10, y + 3, l2, 1);
+        }
       }
       ctx.globalAlpha = 1;
       // A few birds.
@@ -599,7 +611,7 @@ const city: Painter = {
   paint(layer, ctx, w, h, rnd) {
     if (layer === 0) {
       bands(ctx, w, 0, h, '#8ac8ec', '#eaf6fa');
-      for (let x = -20; x < w; x += rnd.between(80, 130)) cloud(ctx, x, rnd.between(30, 80), rnd.between(14, 20), '#ffffff', '#d8ecf8', rnd);
+      for (let x = 0; x < w - 30; x += rnd.between(80, 130)) cloud(ctx, x, rnd.between(30, 80), rnd.between(14, 20), '#ffffff', '#d8ecf8', rnd, w);
       for (let x = 0; x < w; x += rnd.between(18, 30)) {
         const bh = rnd.between(40, 90);
         px(ctx, '#c4dae6', x, h - bh, rnd.between(16, 26), bh);

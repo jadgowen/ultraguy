@@ -4,18 +4,20 @@ import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import { Boss, Room } from './Boss';
 
-type Mode = 'idle' | 'jump' | 'shoot' | 'crouch' | 'dash';
+type Mode = 'idle' | 'jump' | 'shoot' | 'crouch' | 'dash' | 'hammer';
 
 /**
  * ANVIL (Foundry). Weak to Thorn Rang.
  *  - jump: leaps at the player; landing sends ground waves both ways (jump them)
  *  - shoot: 3-way aimed spread (two volleys in phase 2)
  *  - dash: crouches as a tell, then charges into the wall
+ *  - EX hammer: three quick hops at you, a ground wave each way on every landing
  */
 export class Anvil extends Boss {
   private mode: Mode = 'idle';
   private wait = 30;
   private last: Mode | null = null;
+  private hops = 0;
 
   constructor(g: GameScene, at: Point, room: Room) {
     super(g, 'anvil', 26, 30, 'thorn', at, room);
@@ -24,7 +26,7 @@ export class Anvil extends Boss {
   private setMode(m: Mode, wait = 0): void {
     this.mode = m;
     this.t = 0;
-    this.wait = wait;
+    this.wait = this.quick(wait);
   }
 
   protected think(): void {
@@ -65,6 +67,33 @@ export class Anvil extends Boss {
           this.vx = this.facing * (this.phase2 ? 4 : 3.2);
         }
         break;
+      case 'hammer': {
+        // A beat crouched (flashing), then hop, hop, hop.
+        if (this.t < 20) {
+          this.physics();
+          break;
+        }
+        if (this.grounded && this.t > 20 && this.vy === 0 && this.hops < 3 && this.wait <= 0) {
+          this.facePlayer();
+          this.vx = Phaser.Math.Clamp((this.g.player.cx - this.cx) / 30, -2.4, 2.4);
+          this.vy = -4.4;
+          this.grounded = false;
+          this.hops++;
+        }
+        if (this.wait > 0) this.wait--;
+        const r = this.physics();
+        if (r.wall) this.vx = 0;
+        if (r.landed) {
+          this.vx = 0;
+          this.g.shake(4);
+          sfx.land();
+          this.g.fireGroundWave(this.cx - 10, this.bottom, -1);
+          this.g.fireGroundWave(this.cx + 2, this.bottom, 1);
+          this.wait = 14;
+          if (this.hops >= 3) this.setMode('idle', 46);
+        }
+        break;
+      }
       case 'dash':
         if (this.physics().wall) {
           this.g.shake(4);
@@ -79,11 +108,12 @@ export class Anvil extends Boss {
   private choose(): void {
     const far = Math.abs(this.g.player.cx - this.cx) > 140;
     const options: Mode[] = far ? ['jump', 'jump', 'shoot', 'crouch'] : ['jump', 'shoot', 'shoot', 'crouch'];
-    const pool = options.filter((a) => !(a === 'crouch' && this.last === 'crouch'));
+    const pool = this.withEx(options, 'hammer').filter((a) => !((a === 'crouch' || a === 'hammer') && this.last === a));
     const pick = pool[Math.floor(Math.random() * pool.length)];
     this.last = pick;
     this.facePlayer();
     this.setMode(pick);
+    this.hops = 0;
   }
 
   private volley(): void {
@@ -99,7 +129,7 @@ export class Anvil extends Boss {
   }
 
   protected telegraph(): boolean {
-    return this.mode === 'crouch' && this.t % 6 < 3;
+    return (this.mode === 'crouch' || (this.mode === 'hammer' && this.t < 20)) && this.t % 6 < 3;
   }
 
   protected introPose(): string {
@@ -107,7 +137,7 @@ export class Anvil extends Boss {
   }
 
   protected pose(): string {
-    if (this.state === 'drop' || this.mode === 'jump') return this.grounded ? 'idle' : 'jump';
+    if (this.state === 'drop' || this.mode === 'jump' || this.mode === 'hammer') return this.grounded ? (this.mode === 'hammer' ? 'crouch' : 'idle') : 'jump';
     if (this.mode === 'shoot' && this.t >= 10) return 'shoot';
     if (this.mode === 'crouch' || this.mode === 'dash') return 'crouch';
     return 'idle';

@@ -4,13 +4,14 @@ import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import { Boss, Room } from './Boss';
 
-type Mode = 'idle' | 'leap' | 'throw' | 'vanish' | 'pounce';
+type Mode = 'idle' | 'leap' | 'throw' | 'vanish' | 'pounce' | 'rain';
 
 /**
  * MANTIS (Canopy). Weak to Cyclone.
  *  - leap: high jump that lands on the far side of the player
  *  - throw: two thorn boomerangs that fly out and curve back
  *  - vanish: fades out (can't be hit), reappears above you and drops
+ *  - EX rain: leaps to the ceiling and hurls a fan of thorns down at you
  */
 export class Mantis extends Boss {
   private mode: Mode = 'idle';
@@ -28,7 +29,7 @@ export class Mantis extends Boss {
   private setMode(m: Mode, wait = 0): void {
     this.mode = m;
     this.t = 0;
-    this.wait = wait;
+    this.wait = this.quick(wait);
   }
 
   protected think(): void {
@@ -84,6 +85,30 @@ export class Mantis extends Boss {
         if (this.t >= (this.phase2 ? 44 : 30)) this.setMode('idle', this.phase2 ? 20 : 36);
         break;
 
+      case 'rain': {
+        if (this.t === 1) {
+          this.vx = ((this.room.left + this.room.right) / 2 - this.cx) / 40;
+          this.vy = -7.4;
+          this.grounded = false;
+        }
+        // At the top of the leap: a fan of three thorns aimed at you.
+        if (this.t === 22 || (this.phase2 && this.t === 34)) {
+          const a0 = Math.atan2(p.cy - this.cy, p.cx - this.cx);
+          for (const da of [-0.32, 0, 0.32]) {
+            const a = a0 + da;
+            this.g.spawnEnemyShot({ x: this.cx - 5, y: this.cy - 5, w: 10, h: 10, vx: Math.cos(a) * 3, vy: Math.sin(a) * 3, tex: 'bthorn', dmg: 3, spin: 0.3, life: 120 });
+          }
+          sfx.enemyShot();
+        }
+        const r = this.physics();
+        if (r.wall) this.vx = 0;
+        if (r.landed && this.t > 2) {
+          sfx.land();
+          this.setMode('idle', this.phase2 ? 18 : 30);
+        }
+        break;
+      }
+
       case 'vanish':
         // Fade out, hang invisible, then reappear above the player.
         this.physics();
@@ -112,7 +137,7 @@ export class Mantis extends Boss {
 
   private choose(): void {
     const options: Mode[] = ['leap', 'leap', 'throw', 'vanish'];
-    const pool = options.filter((m) => !(m === 'vanish' && this.last === 'vanish'));
+    const pool = this.withEx(options, 'rain').filter((m) => !((m === 'vanish' || m === 'rain') && this.last === m));
     const pick = pool[Math.floor(Math.random() * pool.length)];
     this.last = pick;
     this.facePlayer();

@@ -10,7 +10,7 @@ import { PART_ORDER, PARTS } from '../parts';
 import { BOSS_STAGES, getStage } from '../level/stages';
 import { THEMES } from '../level/themes';
 import { Box, moveY, overlaps } from '../physics';
-import { MAX_TANKS, loadSave, recordClear, recordPart, setTanks } from '../save';
+import { MAX_TANKS, recordExClear, loadSave, recordClear, recordPart, setTanks } from '../save';
 import { sfx } from '../sfx';
 import { WEAPONS, WeaponId } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
@@ -53,6 +53,8 @@ export interface GameSceneData {
   stage: StageId;
   /** Start at the checkpoint just before the boss door. */
   bossTest?: boolean;
+  /** EX rematch: straight to the boss door, a tougher boss, no E-tanks. */
+  ex?: boolean;
   /** Coming back from a special-mode encounter (race, boxing, ...): where from, and how it went. */
   resume?: Resume;
 }
@@ -188,6 +190,8 @@ export class GameScene extends Phaser.Scene {
   private titleCard: Phaser.GameObjects.Container | null = null;
   private titleT = 0;
   private clearTimer = 0;
+  /** An EX rematch (see Boss.ex). */
+  exMode = false;
 
   private layer!: Phaser.Tilemaps.TilemapLayer;
   /** Wall drawn over a hidden room until the player steps inside it. */
@@ -235,6 +239,7 @@ export class GameScene extends Phaser.Scene {
     this.transition = null;
     this.doorSeq = null;
     this.clearTimer = 0;
+    this.exMode = !!data?.ex;
     this.hudKey = '';
     this.goalSprite = null;
     this.story = null;
@@ -242,7 +247,8 @@ export class GameScene extends Phaser.Scene {
 
     const stage = getStage(this.stageId);
     this.level = new Level(stage);
-    const start = DEV_TOOLS && data?.bossTest && this.level.bossTestStart ? this.level.bossTestStart : this.level.playerStart;
+    const atDoor = (DEV_TOOLS && data?.bossTest) || this.exMode;
+    const start = atDoor && this.level.bossTestStart ? this.level.bossTestStart : this.level.playerStart;
     this.checkpoint = { ...start };
 
     const theme = THEMES[stage.theme];
@@ -315,7 +321,7 @@ export class GameScene extends Phaser.Scene {
     if (this.level.goal) {
       this.goalSprite = this.add.image(this.level.goal.x, this.level.goal.y, 'goal').setOrigin(0.5, 1).setDepth(4);
     }
-    for (const t of this.level.tanks) {
+    for (const t of this.exMode ? [] : this.level.tanks) {
       const sprite = this.add.image(t.x, t.y, 'etank').setOrigin(0.5, 1).setDepth(4);
       this.tankItems.push({ box: { x: t.x - 6, y: t.y - 10, w: 12, h: 10 }, sprite, taken: false });
     }
@@ -372,12 +378,13 @@ export class GameScene extends Phaser.Scene {
     const resume = data?.resume;
     if (resume) this.prepareResume(resume);
     // Starting at the boss door (boss test) means the miniboss is behind you.
-    if (DEV_TOOLS && data?.bossTest) this.miniDefeated = true;
+    if ((DEV_TOOLS && data?.bossTest) || this.exMode) this.miniDefeated = true;
     this.respawn();
     if (resume) {
       pixelateIn(this, 800);
       this.finishResume(resume);
-    } else this.showTitleCard(stage.name, stage.tagline, theme.solid.light);
+    } else if (this.exMode) this.showTitleCard(`${stage.bossName ?? stage.name} EX`, 'no E-tanks. no mercy.', 0xff5050);
+    else this.showTitleCard(stage.name, stage.tagline, theme.solid.light);
   }
 
   /**
@@ -1312,7 +1319,8 @@ export class GameScene extends Phaser.Scene {
       }
       this.bossDefeated = true;
       const reward = this.level.data.bossWeapon;
-      if (reward) this.startWeaponGet(reward);
+      if (this.exMode) this.exClear();
+      else if (reward) this.startWeaponGet(reward);
       else this.stageClear();
     }
   }
@@ -1362,7 +1370,7 @@ export class GameScene extends Phaser.Scene {
     p.invuln = 0;
     this.stepEffects();
     if (t < 70) {
-      this.banner.setText(`${def.name} GET!`).setVisible(true);
+      this.banner.setText(`YOU GOT\n${def.title}!`).setVisible(true);
       if (t % 6 === 0) this.burst(p.cx, p.cy, 'spark', 3);
     } else {
       this.banner.setText(`${def.name}\n\n${def.blurb}`).setFontSize(12);
@@ -1397,10 +1405,10 @@ export class GameScene extends Phaser.Scene {
     this.stepEffects();
     if (t < 90) {
       p.weapon = Math.floor(t / 6) % 2 === 0 ? id : 'buster';
-      this.banner.setText('WEAPON GET!').setVisible(true);
+      this.banner.setText('NEW WEAPON!').setVisible(true);
     } else {
       p.weapon = id;
-      this.banner.setText(`YOU GOT\n${WEAPONS[id].name}\n\n(select it on the pause menu)`).setFontSize(12);
+      this.banner.setText(`YOU GOT\nTHE ${WEAPONS[id].name}!\n\nSelect it on the pause menu.`).setFontSize(12);
     }
     if (t >= 260) {
       this.weaponGetT = 0;
@@ -1652,6 +1660,16 @@ export class GameScene extends Phaser.Scene {
     return 'select';
   }
 
+  /** Won an EX rematch: a star on the stage select, then back there. */
+  private exClear(): void {
+    if (this.clearTimer > 0) return;
+    recordExClear(this.stageId);
+    stopMusic();
+    sfx.victory();
+    this.clearTimer = 200;
+    this.banner.setText('EX CLEAR!').setVisible(true);
+  }
+
   private stageClear(): void {
     if (this.clearTimer > 0) return;
     recordClear(this.stageId);
@@ -1770,7 +1788,7 @@ export class GameScene extends Phaser.Scene {
     const hint = onExit
       ? 'Z / X to leave the stage'
       : onTank
-        ? tanks === 0 ? 'none left: find them in stages' : p.hp >= p.maxHp ? 'life is already full' : 'Z / X to refill your life'
+        ? this.exMode ? 'no E-tanks in an EX rematch' : tanks === 0 ? 'none left: find them in stages' : p.hp >= p.maxHp ? 'life is already full' : 'Z / X to refill your life'
         : WEAPONS[this.unlocked[this.pauseIndex]].blurb;
     layer.add(pixelText(this, VIEW_W / 2, top + h - 22, hint, { ...style, color: '#5ef0c8' }).setOrigin(0.5));
     layer.add(pixelText(this, VIEW_W / 2, top + h - 10, 'UP/DOWN select   ENTER resume', { ...style, color: '#8a8fa8' }).setOrigin(0.5));
@@ -1794,7 +1812,7 @@ export class GameScene extends Phaser.Scene {
     if (!act) return;
     if (this.pauseIndex === this.unlocked.length) {
       const tanks = loadSave().tanks;
-      if (tanks > 0 && this.player.hp < this.player.maxHp) {
+      if (tanks > 0 && this.player.hp < this.player.maxHp && !this.exMode) {
         setTanks(tanks - 1);
         this.player.heal(this.player.maxHp);
         sfx.pickup();

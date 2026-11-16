@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { VIEW_H, VIEW_W } from '../constants';
+import { pixelText } from '../pixelFont';
 import { sfx } from '../sfx';
 import { ModeScene } from './ModeScene';
 import { makeShooterTextures } from './ShooterScene';
@@ -16,6 +17,9 @@ const OX = Math.round((VIEW_W - FW) / 2);
 const LIVES = 3;
 const GALE_HP = 105;
 const BOSS_AT = 60 * 45;
+/** The tornado only spans the bottom of the sky: fly above it. */
+const TOR_TOP = VIEW_H - 64;
+const SHIP_TOP = 96;
 
 interface Bullet {
   x: number;
@@ -52,6 +56,9 @@ export class SkiesScene extends ModeScene {
   private gale: { x: number; y: number; hp: number; t: number; attack: number; tornado: { x: number; dir: number; t: number } | null; hurt: number } | null = null;
   private clouds: { x: number; y: number; w: number; s: number }[] = [];
   private g!: Phaser.GameObjects.Graphics;
+  /** Gale's health bar, drawn over the frame. */
+  private hudG!: Phaser.GameObjects.Graphics;
+  private galeLabel!: ReturnType<typeof pixelText>;
   private galeImg!: Phaser.GameObjects.Image;
   private shipImg!: Phaser.GameObjects.Image;
   private kiteImgs: Phaser.GameObjects.Image[] = [];
@@ -66,11 +73,18 @@ export class SkiesScene extends ModeScene {
     this.ship = { x: FW / 2, y: 200, invuln: 0, lives: LIVES, power: 1, dead: 0, fireT: 0 };
     Object.assign(this, { shots: [], bullets: [], kites: [], powers: [], gale: null, kiteImgs: [] });
     this.wind = { force: 0, target: 0, warn: 0, t: 0 };
-    this.clouds = Array.from({ length: 14 }, () => ({ x: Math.random() * FW, y: Math.random() * VIEW_H, w: 20 + Math.random() * 40, s: 0.6 + Math.random() * 1.4 }));
+    this.clouds = Array.from({ length: 12 }, () => ({ x: Math.random() * FW, y: Math.random() * VIEW_H, w: 20 + Math.random() * 40, s: 0.6 + Math.random() * 1.4 }));
     this.g = this.add.graphics();
+    // The frame sits over everything in the field, so nothing spills into the margins.
+    const frame = this.add.graphics().setDepth(20);
+    frame.fillStyle(0x1a2a4a).fillRect(0, 0, OX, VIEW_H).fillRect(OX + FW, 0, VIEW_W - OX - FW, VIEW_H);
+    frame.fillStyle(0x2e4a7a).fillRect(OX - 3, 0, 3, VIEW_H).fillRect(OX + FW, 0, 3, VIEW_H);
+    frame.fillStyle(0x8ccaf0).fillRect(OX - 1, 0, 1, VIEW_H).fillRect(OX + FW, 0, 1, VIEW_H);
+    this.hudG = this.add.graphics().setDepth(21);
+    this.galeLabel = pixelText(this, OX + FW + 15, 18, 'GALE', { color: '#fff1e0', stroke: '#000000' }).setOrigin(0.5, 0).setDepth(21).setVisible(false);
     this.galeImg = this.add.image(0, -50, 'gale_idle').setScale(1.4).setDepth(6).setVisible(false);
     this.shipImg = this.add.image(0, 0, 'sh_ship').setDepth(8);
-    this.help('ARROWS FLY   HOLD FIRE SHOOT');
+    this.help('ARROWS\nFLY\n\nHOLD FIRE\nSHOOT', OX / 2, 150);
   }
 
   protected tick(): void {
@@ -98,7 +112,7 @@ export class SkiesScene extends ModeScene {
       s.x += ((c.isDown('right') ? 1 : 0) - (c.isDown('left') ? 1 : 0)) * 2.1 + w.force;
       s.y += ((c.isDown('down') ? 1 : 0) - (c.isDown('up') ? 1 : 0)) * 2.1;
       s.x = Phaser.Math.Clamp(s.x, 8, FW - 8);
-      s.y = Phaser.Math.Clamp(s.y, 110, VIEW_H - 22);
+      s.y = Phaser.Math.Clamp(s.y, SHIP_TOP, VIEW_H - 12);
       if ((c.isDown('fire') || c.isDown('jump')) && ++s.fireT % 7 === 1) {
         const spread = s.power === 1 ? [0] : s.power === 2 ? [-4, 4] : [-6, 0, 6];
         for (const dx of spread) this.shots.push({ x: s.x + dx, y: s.y - 8, vx: dx * 0.05 });
@@ -127,8 +141,7 @@ export class SkiesScene extends ModeScene {
       cl.y += cl.s;
       if (cl.y > VIEW_H + 20) Object.assign(cl, { y: -20, x: Math.random() * FW });
     }
-    const galeBar = this.gale ? `   GALE ${'#'.repeat(Math.ceil(this.gale.hp / 12))}` : '';
-    this.hud.setText(`SHIPS ${'^'.repeat(Math.max(0, s.lives))}  SHOT ${'>'.repeat(s.power)}${galeBar}`).setX(OX);
+    this.hud.setText(`SHIPS\n${'^ '.repeat(Math.max(0, s.lives))}\n\nSHOT\n${'> '.repeat(s.power)}`).setPosition(10, 30);
   }
 
   private hitShip(): void {
@@ -152,7 +165,7 @@ export class SkiesScene extends ModeScene {
     for (const k of this.kites) {
       k.t++;
       k.y += 0.9;
-      k.x = k.x0 + Math.sin(k.t / 30) * k.amp + this.wind.force * k.t * 0.2;
+      k.x = Phaser.Math.Clamp(k.x0 + Math.sin(k.t / 30) * k.amp + this.wind.force * k.t * 0.2, 10, FW - 10);
       if (k.shooter && k.t > 0 && k.t % 140 === 40 && k.y > 0 && k.y < 140) {
         const a = Math.atan2(this.ship.y - k.y, this.ship.x - k.x);
         this.bullets.push({ x: k.x, y: k.y, vx: Math.cos(a) * 1.6, vy: Math.sin(a) * 1.6, r: 2, kind: 'seed' });
@@ -234,7 +247,7 @@ export class SkiesScene extends ModeScene {
     if (tor) {
       tor.t++;
       if (tor.t > 30) tor.x += tor.dir * (rage ? 1.8 : 1.4);
-      if (tor.t > 30 && Math.abs(tor.x - s.x) < 14 && s.y > 100) this.hitShip();
+      if (tor.t > 30 && Math.abs(tor.x - s.x) < 14 && s.y > TOR_TOP - 4) this.hitShip();
       if (tor.x < -20 || tor.x > FW + 20) gl.tornado = null;
     }
     // Your shots.
@@ -271,19 +284,30 @@ export class SkiesScene extends ModeScene {
   protected draw(): void {
     const g = this.g;
     g.clear();
-    // Sky gradient and clouds.
-    g.fillStyle(0x6ab8e8).fillRect(OX, 0, FW, VIEW_H);
-    g.fillStyle(0x8ccaf0).fillRect(OX, VIEW_H * 0.5, FW, VIEW_H * 0.5);
-    for (const cl of this.clouds) {
-      g.fillStyle(0xffffff, 0.75).fillEllipse(OX + cl.x, cl.y, cl.w, cl.w * 0.4);
-      g.fillStyle(0xe6f8ff, 0.75).fillEllipse(OX + cl.x + 6, cl.y + 3, cl.w * 0.7, cl.w * 0.25);
+    // Sky: a smooth gradient (dithered pixel bands), then puffy clouds, slow ones behind.
+    const bands = 12;
+    for (let i = 0; i < bands; i++) {
+      const c = Phaser.Display.Color.Interpolate.ColorWithColor(
+        Phaser.Display.Color.ValueToColor(0x4a98d8),
+        Phaser.Display.Color.ValueToColor(0x9cd4f4),
+        bands - 1,
+        i,
+      );
+      g.fillStyle(Phaser.Display.Color.GetColor(c.r, c.g, c.b)).fillRect(OX, Math.floor((i * VIEW_H) / bands), FW, Math.ceil(VIEW_H / bands) + 1);
     }
-    // Side margins.
-    g.fillStyle(0x1a2a4a).fillRect(0, 0, OX, VIEW_H).fillRect(OX + FW, 0, VIEW_W - OX - FW, VIEW_H);
+    for (const cl of [...this.clouds].sort((a, b) => a.s - b.s)) {
+      const near = cl.s > 1.3;
+      const x = OX + cl.x;
+      const r = cl.w * 0.22;
+      g.fillStyle(0xb8dcf4, near ? 0.9 : 0.55).fillEllipse(x, cl.y + r * 0.5, cl.w, r * 1.4);
+      g.fillStyle(0xffffff, near ? 0.95 : 0.6);
+      g.fillCircle(x - cl.w * 0.22, cl.y, r).fillCircle(x + cl.w * 0.2, cl.y + r * 0.1, r * 0.9).fillCircle(x, cl.y - r * 0.45, r * 1.15);
+      g.fillEllipse(x, cl.y + r * 0.35, cl.w * 0.9, r * 1.1);
+    }
     // Wind: streaks blowing across (or arrows warning of it).
     const w = this.wind;
     if (w.warn > 0 && this.frame % 10 < 6) {
-      for (let y = 40; y < VIEW_H; y += 40) {
+      for (let y = 30; y < VIEW_H; y += 40) {
         const x = w.target > 0 ? OX + 6 : OX + FW - 14;
         g.fillStyle(0xffffff).fillTriangle(x + (w.target > 0 ? 8 : 0), y, x + (w.target > 0 ? 0 : 8), y - 5, x + (w.target > 0 ? 0 : 8), y + 5);
       }
@@ -299,9 +323,9 @@ export class SkiesScene extends ModeScene {
     // Tornado.
     const tor = this.gale?.tornado;
     if (tor) {
-      for (let y = 100; y < VIEW_H; y += 6) {
+      for (let y = TOR_TOP; y < VIEW_H + 4; y += 5) {
         const wob = Math.sin((y + this.frame * 6) / 9) * 4;
-        g.fillStyle(tor.t > 30 ? 0xc8ccd8 : 0xffffff, tor.t > 30 ? 0.9 : 0.35).fillEllipse(OX + tor.x + wob, y, 10 + (y - 100) * 0.12, 4);
+        g.fillStyle(tor.t > 30 ? 0xc8ccd8 : 0xffffff, tor.t > 30 ? 0.9 : 0.35).fillEllipse(OX + tor.x + wob, y, 8 + (VIEW_H - y) * 0.3, 4);
       }
     }
     // Gale.
@@ -319,6 +343,17 @@ export class SkiesScene extends ModeScene {
       g.fillStyle(0x1a1428).fillRect(OX + p.x - 2, p.y - 3, 2, 7).fillRect(OX + p.x - 2, p.y - 3, 5, 2).fillRect(OX + p.x + 2, p.y - 3, 1, 4).fillRect(OX + p.x - 2, p.y, 5, 1);
     }
     for (const sh of this.shots) g.fillStyle(0x5ef0c8).fillRect(OX + sh.x - 1, sh.y - 4, 2, 7);
+    // Gale's health, as a bar over the top of the field.
+    const hg = this.hudG;
+    hg.clear();
+    this.galeLabel.setVisible(!!gl);
+    if (gl) {
+      hg.fillStyle(0x1a1428).fillRect(OX + FW + 10, 30, 10, 152);
+      hg.fillStyle(0x3a2a4a).fillRect(OX + FW + 12, 32, 6, 148);
+      const h = Math.round((148 * Math.max(0, gl.hp)) / GALE_HP);
+      hg.fillStyle(0xf28c28).fillRect(OX + FW + 12, 32 + 148 - h, 6, h);
+      hg.fillStyle(0xffe14a).fillRect(OX + FW + 12, 32 + 148 - h, 2, h);
+    }
     const s = this.ship;
     this.shipImg.setPosition(OX + s.x, s.y).setVisible(s.dead === 0 && !(s.invuln > 0 && this.frame % 6 < 3));
   }

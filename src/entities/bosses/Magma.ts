@@ -4,13 +4,14 @@ import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import { Boss, Room } from './Boss';
 
-type Mode = 'idle' | 'leap' | 'lob' | 'windup' | 'charge';
+type Mode = 'idle' | 'leap' | 'lob' | 'windup' | 'charge' | 'erupt';
 
 /**
  * MAGMA (Caldera). Weak to Bubble Bomb.
  *  - leap: jumps at you; flame pillars burst up on both sides where it lands
  *  - lob: arcs of fireballs
  *  - charge: flashes, then rushes across the room trailing fire
+ *  - EX erupt: flame pillars ripple out from it both ways (jump each as it reaches you)
  */
 export class Magma extends Boss {
   private mode: Mode = 'idle';
@@ -24,11 +25,11 @@ export class Magma extends Boss {
   private setMode(m: Mode, wait = 0): void {
     this.mode = m;
     this.t = 0;
-    this.wait = wait;
+    this.wait = this.quick(wait);
   }
 
-  private pillar(x: number): void {
-    this.g.spawnEnemyShot({ x: x - 6, y: this.room.floor - 30, w: 12, h: 30, vx: 0, vy: 0, tex: 'pillar', dmg: 4, life: 28 });
+  private pillar(x: number, life = 28): void {
+    this.g.spawnEnemyShot({ x: x - 6, y: this.room.floor - 30, w: 12, h: 30, vx: 0, vy: 0, tex: 'pillar', dmg: 4, life });
   }
 
   protected think(): void {
@@ -75,6 +76,25 @@ export class Magma extends Boss {
         if (this.t >= 64) this.setMode('idle', 28);
         break;
 
+      case 'erupt': {
+        this.physics();
+        // Rings of pillars, 24px apart, every 9 frames; a second wave in phase 2.
+        const waves = this.phase2 ? [24, 70] : [24];
+        for (const w0 of waves) {
+          const k = (this.t - w0) / 9;
+          if (k >= 1 && Number.isInteger(k)) {
+            for (const dir of [-1, 1]) {
+              const x = this.cx + dir * k * 24;
+              // Short-lived, so the ripple is a narrow band you can jump through.
+              if (x > this.room.left + 4 && x < this.room.right - 4) this.pillar(x, 14);
+            }
+            if (k === 1) sfx.flame();
+          }
+        }
+        if (this.t >= (this.phase2 ? 150 : 110)) this.setMode('idle', 30);
+        break;
+      }
+
       case 'windup':
         this.physics();
         if (this.t >= (this.phase2 ? 18 : 28)) {
@@ -101,7 +121,7 @@ export class Magma extends Boss {
 
   private choose(): void {
     const options: Mode[] = ['leap', 'lob', 'windup', 'leap'];
-    const pool = options.filter((m) => m !== this.last);
+    const pool = this.withEx(options, 'erupt').filter((m) => m !== this.last);
     const pick = pool[Math.floor(Math.random() * pool.length)];
     this.last = pick;
     this.facePlayer();
@@ -109,7 +129,7 @@ export class Magma extends Boss {
   }
 
   protected telegraph(): boolean {
-    return this.mode === 'windup' && this.t % 6 < 3;
+    return (this.mode === 'windup' || (this.mode === 'erupt' && this.t < 24)) && this.t % 6 < 3;
   }
 
   protected introPose(): string {
@@ -118,7 +138,7 @@ export class Magma extends Boss {
 
   protected pose(): string {
     if (!this.grounded) return 'jump';
-    if (this.mode === 'lob' || this.mode === 'windup' || this.mode === 'charge') return 'throw';
+    if (this.mode === 'lob' || this.mode === 'windup' || this.mode === 'charge' || this.mode === 'erupt') return 'throw';
     return 'idle';
   }
 }

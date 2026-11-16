@@ -4,19 +4,22 @@ import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import { Boss, Room } from './Boss';
 
-type Mode = 'idle' | 'warpOut' | 'warpIn' | 'orbs' | 'strike';
+type Mode = 'idle' | 'warpOut' | 'warpIn' | 'orbs' | 'strike' | 'grid';
 
 /**
  * VOLT (Power Plant). Weak to Saw Blade.
  *  - warp: fades out (can't be hit) and reappears at another spot
  *  - orbs: a fan of electric orbs aimed at you
  *  - strike: sparks mark the floor where you stand, then lightning falls there
+ *  - EX grid: sparks mark every other strip of floor, lightning falls, then the other strips
  */
 export class Volt extends Boss {
   private mode: Mode = 'idle';
   private wait = 30;
   private last: Mode | null = null;
   private strikeX: number[] = [];
+  /** Floor glow marking where the EX grid's lightning will fall. */
+  private mark: Phaser.GameObjects.Graphics | null = null;
 
   constructor(g: GameScene, at: Point, room: Room) {
     super(g, 'volt', 24, 28, 'saw', at, room);
@@ -29,7 +32,7 @@ export class Volt extends Boss {
   private setMode(m: Mode, wait = 0): void {
     this.mode = m;
     this.t = 0;
-    this.wait = wait;
+    this.wait = this.quick(wait);
   }
 
   protected think(): void {
@@ -77,6 +80,41 @@ export class Volt extends Boss {
         if (this.t >= 50) this.setMode('idle', this.phase2 ? 16 : 30);
         break;
 
+      case 'grid': {
+        this.physics();
+        const mark = (this.mark ??= this.g.add.graphics().setDepth(5));
+        mark.clear();
+        const W = 24;
+        const cols = Math.floor((this.room.right - this.room.left) / W);
+        const sets = this.phase2 ? [0, 1, 0] : [0, 1];
+        sets.forEach((parity, i) => {
+          const markT = 10 + i * 56;
+          for (let c = parity; c < cols; c += 2) {
+            const x = this.room.left + c * W;
+            // The warning: each marked stretch of floor glows (and a spark or two).
+            if (this.t > markT && this.t < markT + 40) {
+              const on = this.t > markT + 28 ? this.t % 4 < 2 : this.t % 8 < 6;
+              if (on) mark.fillStyle(0x5ef0c8, 0.55).fillRect(x + 2, this.room.floor - 6, W - 4, 6).fillStyle(0xffffff, 0.8).fillRect(x + 2, this.room.floor - 2, W - 4, 2);
+              if (this.t % 8 === c % 8) this.g.burst(x + W / 2, this.room.floor - 2, 'spark', 1);
+            }
+            if (this.t === markT + 40) {
+              for (const ox of [2, 9, 16]) {
+                for (let k = 0; k < 4; k++) this.g.spawnEnemyShot({ x: x + ox, y: this.room.top + k * 40, w: 6, h: 12, vx: 0, vy: 7, tex: 'bolt', dmg: 4, life: 40 });
+              }
+            }
+          }
+          if (this.t === markT + 40) {
+            this.g.shake(3);
+            sfx.zap();
+          }
+        });
+        if (this.t >= 10 + sets.length * 56 + 20) {
+          mark.clear();
+          this.setMode('idle', 30);
+        }
+        break;
+      }
+
       case 'strike': {
         this.physics();
         const marks = this.phase2 ? 3 : 2;
@@ -101,10 +139,20 @@ export class Volt extends Boss {
 
   private choose(): void {
     const options: Mode[] = ['warpOut', 'orbs', 'strike', 'orbs'];
-    const pool = options.filter((m) => m !== this.last);
+    const pool = this.withEx(options, 'grid').filter((m) => m !== this.last);
     const pick = pool[Math.floor(Math.random() * pool.length)];
     this.last = pick;
     this.setMode(pick);
+  }
+
+  hit(dmg: number, weak: boolean): void {
+    super.hit(dmg, weak);
+    if (this.state === 'dying') this.mark?.clear();
+  }
+
+  destroy(): void {
+    this.mark?.destroy();
+    super.destroy();
   }
 
   protected introPose(): string {
@@ -112,7 +160,7 @@ export class Volt extends Boss {
   }
 
   protected pose(): string {
-    if (this.mode === 'orbs' || this.mode === 'strike') return 'cast';
+    if (this.mode === 'orbs' || this.mode === 'strike' || this.mode === 'grid') return 'cast';
     return 'idle';
   }
 }

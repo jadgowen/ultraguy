@@ -4,13 +4,14 @@ import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import { Boss, Room } from './Boss';
 
-type Mode = 'idle' | 'toss' | 'magnet' | 'stomp';
+type Mode = 'idle' | 'toss' | 'magnet' | 'stomp' | 'barrage';
 
 /**
  * SCRAP (Scrapyard). Weak to Flame Burst.
  *  - toss: throws saw blades that land and roll along the floor (jump them)
  *  - magnet: drags you toward it while junk orbits in (walk away!)
  *  - stomp: big jump; landing shakes scrap loose from the ceiling
+ *  - EX barrage: three saws at once (short, middle, long), then a hail of junk
  */
 export class Scrap extends Boss {
   private mode: Mode = 'idle';
@@ -24,7 +25,7 @@ export class Scrap extends Boss {
   private setMode(m: Mode, wait = 0): void {
     this.mode = m;
     this.t = 0;
-    this.wait = wait;
+    this.wait = this.quick(wait);
   }
 
   protected think(): void {
@@ -45,6 +46,24 @@ export class Scrap extends Boss {
           sfx.thorn();
         }
         if (this.t >= (this.phase2 ? 90 : 64)) this.setMode('idle', 28);
+        break;
+
+      case 'barrage':
+        this.physics();
+        if (this.t === 20 || (this.phase2 && this.t === 70)) {
+          this.facePlayer();
+          for (const v of [1.1, 1.9, 2.8]) {
+            this.g.spawnEnemyShot({ x: this.cx - 7, y: this.y, w: 14, h: 14, vx: this.facing * v, vy: -3.4, tex: 'sawshot', dmg: 4, spin: 0.4 * this.facing, rolls: true });
+          }
+          sfx.thorn();
+        }
+        if (this.t === 44) {
+          for (let i = 0; i < 3; i++) {
+            const x = Phaser.Math.Between(this.room.left + 8, this.room.right - 16);
+            this.g.spawnEnemyShot({ x, y: this.room.top - i * 24, w: 8, h: 8, vx: 0, vy: 1, tex: 'scrap', dmg: 3, gravity: true, spin: 0.2 });
+          }
+        }
+        if (this.t >= (this.phase2 ? 110 : 80)) this.setMode('idle', 30);
         break;
 
       case 'magnet': {
@@ -91,7 +110,7 @@ export class Scrap extends Boss {
 
   private choose(): void {
     const options: Mode[] = ['toss', 'magnet', 'stomp', 'toss'];
-    const pool = options.filter((m) => m !== this.last);
+    const pool = this.withEx(options, 'barrage').filter((m) => m !== this.last);
     const pick = pool[Math.floor(Math.random() * pool.length)];
     this.last = pick;
     this.facePlayer();
@@ -105,6 +124,7 @@ export class Scrap extends Boss {
   protected pose(): string {
     if (this.mode === 'magnet' && this.t > 16) return 'magnet';
     if (this.mode === 'toss' && this.t % 26 < 12) return 'toss';
+    if (this.mode === 'barrage' && this.t >= 12 && this.t < 30) return 'toss';
     return 'idle';
   }
 }

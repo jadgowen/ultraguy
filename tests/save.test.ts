@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_TANKS, clearSave, loadSave, recordClear, recordPart, setTanks, slotKey, slotUsed } from '../src/save';
+import { MAX_TANKS, clearSave, exUnlocked, loadSave, recordClear, recordExClear, recordPart, setTanks, slotKey, slotUsed } from '../src/save';
 import { updateSettings } from '../src/settings';
 
 const useSlot = (slot: number) =>
@@ -9,7 +9,7 @@ const useSlot = (slot: number) =>
 
 describe('save data', () => {
   it('starts fresh: just the Ultra Gun, nothing cleared', () => {
-    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [] });
+    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [] });
   });
 
   it('records cleared stages and weapons once, in weapon order', () => {
@@ -84,5 +84,15 @@ describe('save slots', () => {
     expect(slotUsed(1)).toBe(false);
     expect(loadSave(1).cleared).toEqual([]);
     expect(loadSave(2).cleared).toEqual(['glacier']);
+  });
+
+  it('records EX clears and unlocks EX after the finale', () => {
+    useSlot(1);
+    expect(exUnlocked()).toBe(false);
+    recordClear('finale');
+    expect(exUnlocked()).toBe(true);
+    recordExClear('reef');
+    recordExClear('reef');
+    expect(loadSave().exCleared).toEqual(['reef']);
   });
 });

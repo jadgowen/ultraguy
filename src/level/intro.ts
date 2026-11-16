@@ -34,20 +34,22 @@ export const INTRO: StageData = {
     Y: [CEIL, CEIL, ...rows('...............#', 9), '.........###...#', '.........##X...#', FLOOR, FLOOR],
   },
   decor: [
-    // Store interior wall (hides the skyline), with a green and orange stripe.
-    { rect: { w: 512, h: 176, fill: 0xf4f1ea }, x: STORE_X, y: 32, depth: 0.5 },
-    { rect: { w: 512, h: 6, fill: 0x2e9a4a }, x: STORE_X, y: 96, depth: 0.6 },
-    { rect: { w: 512, h: 4, fill: 0xf07a28 }, x: STORE_X, y: 102, depth: 0.6 },
-    { rect: { w: 512, h: 8, fill: 0xd8d4cc }, x: STORE_X, y: 200, depth: 0.6 },
+    // The QUIK MART: 16-bit art from storeArt.ts. The interior covers the tiles
+    // (ceiling, back wall and floor), and the counter stands in front of Jared.
+    { tex: 'store_roof', x: H_X + 160, y: 0 },
     { tex: 'storefront', x: H_X + 160, y: 32 },
+    { tex: 'store_low', x: H_X + 160, y: 160, depth: 0.5 },
     { text: 'QUIK MART', x: H_X + 166, y: 37, color: '#ffffff', size: 12 },
-    { tex: 'store_shelf', x: STORE_X + 60, y: 152 },
-    { tex: 'store_shelf', x: STORE_X + 120, y: 152 },
-    { tex: 'store_shelf', x: STORE_X + 180, y: 152 },
-    { tex: 'store_cooler', x: STORE_X + 300, y: 144 },
-    { text: 'QUIK MART', x: STORE_X + 190, y: 46, color: '#f07a28', size: 16 },
-    { text: 'OPEN 24 HOURS   HOT DOGS 2 FOR $3', x: STORE_X + 150, y: 68, color: '#2e9a4a', size: 8 },
-    // The counter is drawn in front of Jared (depth 7 > boss depth 6).
+    { tex: 'store_ceiling', x: STORE_X, y: 0, depth: 0.5 },
+    { tex: 'store_wall', x: STORE_X, y: 32, depth: 0.5 },
+    { tex: 'store_floor', x: STORE_X, y: 208, depth: 0.5 },
+    { tex: 'store_sign', x: STORE_X + 150, y: 40, depth: 0.6 },
+    { text: 'QUIK MART', x: STORE_X + 202, y: 46, color: '#ffb060', size: 16 },
+    { text: 'OPEN 24 HOURS   HOT DOGS 2 FOR $3', x: STORE_X + 157, y: 68, color: '#fff1e0', size: 8 },
+    { tex: 'store_shelf', x: STORE_X + 40, y: 136 },
+    { tex: 'store_shelf', x: STORE_X + 112, y: 136 },
+    { tex: 'store_shelf', x: STORE_X + 184, y: 136 },
+    { tex: 'store_cooler', x: STORE_X + 296, y: 128 },
     { tex: 'store_counter', x: STORE_X + 256 + 144, y: 164, depth: 7 },
   ],
 };

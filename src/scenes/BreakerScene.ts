@@ -17,11 +17,12 @@ const BOTTOM = 232;
 const BW = 20; // brick size
 const BH = 8;
 const BCOLS = FW / BW; // 12
-const BROWS = 7;
+const BROWS = 5;
 const WALL_Y = 66; // top of the brick wall
 const PADDLE_Y = 214;
 const BALLS = 3;
-const ANVIL_HP = 8;
+const ANVIL_HP = 5;
+const PW = 60; // paddle width
 
 /** 0 empty, 1 brick, 2 iron (two hits), 3 hot (drops a power-up). */
 type Brick = 0 | 1 | 2 | 3;
@@ -43,7 +44,7 @@ export class BreakerScene extends ModeScene {
   private bricks: Brick[][] = [];
   private balls: Ball[] = [];
   private px = FW / 2;
-  private pw = 34;
+  private pw = PW;
   private wideT = 0;
   private slowT = 0;
   private stunT = 0;
@@ -51,7 +52,7 @@ export class BreakerScene extends ModeScene {
   private anvil = { x: FW / 2, dir: 1, hp: ANVIL_HP, hurtT: 0, swingT: 0 };
   private sparks: { x: number; y: number; vx: number; vy: number }[] = [];
   private drops: { x: number; y: number; kind: Power }[] = [];
-  private speed = 2.4;
+  private speed = 2.8;
   private g!: Phaser.GameObjects.Graphics;
   private anvilImg!: Phaser.GameObjects.Image;
 
@@ -62,12 +63,12 @@ export class BreakerScene extends ModeScene {
   protected setup(): void {
     this.bricks = Array.from({ length: BROWS }, (_, r) =>
       Array.from({ length: BCOLS }, (_, c) => {
-        if (r === 0 || r === 1) return 2 as Brick;
-        return ((r * 7 + c * 5) % 9 === 0 ? 3 : 1) as Brick;
+        if (r === 0) return 2 as Brick;
+        return ((r * 7 + c * 5) % 6 === 0 ? 3 : 1) as Brick;
       }),
     );
     this.balls = [{ x: 0, y: 0, vx: 0, vy: 0, stuck: true }];
-    Object.assign(this, { px: FW / 2, pw: 34, wideT: 0, slowT: 0, stunT: 0, lives: BALLS, sparks: [], drops: [], speed: 2.4 });
+    Object.assign(this, { px: FW / 2, pw: PW, wideT: 0, slowT: 0, stunT: 0, lives: BALLS, sparks: [], drops: [], speed: 2.8 });
     this.anvil = { x: FW / 2, dir: 1, hp: ANVIL_HP, hurtT: 0, swingT: 0 };
     this.cameras.main.setBackgroundColor('#140a08');
     this.g = this.add.graphics();
@@ -78,9 +79,11 @@ export class BreakerScene extends ModeScene {
   protected tick(): void {
     const c = this.controls;
     // Paddle.
+    // A spark hit only slows the paddle for a moment.
+    const pspeed = this.stunT > 0 ? 2.4 : 4.6;
     if (this.stunT > 0) this.stunT--;
-    else this.px = Phaser.Math.Clamp(this.px + ((c.isDown('right') ? 1 : 0) - (c.isDown('left') ? 1 : 0)) * 3.2, this.pw / 2, FW - this.pw / 2);
-    if (this.wideT > 0 && --this.wideT === 0) this.pw = 34;
+    this.px = Phaser.Math.Clamp(this.px + ((c.isDown('right') ? 1 : 0) - (c.isDown('left') ? 1 : 0)) * pspeed, this.pw / 2, FW - this.pw / 2);
+    if (this.wideT > 0 && --this.wideT === 0) this.pw = PW;
     if (this.slowT > 0) this.slowT--;
     for (const b of this.balls) {
       if (!b.stuck) continue;
@@ -95,7 +98,7 @@ export class BreakerScene extends ModeScene {
       }
     }
     // Balls (in small sub-steps so they can't tunnel through a brick).
-    this.speed = Math.min(3.4, 2.4 + this.playT / 3600);
+    this.speed = Math.min(3.6, 2.8 + this.playT / 3600);
     for (const b of this.balls) if (!b.stuck) for (let i = 0; i < 3; i++) this.moveBall(b, 1 / 3);
     this.balls = this.balls.filter((b) => b.y < BOTTOM + 6);
     if (!this.balls.length) {
@@ -141,6 +144,8 @@ export class BreakerScene extends ModeScene {
       sfx.weakHit();
       this.cameras.main.shake(160, 0.01);
       if (a.hp <= 0) this.finish(true, 'ANVIL IS DOWN!');
+      // A hit knocks a multiball loose from his forge.
+      else this.drops.push({ x: a.x, y: 60, kind: 'multi' });
       return;
     }
     // Bricks: bounce off the side we came in from.
@@ -176,8 +181,9 @@ export class BreakerScene extends ModeScene {
     this.bricks[r][c] = 0;
     sfx.crumble();
     if (kind === 3) {
-      const kinds: Power[] = ['wide', 'multi', 'slow'];
-      this.drops.push({ x: c * BW + BW / 2, y: WALL_Y + r * BH, kind: kinds[Math.floor(Math.random() * 3)] });
+      // Multiball is the common one.
+      const kinds: Power[] = ['multi', 'multi', 'multi', 'wide', 'slow'];
+      this.drops.push({ x: c * BW + BW / 2, y: WALL_Y + r * BH, kind: kinds[Math.floor(Math.random() * kinds.length)] });
     }
   }
 
@@ -188,16 +194,14 @@ export class BreakerScene extends ModeScene {
     if (a.x < 20 || a.x > FW - 20) a.dir = -a.dir;
     // Hammer down a shower of sparks at you, every couple of seconds.
     a.swingT++;
-    const every = Math.max(130, 210 - (ANVIL_HP - a.hp) * 10);
+    const every = Math.max(200, 300 - (ANVIL_HP - a.hp) * 20);
     if (a.swingT % every === 0) {
       sfx.crush();
-      for (const s of [-0.6, 0.6]) {
-        const ang = Math.atan2(PADDLE_Y - 50, this.px - a.x) + s * 0.25;
-        this.sparks.push({ x: a.x, y: 50, vx: Math.cos(ang) * 1.6, vy: Math.sin(ang) * 1.6 });
-      }
+      const ang = Math.atan2(PADDLE_Y - 50, this.px - a.x);
+      this.sparks.push({ x: a.x, y: 50, vx: Math.cos(ang) * 1.5, vy: Math.sin(ang) * 1.5 });
     }
     // Patch a hole in the wall now and then.
-    if (a.swingT % 420 === 210) {
+    if (a.swingT % 900 === 450) {
       for (let tries = 0; tries < 20; tries++) {
         const r = Math.floor(Math.random() * 3);
         const c = Math.floor(Math.random() * BCOLS);
@@ -214,7 +218,7 @@ export class BreakerScene extends ModeScene {
       // Sparks pass through the wall (they're falling embers).
       if (this.stunT === 0 && s.y > PADDLE_Y - 4 && s.y < PADDLE_Y + 4 && Math.abs(s.x - this.px) < this.pw / 2) {
         s.y = 999;
-        this.stunT = 20;
+        this.stunT = 45;
         sfx.hurt();
       }
     }
@@ -228,12 +232,18 @@ export class BreakerScene extends ModeScene {
         d.y = 999;
         sfx.pickup();
         if (d.kind === 'wide') {
-          this.pw = 52;
+          this.pw = 84;
           this.wideT = 600;
         } else if (d.kind === 'slow') this.slowT = 480;
         else {
-          const src = this.balls.find((b) => !b.stuck) ?? this.balls[0];
-          for (const s of [-1, 1]) this.balls.push({ x: src.x, y: src.y, vx: src.vx + s * 1.2, vy: src.vy || -2, stuck: false });
+          // Two more balls from every ball in play (up to eight).
+          for (const src of this.balls.filter((b) => !b.stuck).slice(0, 3)) {
+            for (const s of [-1, 1]) {
+              if (this.balls.length >= 8) break;
+              this.balls.push({ x: src.x, y: src.y, vx: src.vx + s * 1.2, vy: -Math.abs(src.vy || 2), stuck: false });
+            }
+          }
+          if (!this.balls.some((b) => !b.stuck)) for (const s of [-1, 1]) this.balls.push({ x: this.px, y: PADDLE_Y - 6, vx: s * 1.2, vy: -2, stuck: false });
         }
       }
     }
@@ -274,7 +284,11 @@ export class BreakerScene extends ModeScene {
     for (const d of this.drops) {
       g.fillStyle(0x1a1428).fillRect(OX + d.x - 6, d.y - 4, 12, 8);
       g.fillStyle(dropColor[d.kind]).fillRect(OX + d.x - 5, d.y - 3, 10, 6);
-      g.fillStyle(0xffffff).fillRect(OX + d.x - 1, d.y - 1, 2, 2);
+      // An icon: three balls for MULTI, a long bar for WIDE, one dot for SLOW.
+      g.fillStyle(0xffffff);
+      if (d.kind === 'multi') for (const dx of [-3, 0, 3]) g.fillRect(OX + d.x + dx - 1, d.y - 1, 2, 2);
+      else if (d.kind === 'wide') g.fillRect(OX + d.x - 4, d.y - 1, 8, 2);
+      else g.fillRect(OX + d.x - 1, d.y - 1, 2, 2);
     }
     // Paddle (flickers while stunned) and balls.
     const stunned = this.stunT > 0 && this.frame % 6 < 3;

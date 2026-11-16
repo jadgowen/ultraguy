@@ -38,13 +38,13 @@ change the game entirely; each is its own scene, entered through a dialogue and 
 
 | Where | Fight | Mode | Scene |
 |---|---|---|---|
-| Boss Hall capsule | Anvil | brick-breaker: smash his forge wall and hit him behind it; dodge his sparks; he patches holes | `BreakerScene.ts` |
+| Boss Hall capsule | Anvil | brick-breaker: smash his forge wall and hit him behind it; his sparks slow your paddle; hot bricks (and every hit on him) drop multiballs; he patches holes | `BreakerScene.ts` |
 | Boss Hall capsule | Mantis | top-down dungeon: four rooms, keys, a hookshot that swings you across chasms; Mantis guards until you stun him | `DungeonScene.ts` |
 | Boss Hall capsule | Frostline | one-on-one ice hockey: slippery skating, shots and body checks, first to 3 | `HockeyScene.ts` |
-| Boss Hall capsule | Gale | vertical sky shooter: kites, wind gusts that shove your ship, then Gale's feathers, blades and tornado | `SkiesScene.ts` |
+| Boss Hall capsule | Gale | vertical sky shooter: kites, wind gusts that shove your ship, then Gale's feathers, blades and a low tornado you can fly over | `SkiesScene.ts` |
 | Boss Hall capsule | Volt | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
 | Boss Hall capsule | Scrap | versus falling-block puzzle: crush four of a kind, chains bury him in scrap | `PuzzleScene.ts` |
-| Boss Hall capsule | Tide | undersea pinball: hit Tide while his shell is open; lanes pry it open, targets start a multiball | `PinballScene.ts` |
+| Boss Hall capsule | Tide | undersea pinball: hit Tide while his shell is open; lanes pry it open, targets start a multiball; a ball saver after each serve | `PinballScene.ts` |
 | Boss Hall capsule | Magma | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
 | Boss Hall bonus | Gatekeeper | behind-the-back boxing, three rounds, Coach Jared in your corner | `BoxingScene.ts` |
 | Boss Hall bonus (after beating the game) | Overlord | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
@@ -78,6 +78,12 @@ Four armor parts are hidden in boss stages, each in an upgrade capsule:
 - ARMOR (Stratos, on a ledge only a double jump reaches): a quarter less damage.
 - HELMET (Glacier, behind frozen blocks that Flame Burst melts): life and weapon energy go from 28 to 36.
 Saves from before parts existed that had beaten a boss get all four.
+
+**EX rematches.** Once the game is beaten, press X (FIRE) on stage select to switch to EX. An EX rematch
+starts at the boss door with no E-tanks. The boss takes about 40% less damage, waits less between attacks,
+and has one new attack: Anvil's triple hammer hops, Mantis's thorn rain, Frostline's blizzard (find the gap),
+Gale's twin dive, Volt's lightning grid (stand on the dark strips), Magma's eruption ripple, Scrap's saw
+barrage and Tide's bubble rings. Each EX win puts a star on that boss's panel.
 
 ## Audio
 `npm run audio` asks ElevenLabs for one looping chiptune track per area and a set of sound effects,

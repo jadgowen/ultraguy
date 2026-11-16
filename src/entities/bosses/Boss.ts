@@ -41,6 +41,8 @@ export abstract class Boss {
   protected flash = 0;
   protected alpha = 1;
   readonly sprite: Phaser.GameObjects.Image;
+  /** EX rematch (after the game is beaten): tougher, quicker, and an extra attack. */
+  readonly ex: boolean;
 
   constructor(
     protected g: GameScene,
@@ -55,6 +57,17 @@ export abstract class Boss {
     this.x = at.x - w / 2;
     this.y = room.top; // drops in from the top of the room
     this.sprite = g.add.image(0, 0, `${kind}_idle`).setOrigin(0.5, 1).setDepth(6);
+    this.ex = g.exMode;
+  }
+
+  /** A pause between attacks: shorter in EX. */
+  protected quick(frames: number): number {
+    return this.ex ? Math.round(frames * 0.65) : frames;
+  }
+
+  /** The attack pool, plus the EX-only attack in an EX rematch. */
+  protected withEx<T>(options: T[], exMove: T): T[] {
+    return this.ex ? [...options, exMove] : options;
   }
 
   /** Texture prefix (`${texKey}_${pose}`); defaults to the boss kind. */
@@ -151,6 +164,8 @@ export abstract class Boss {
   }
 
   hit(dmg: number, weak: boolean): void {
+    // EX bosses are tougher: hits do about 40% less (at least 1).
+    if (this.ex) dmg = Math.max(1, Math.round(dmg * 0.6));
     this.hp = Math.max(0, this.hp - dmg);
     this.barHp = this.hp;
     this.invuln = weak ? 28 : 14;

@@ -4,13 +4,14 @@ import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import { Boss, Room } from './Boss';
 
-type Mode = 'rise' | 'cruise' | 'aim' | 'dash' | 'bubbles' | 'dive' | 'geyser';
+type Mode = 'rise' | 'cruise' | 'aim' | 'dash' | 'bubbles' | 'dive' | 'geyser' | 'ring';
 
 /**
  * TIDE (Reef). Weak to Spark Ring. Swims after the intro.
  *  - dash: flashes, then charges straight across at your height
  *  - bubbles: releases slow bubbles that drift toward you
  *  - geyser: dives to the floor and sends water spouts up under you
+ *  - EX ring: swims to the middle and blows rings of bubbles outward
  */
 export class Tide extends Boss {
   private mode: Mode = 'rise';
@@ -53,7 +54,7 @@ export class Tide extends Boss {
         const tx = this.side > 0 ? this.room.right - 40 : this.room.left + 40;
         this.swimTo(tx, cruiseY + Math.sin(this.t * 0.06) * 10, this.phase2 ? 1.8 : 1.3);
         this.facePlayer();
-        if (this.t >= (this.phase2 ? 50 : 70)) this.choose();
+        if (this.t >= this.quick(this.phase2 ? 50 : 70)) this.choose();
         break;
       }
 
@@ -83,6 +84,27 @@ export class Tide extends Boss {
         }
         if (this.t >= 100) this.endAttack();
         break;
+
+      case 'ring': {
+        const midX = (this.room.left + this.room.right) / 2;
+        if (this.t < 40) {
+          this.swimTo(midX, this.room.floor - 90, 2.2);
+          break;
+        }
+        const rings = this.phase2 ? 3 : 2;
+        for (let i = 0; i < rings; i++) {
+          if (this.t === 46 + i * 34) {
+            const n = 10;
+            for (let k = 0; k < n; k++) {
+              const a = ((k + (i % 2) * 0.5) / n) * Math.PI * 2;
+              this.g.spawnEnemyShot({ x: this.cx - 5, y: this.cy - 5, w: 10, h: 10, vx: Math.cos(a) * 1.3, vy: Math.sin(a) * 1.3, tex: 'bbubble', dmg: 3, life: 200 });
+            }
+            sfx.bubble();
+          }
+        }
+        if (this.t >= 46 + rings * 34 + 20) this.endAttack();
+        break;
+      }
 
       case 'dive':
         this.facePlayer();
@@ -118,14 +140,14 @@ export class Tide extends Boss {
 
   private choose(): void {
     const options: Mode[] = ['aim', 'bubbles', 'dive'];
-    const pool = options.filter((m) => m !== this.last);
+    const pool = this.withEx(options, 'ring').filter((m) => m !== this.last);
     const pick = pool[Math.floor(Math.random() * pool.length)];
     this.last = pick;
     this.setMode(pick);
   }
 
   protected telegraph(): boolean {
-    return this.mode === 'aim' && this.t > 10 && this.t % 6 < 3;
+    return ((this.mode === 'aim' && this.t > 10) || (this.mode === 'ring' && this.t >= 30 && this.t < 46)) && this.t % 6 < 3;
   }
 
   protected introPose(): string {
@@ -134,7 +156,7 @@ export class Tide extends Boss {
 
   protected pose(): string {
     if (this.mode === 'dash' || this.mode === 'aim') return 'dash';
-    if (this.mode === 'bubbles' || this.mode === 'geyser') return 'open';
+    if (this.mode === 'bubbles' || this.mode === 'geyser' || this.mode === 'ring') return 'open';
     return 'swim';
   }
 }

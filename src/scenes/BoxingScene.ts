@@ -316,8 +316,9 @@ export class BoxingScene extends Phaser.Scene {
         if (this.yT >= 26) this.toIdle();
         return;
       case 'tired':
-        if (this.yT >= 150) {
-          this.hearts = 6;
+        // Out of hearts: winded for a moment (no punches), then a few back.
+        if (this.yT >= 80) {
+          this.hearts = 8;
           this.toIdle();
         }
         return;
@@ -329,6 +330,8 @@ export class BoxingScene extends Phaser.Scene {
         if (this.yT % 50 === 0) sfx.tick();
         if (this.mash >= 12 + this.yDowns * 4) {
           this.hp = Math.round(MAX_HP * 0.4);
+          // Back up with your wind back: fresh hearts, not winded.
+          this.hearts = Math.max(this.hearts, 12);
           this.mash = 0;
           this.info.setText('');
           this.toIdle();

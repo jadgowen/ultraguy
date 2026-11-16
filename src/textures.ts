@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import type { ThemeId } from './level/Level';
 import { THEMES, Theme } from './level/themes';
 import { makeEnvArt } from './envArt';
+import { makeStoreArt } from './storeArt';
 import { makePixelFont } from './pixelFont';
 import { makeHazardTextures } from './scenes/hazards';
 
@@ -358,62 +359,6 @@ function makeBackground(scene: Phaser.Scene, id: ThemeId, t: Theme): void {
   });
 }
 
-// --- intro store scenery ---------------------------------------------------------------
-
-const STORE = { orange: 0xf07a28, green: 0x2e9a4a, red: 0xd83a4a, white: 0xffffff, glass: 0x9ac8e0, shelf: 0x8a8fa8 };
-
-/** Convenience-store scenery for the intro stage (storefront, aisles, counter). */
-function makeStoreDecor(scene: Phaser.Scene): void {
-  const stripes = (g: G, x: number, y: number, w: number) => {
-    rect(g, STORE.orange, x, y, w, 4);
-    rect(g, STORE.green, x, y + 4, w, 4);
-    rect(g, STORE.white, x, y + 8, w, 2);
-    rect(g, STORE.red, x, y + 10, w, 2);
-  };
-  // Storefront over the door: sign band, stripes and a big window.
-  make(scene, 'storefront', 96, 128, (g) => {
-    rect(g, 0xf4f1ea, 0, 0, 96, 128);
-    rect(g, STORE.green, 0, 0, 96, 22);
-    stripes(g, 0, 24, 96);
-    rect(g, 0x3a3f56, 6, 44, 70, 60);
-    rect(g, STORE.glass, 8, 46, 66, 56);
-    for (const y of [56, 72, 88]) {
-      rect(g, STORE.shelf, 10, y, 62, 2);
-      for (let x = 12; x < 70; x += 6) rect(g, [STORE.orange, STORE.red, STORE.green, 0xffe14a][(x + y) % 4], x, y - 5, 4, 5);
-    }
-    rect(g, 0x3a3f56, 78, 104, 18, 24);
-  });
-  // Shelving aisle full of snacks.
-  make(scene, 'store_shelf', 48, 56, (g) => {
-    rect(g, 0x5a5f78, 0, 0, 48, 56);
-    rect(g, 0x8a8fa8, 2, 2, 44, 52);
-    for (const y of [14, 28, 42, 54]) rect(g, 0x5a5f78, 2, y, 44, 2);
-    for (const y of [4, 18, 32, 46]) {
-      for (let x = 4; x < 44; x += 6) rect(g, [STORE.orange, STORE.red, STORE.green, 0xffe14a, 0x5aa8e8][(x / 2 + y) % 5], x, y, 4, 8);
-    }
-  });
-  // Drinks cooler.
-  make(scene, 'store_cooler', 40, 64, (g) => {
-    rect(g, 0xd8d4cc, 0, 0, 40, 64);
-    rect(g, STORE.glass, 3, 6, 34, 54);
-    rect(g, 0xffffff, 3, 6, 34, 1);
-    for (const y of [20, 34, 48]) rect(g, 0x8a8fa8, 3, y, 34, 1);
-    for (const y of [10, 24, 38, 52]) for (let x = 6; x < 34; x += 6) rect(g, [STORE.red, STORE.orange, STORE.green, 0x5aa8e8][(x + y) % 4], x, y, 4, 9);
-    stripes(g, 0, 0, 40);
-  });
-  // Front of the checkout counter, with the register and hot dog roller on top.
-  make(scene, 'store_counter', 56, 44, (g) => {
-    rect(g, 0x3a3f56, 4, 0, 18, 12); // register
-    rect(g, 0x55607a, 6, 2, 14, 5);
-    rect(g, 0x5ef0c8, 7, 3, 8, 3);
-    rect(g, 0x8a8fa8, 30, 4, 24, 8); // hot dog roller
-    for (let x = 32; x < 52; x += 5) rect(g, 0xc8503a, x, 5, 4, 2);
-    rect(g, 0xf4f1ea, 0, 12, 56, 32);
-    stripes(g, 0, 16, 56);
-    rect(g, 0xd8d4cc, 0, 40, 56, 4);
-  });
-}
-
 // --- effects ---------------------------------------------------------------------
 
 function makeEffects(scene: Phaser.Scene): void {
@@ -432,7 +377,7 @@ function makeEffects(scene: Phaser.Scene): void {
     rect(g, C.white, 1, 1, 1, 1);
   });
   make(scene, 'windline', 10, 1, (g) => rect(g, 0xffffff, 0, 0, 10, 1));
-  makeStoreDecor(scene);
+  makeStoreArt(scene);
   make(scene, 'bubble_fx', 4, 4, (g) => {
     g.lineStyle(1, 0xd8f0ff, 0.9);
     g.strokeRect(0.5, 0.5, 3, 3);

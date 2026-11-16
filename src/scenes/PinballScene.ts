@@ -7,7 +7,7 @@ import { ModeScene } from './ModeScene';
  * TIDE'S TIDE POOL: a pinball duel on an undersea table. Tide swims at the top
  * of the table; hit him while his shell is open. Roll through all three top
  * lanes to pry his shell open; knock down the three targets on the left for a
- * multiball. He blows bubbles that drift down and get in the way. Three balls.
+ * multiball. Three balls, and a ball saver for the first few seconds of each.
  *
  * LEFT / RIGHT work the flippers; JUMP launches.
  */
@@ -17,10 +17,12 @@ const TH = 236;
 const OX = Math.round((VIEW_W - TW) / 2);
 const OY = 2;
 const R = 4; // ball radius
-const GRAV = 0.1;
+const GRAV = 0.07;
+const MAX_V = 6;
+const SAVE_T = 420; // ball saver after each serve
 const SUB = 4;
-const FL_LEN = 30;
-const TIDE_HP = 10;
+const FL_LEN = 34;
+const TIDE_HP = 5;
 const BALLS = 3;
 
 type Seg = [number, number, number, number];
@@ -40,7 +42,6 @@ const WALLS: Seg[] = [
 const BUMPERS = [
   { x: 70, y: 92, r: 9 },
   { x: 130, y: 92, r: 9 },
-  { x: 100, y: 124, r: 9 },
 ];
 
 interface Ball {
@@ -72,8 +73,8 @@ export class PinballScene extends ModeScene {
   private tide = { x: 100, y: 52, t: 0, hp: TIDE_HP, open: false, openT: 0, hurtT: 0, forced: 0 };
   private lanes = [false, false, false];
   private targets = [true, true, true];
-  private bubbles: { x: number; y: number; vy: number }[] = [];
-  private bumpFlash = [0, 0, 0];
+  private bumpFlash = [0, 0];
+  private saveT = 0;
   private g!: Phaser.GameObjects.Graphics;
   private tideImg!: Phaser.GameObjects.Image;
 
@@ -92,8 +93,8 @@ export class PinballScene extends ModeScene {
     this.tide = { x: 100, y: 52, t: 0, hp: TIDE_HP, open: false, openT: 0, hurtT: 0, forced: 0 };
     this.lanes = [false, false, false];
     this.targets = [true, true, true];
-    this.bubbles = [];
-    this.bumpFlash = [0, 0, 0];
+    this.bumpFlash = [0, 0];
+    this.saveT = 0;
     this.g = this.add.graphics();
     this.tideImg = this.add.image(0, 0, 'tide_idle').setDepth(5);
     this.serve();
@@ -101,8 +102,10 @@ export class PinballScene extends ModeScene {
     this.help('LEFT/RIGHT\nFLIPPERS\n\nJUMP\nLAUNCH', OX / 2, 150);
   }
 
-  private serve(): void {
+  /** A new ball in the lane (a saved ball doesn't get another save). */
+  private serve(saved = false): void {
     this.balls.push({ x: 184, y: 222, vx: 0, vy: 0, inLane: true });
+    this.saveT = saved ? 0 : SAVE_T;
   }
 
   // --- geometry ----------------------------------------------------------------------
@@ -157,7 +160,7 @@ export class PinballScene extends ModeScene {
     // Launch.
     for (const b of this.balls) {
       if (b.inLane && b.y > 200 && Math.abs(b.vy) < 0.3 && (c.justPressed('jump') || c.justPressed('up'))) {
-        b.vy = -7.2 - Math.random() * 0.5;
+        b.vy = -6 - Math.random() * 0.4;
         sfx.chargeShot();
       }
     }
@@ -169,23 +172,31 @@ export class PinballScene extends ModeScene {
     // Drains.
     const before = this.balls.length;
     this.balls = this.balls.filter((b) => b.y < TH + 6);
+    if (this.saveT > 0 && !this.balls.some((b) => b.inLane)) this.saveT--;
     if (this.balls.length < before && this.balls.length === 0) {
+      if (this.saveT > 0) {
+        this.banner.setText('BALL SAVED!');
+        this.time.delayedCall(900, () => !this.result && this.banner.setText(''));
+        sfx.pickup();
+        this.serve(true);
+        return;
+      }
       this.lives--;
       sfx.hurt();
       if (this.lives <= 0) return this.finish(false, 'WASHED OUT...');
       this.serve();
     }
     this.stepTide();
-    for (let i = 0; i < 3; i++) if (this.bumpFlash[i] > 0) this.bumpFlash[i]--;
+    for (let i = 0; i < this.bumpFlash.length; i++) if (this.bumpFlash[i] > 0) this.bumpFlash[i]--;
     this.hud.setText(`BALLS\n${'o'.repeat(this.lives)}\n\nTIDE\n${'#'.repeat(this.tide.hp)}${'-'.repeat(TIDE_HP - this.tide.hp)}`).setPosition(8, 40);
   }
 
   private moveBall(b: Ball): void {
     b.vy += GRAV / SUB;
     const sp = Math.hypot(b.vx, b.vy);
-    if (sp > 8) {
-      b.vx *= 8 / sp;
-      b.vy *= 8 / sp;
+    if (sp > MAX_V) {
+      b.vx *= MAX_V / sp;
+      b.vy *= MAX_V / sp;
     }
     b.x += b.vx / SUB;
     b.y += b.vy / SUB;
@@ -205,8 +216,8 @@ export class PinballScene extends ModeScene {
       if (d < bp.r + R && d > 0) {
         b.x = bp.x + (dx / d) * (bp.r + R);
         b.y = bp.y + (dy / d) * (bp.r + R);
-        b.vx = (dx / d) * 4.6;
-        b.vy = (dy / d) * 4.6;
+        b.vx = (dx / d) * 3.4;
+        b.vy = (dy / d) * 3.4;
         this.bumpFlash[i] = 8;
         sfx.bubble();
       }
@@ -234,14 +245,6 @@ export class PinballScene extends ModeScene {
         this.time.delayedCall(900, () => !this.result && this.banner.setText(''));
       }
     });
-    // Bubbles: the ball pops them (and bounces a little).
-    for (const bu of this.bubbles) {
-      if (Math.hypot(b.x - bu.x, b.y - bu.y) < R + 6) {
-        b.vy = -Math.abs(b.vy) * 0.5 - 1;
-        bu.y = 999;
-        sfx.bubble();
-      }
-    }
     // Tide himself.
     const t = this.tide;
     const dx = b.x - t.x;
@@ -250,8 +253,8 @@ export class PinballScene extends ModeScene {
     if (d < 12 + R && d > 0) {
       b.x = t.x + (dx / d) * (12 + R);
       b.y = t.y + (dy / d) * (12 + R);
-      b.vx = (dx / d) * 4;
-      b.vy = (dy / d) * 4;
+      b.vx = (dx / d) * 3.2;
+      b.vy = (dy / d) * 3.2;
       if (t.open && t.hurtT === 0) {
         t.hp--;
         t.hurtT = 30;
@@ -283,20 +286,10 @@ export class PinballScene extends ModeScene {
     } else {
       // Opens his shell now and then (more often as he weakens).
       t.openT++;
-      const shut = 200;
+      const shut = 150;
       const openFor = 110 + (TIDE_HP - t.hp) * 6;
       t.open = t.openT % (shut + openFor) >= shut;
     }
-    // Bubbles drift down.
-    if (t.t % 200 === 100) {
-      sfx.bubble();
-      for (const dx of [-14, 14]) this.bubbles.push({ x: t.x + dx, y: t.y + 10, vy: 0.35 });
-    }
-    for (const bu of this.bubbles) {
-      bu.y += bu.vy;
-      bu.x += Math.sin((bu.y + t.t) / 20) * 0.3;
-    }
-    this.bubbles = this.bubbles.filter((bu) => bu.y < 180);
   }
 
   protected draw(): void {
@@ -326,10 +319,6 @@ export class PinballScene extends ModeScene {
       g.fillStyle(this.bumpFlash[i] ? 0xffffff : 0xff8aa8).fillCircle(OX + bp.x, OY + bp.y, bp.r);
       g.fillStyle(0xd83a4a).fillCircle(OX + bp.x, OY + bp.y, bp.r - 4);
     });
-    for (const bu of this.bubbles) {
-      g.lineStyle(1, 0xc8f0ff).strokeCircle(OX + bu.x, OY + bu.y, 6);
-      g.fillStyle(0xffffff).fillRect(OX + bu.x - 3, OY + bu.y - 3, 2, 2);
-    }
     // Tide.
     const t = this.tide;
     this.tideImg.setPosition(OX + t.x, OY + t.y).setTexture(t.open ? 'tide_open' : 'tide_idle');
