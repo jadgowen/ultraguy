@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossRoom, miniHall, rows, SKY } from './rooms';
+import { bossRoom, rows, SKY } from './rooms';
 
 // CALDERA. Built around lava: lifts over it, rock that crumbles into it, and
 // a climb with the lava rising behind you.
@@ -8,17 +8,19 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 //  2. The rising lava: as soon as you enter the shaft (D), lava starts to
 //     climb after you. Up the ledges and crumbling rocks, a ladder, more
 //     ledges, a lift, and out the top (E). Don't stop.
-//  3. The rim: a lift and crumbling rocks over lava pits (F, G), then the
-//     hall and MAGMA.
+//  3. The rim: a lift and crumbling rocks over lava pits (F, G).
+//  4. The magma elevator (no miniboss here): drop down a chute (J, K) to a
+//     landing (N: checkpoint, and a crawlspace with the E-tank, a 1-UP and
+//     bolts), then ride the lift up the shaft (L, M, T) while magma rises
+//     below and the walls spit fire. Off at the top, on to MAGMA.
 //
-// Layout:  row 0:  . . . F G H 1 2 I | X Y
-//          row 1:  . . . E
-//          row 2:  A B C D
+// Layout:  row 0:  . . . F G H J T I | X Y
+//          row 1:  . . . E . . K M
+//          row 2:  A B C D . . N L
 
 const CEIL = '################';
 const FLOOR = '################';
 const room = bossRoom();
-const hall = miniHall('#', false, true);
 
 export const CALDERA: StageData = {
   id: 'caldera',
@@ -29,8 +31,7 @@ export const CALDERA: StageData = {
   bossName: 'MAGMA',
   bossWeapon: 'flame',
   signature: [{ kind: 'lavaLeaper', from: 'slug', every: 1 }, { kind: 'lavaLeaper', from: 'ember', every: 3 }],
-  layout: ['...FGH12I|XY', '...E', 'ABCD'],
-  miniboss: 'crab',
+  layout: ['...FGHJTI|XY', '...E..KM', 'ABCD..NL'],
   rise: { screens: 'DE', speed: 0.35 },
   screens: {
     // --- 1. Across the lava -------------------------------------------------------------
@@ -78,8 +79,16 @@ export const CALDERA: StageData = {
     F: [CEIL, CEIL, ...rows(SKY, 10), '.c..............', '###H####=-----##', '###H####LLLLLL##'],
     G: [CEIL, CEIL, ...rows(SKY, 9), '.......e........', '......e.....e...', '##xxx..xxx..xxx#', '##LLLLLLLLLLLL##'],
     H: [CEIL, CEIL, ...rows(SKY, 9), '..........######', '....m.....######', FLOOR, FLOOR],
-    '1': hall.a,
-    '2': hall.b,
+    // --- 4. The magma elevator ---------------------------------------------------------------
+    // A hole in the floor down to the landing.
+    J: [CEIL, CEIL, ...rows('...............#', 9), ...rows('####......######', 4)],
+    K: rows('####......######', 15),
+    // The landing: checkpoint, and the crawlspace (slide in) with the E-tank, a 1-UP and bolts.
+    N: [...rows('####......######', 9), '#...............', '#...............', '..#########.....', '....+.E.$...c...', FLOOR, FLOOR],
+    // The shaft: the lift waits at the bottom (';') and stops at the top (',').
+    L: [...rows('###..........###', 10), '.............###', '.............###', '.......;.....###', FLOOR, FLOOR],
+    M: rows('###..........###', 15),
+    T: [CEIL, CEIL, ...rows('###..........###', 8), '###.............', '###.............', '###....,........', '###.......######', '###.......######'],
     I: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
     X: room.left,
     Y: room.right,

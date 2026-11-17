@@ -38,11 +38,15 @@ export function water(screen: string[]): string[] {
  * draws the crawlspace as solid wall, notched at each end, until you're in.
  * `top` is the floor's surface tile ('I' for ice).
  */
-export function miniHall(top = '#', underwater = false, oneUp = false): { a: string[]; b: string[] } {
+export function miniHall(top = '#', underwater = false, oneUp = false, thinIce = false): { a: string[]; b: string[] } {
   const floor = [top.repeat(16), '################'];
   const crawl = oneUp ? '....+.E.$...c...' : '......E.$...c...';
-  const a = [...rows(SKY, 11), '..#########.....', crawl, ...floor];
-  const b = [...rows(SKY, 12), '............M...', ...floor];
+  // Thin ice ('_') over freezing water: the miniboss's charges crack and break it.
+  // Solid footholds stay (one under the miniboss), so there's always somewhere to stand.
+  const floorA = thinIce ? ['IIIIIIIIIIII__I_', '############~~#~'] : floor;
+  const floorB = thinIce ? ['__II___II__III__', '~~##~~~##~~###~~'] : floor;
+  const a = [...rows(SKY, 11), '..#########.....', crawl, ...floorA];
+  const b = [...rows(SKY, 12), '............M...', ...floorB];
   return underwater ? { a: water(a), b: water(b) } : { a, b };
 }
 

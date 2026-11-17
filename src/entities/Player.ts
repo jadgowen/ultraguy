@@ -428,6 +428,7 @@ export class Player {
       this.airJumps = this.has('boots') ? 1 : 0;
       sfx.spring();
       this.g.burst(this.cx, this.bottom, 'spark', 4);
+      this.g.springPop(Math.floor(this.cx / TILE), Math.floor((this.bottom + 0.5) / TILE));
       return;
     }
     if (this.grounded && !wasGrounded) {

@@ -281,9 +281,11 @@ const TILE_CHARS: Record<string, Tile> = {
   ']': Tile.SwitchB,
   '{': Tile.CurrentL,
   '}': Tile.CurrentR,
+  // Thin ice: ice that a heavy charge can crack and break (Level.thinIce).
+  _: Tile.Ice,
 };
 
-const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U', '=', '-', 'v', ':', '!', '@', '+', '$']);
+const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U', '=', '-', 'v', ':', '!', '@', '+', '$', ';', ',']);
 
 /** Water, including currents. */
 export function isWaterTile(t: Tile): boolean {
@@ -305,6 +307,11 @@ export class Level {
   /** Hidden extra lives ('+') and bolt caches ('$'). */
   readonly oneUps: Point[] = [];
   readonly boltCaches: Point[] = [];
+  /** Thin-ice cells ('_'), as "c,r". */
+  readonly thinIce: { c: number; r: number }[] = [];
+  /** The magma elevator: where its platform starts (';') and where it stops (','). */
+  elevator: { start: Point; stop: Point } | null = null;
+  private elevatorStop: Point | null = null;
   readonly teleporters: Point[] = [];
   upgrade: Point | null = null;
   bossTestStart: Point | null = null;
@@ -432,6 +439,12 @@ export class Level {
         else if (ch === 'E') this.tanks.push({ x: cx, y: bottom });
         else if (ch === '+') this.oneUps.push({ x: cx, y: bottom });
         else if (ch === '$') this.boltCaches.push({ x: cx, y: bottom });
+        else if (ch === ';') this.elevator = { start: { x: cx, y: bottom }, stop: this.elevatorStop ?? { x: cx, y: bottom } };
+        else if (ch === ',') {
+          this.elevatorStop = { x: cx, y: bottom };
+          if (this.elevator) this.elevator.stop = this.elevatorStop;
+        }
+        if (ch === '_') this.thinIce.push({ c: gc, r: gr });
         else if (ch === 'T') this.teleporters.push({ x: cx, y: bottom });
         else if (ch === 'U') this.upgrade = { x: cx, y: bottom };
         else if (ch === '!') this.crushers.push({ x: gc * TILE, y: gr * TILE });

@@ -175,7 +175,8 @@ export abstract class Boss {
     if (this.ex) dmg = Math.max(1, Math.round(dmg * 0.6));
     this.hp = Math.max(0, this.hp - dmg);
     this.barHp = this.hp;
-    this.invuln = weak ? 28 : 14;
+    // A short window where shots pass through, so a rapid triple shot can't land every bullet.
+    this.invuln = weak ? 32 : 20;
     this.flash = this.invuln;
     if (this.hp === 0) {
       this.state = 'dying';

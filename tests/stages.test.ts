@@ -44,17 +44,18 @@ describe('boss stages', () => {
 
   for (const id of ALL_BOSS_STAGES) {
     const stage = BOSS_STAGES[id];
-    it(`${id}: has a boss door, a miniboss, an energy tank and checkpoints`, () => {
+    it(`${id}: has a boss door, a midpoint (miniboss or set piece), an energy tank and checkpoints`, () => {
       const L = new Level(stage);
       expect(L.doors.length).toBe(1);
-      expect(stage.miniboss).toBeDefined();
-      expect(L.miniboss).not.toBeNull();
+      // A miniboss, or a set piece in its place (Caldera's magma elevator).
+      if (stage.miniboss) expect(L.miniboss).not.toBeNull();
+      else expect(L.elevator).not.toBeNull();
       expect(L.tanks.length).toBeGreaterThanOrEqual(1);
       expect(L.checkpoints.length).toBeGreaterThanOrEqual(3);
       expect(L.bossTestStart).not.toBeNull();
     });
 
-    it(`${id}: the miniboss sits on a flat, safe floor`, () => {
+    it.skipIf(!stage.miniboss)(`${id}: the miniboss sits on a flat, safe floor`, () => {
       const L = new Level(stage);
       const m = L.miniboss!;
       const row = m.y / 16; // the floor row under the miniboss

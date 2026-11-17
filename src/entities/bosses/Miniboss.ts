@@ -54,6 +54,8 @@ export class Miniboss extends Boss {
   private last: Move | null = null;
   private homeY: number;
   private dir: 1 | -1 = -1;
+  /** Columns of thin ice already cracked by this charge. */
+  private cracked = new Set<number>();
 
   constructor(g: GameScene, readonly mini: MiniKind | GuardianKind, at: Point, room: Room) {
     const def = mini in GUARDIANS ? GUARDIANS[mini as GuardianKind] : MINIBOSSES[mini as MiniKind];
@@ -194,12 +196,34 @@ export class Miniboss extends Boss {
           this.vx = 0;
           this.facePlayer();
           this.float();
+          this.cracked.clear();
         } else {
           if (this.t === (fast ? 20 : 32)) this.vx = this.facing * (fast ? 3.6 : 3);
-          if (this.float().wall) {
+          // On thin ice: pull up short at a gap, and crack every slab charged over.
+          const thin = !this.def.flies && this.g.level.thinIce.length > 0;
+          const T = 16;
+          const row = Math.floor((this.bottom + 1) / T);
+          const front = this.vx > 0 ? this.x + this.w + this.vx + 2 : this.x + this.vx - 2;
+          const gapAhead = thin && !this.g.level.isSolid(Math.floor(front / T), row);
+          if (thin) {
+            for (let c = Math.floor((this.x + 4) / T); c <= Math.floor((this.x + this.w - 4) / T); c++) {
+              if (this.cracked.has(c)) continue;
+              this.cracked.add(c);
+              this.g.crackIce(c, c, row);
+            }
+          }
+          if (gapAhead || this.float().wall) {
             this.g.shake(5);
             sfx.land();
             this.vx = 0;
+            // Phase 2 on thin ice: the slam shakes two more slabs loose somewhere in the arena.
+            if (thin && fast && !gapAhead) {
+              const slabs = this.g.level.thinIce.filter((t) => t.c * T >= this.room.left && t.c * T < this.room.right && this.g.level.tileAt(t.c, t.r) !== 0);
+              for (let i = 0; i < 2 && slabs.length; i++) {
+                const s = slabs.splice(Math.floor(Math.random() * slabs.length), 1)[0];
+                this.g.crackIce(s.c, s.c, s.r);
+              }
+            }
             this.setMove('idle', 34);
           }
         }

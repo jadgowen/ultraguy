@@ -71,7 +71,12 @@ The first time you reach a stage boss it gets a full intro: letterbox bars, the 
 signature pose (with its own flourish), a name card with its title slides in, it calls out a voice line, and
 then its health bar fills (`src/scenes/bossIntro.ts`). Retries after a death skip straight to the quick version.
 
-Each boss stage has a miniboss halfway through. Just before it, a low block hides a crawlspace (only the
+Each boss stage has a midpoint challenge halfway through, usually a miniboss. Glacier's Tusk Mammoth fights
+on thin ice (`_` in the level text, drawn pale and see-through): each charge cracks the slabs it crosses, a
+slab cracked twice breaks away into the water, and holes freeze back over after a few seconds. Caldera has
+no miniboss. Instead it has the magma elevator (`;` lift, `,` top stop; `src/scenes/elevator.ts`): step on, and it
+climbs the shaft with the camera following, magma right behind, fire from the walls and falling rocks.
+Just before the midpoint, a low block hides a crawlspace (only the
 slide gets in) holding an energy tank (E-tank), and in some stages a 1-UP; it looks like solid wall,
 notched at each end, until you're inside. The armor-part rooms hide a 1-UP too.
 

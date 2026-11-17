@@ -17,7 +17,8 @@ export interface ReachOptions {
  * conveyors, enemies, wind or exact arcs, so it can call a hard jump possible.
  *
  * Moving clouds count as a platform everywhere along their track (you can
- * wait for them). Updrafts carry you up, and you can jump from inside one.
+ * wait for them). Updrafts (and the magma elevator's shaft) carry you up, and
+ * you can jump from inside one.
  */
 export function reach(stage: StageData, opts: ReachOptions = {}): { ok: boolean; visited: number; stuck?: { c: number; r: number } } {
   const L = new Level(stage);
@@ -30,7 +31,13 @@ export function reach(stage: StageData, opts: ReachOptions = {}): { ok: boolean;
   for (const m of L.movers) {
     for (let y = m.y0 / 16; y <= m.y1 / 16; y++) for (let x = m.x0 / 16; x <= m.x1 / 16 + MOVER_TILES - 1; x++) ride.add(x * 10000 + y);
   }
-  const updraft = (c: number, r: number) => L.isUpdraft(c, r);
+  // The magma elevator carries you up its shaft, like an updraft.
+  const lift = new Set<number>();
+  if (L.elevator) {
+    const c = Math.floor(L.elevator.start.x / 16);
+    for (let r = Math.floor((L.elevator.stop.y - 1) / 16) - 2; r <= Math.floor((L.elevator.start.y - 1) / 16); r++) for (let x = c - 2; x <= c + 2; x++) lift.add(x * 10000 + r); // the platform is 4 tiles wide
+  }
+  const updraft = (c: number, r: number) => L.isUpdraft(c, r) || lift.has(c * 10000 + r);
   // A cell where the 12x22 hero can stand: two cells clear, support below.
   const support = (c: number, r: number) => (L.isSolid(c, r + 1) && !L.isSpike(c, r + 1)) || L.isPlatform(c, r + 1) || ride.has(c * 10000 + r + 1);
   const spring = (c: number, r: number) => T(c, r + 1) === Tile.Spring;

@@ -1,6 +1,8 @@
 import Phaser from 'phaser';
 import { nowPlaying, playJingle, playMusic, playVoice, stageMusic, stopMusic } from '../audio';
 import { BOSS_INTROS, INTRO, IntroCard } from './bossIntro';
+import { TileFx } from '../tileFx';
+import { Elevator } from './elevator';
 import { DEV_TOOLS, PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
 import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
 import { Player } from '../entities/Player';
@@ -232,6 +234,15 @@ export class GameScene extends Phaser.Scene {
   private layer!: Phaser.Tilemaps.TilemapLayer;
   /** Wall drawn over a hidden room until the player steps inside it. */
   private secrets: { cells: Set<number>; layer: Phaser.Tilemaps.TilemapLayer }[] = [];
+  /** Thin ice under strain: cracks on it so far, and the countdown to it giving way. */
+  /** Caldera's magma elevator (null elsewhere). */
+  private elevator: Elevator | null = null;
+  private iceCracks = new Map<number, { c: number; r: number; n: number; breakT: number; img: Phaser.GameObjects.Image }>();
+  /** Broken thin ice, freezing back over (frames left). */
+  private iceHoles: { c: number; r: number; t: number }[] = [];
+  /** Living tiles: lava, ice glints, water shimmer, springs, belts. */
+  private tileFx: TileFx | null = null;
+  private fxFrame = 0;
   /** Background layers and how fast each scrolls with the camera. */
   private bgLayers: { sprite: Phaser.GameObjects.TileSprite; factor: number }[] = [];
   private hud!: Phaser.GameObjects.Graphics;
@@ -341,6 +352,28 @@ export class GameScene extends Phaser.Scene {
       fakeMap.createLayer(0, fakeSets, 0, 0)!.setDepth(16);
     }
     this.secrets = env ? this.coverSecrets(stage.theme) : [];
+    this.fxFrame = 0;
+    this.iceCracks = new Map();
+    this.iceHoles = [];
+    for (const { c, r } of this.level.thinIce) this.markThin(c, r);
+    this.elevator = this.level.elevator
+      ? new Elevator({
+          scene: this,
+          level: this.level,
+          theme: stage.theme,
+          player: () => this.player,
+          shake: (n) => this.shake(n),
+          spawnShot: (o) => this.spawnEnemyShot(o),
+          arrived: () => {
+            this.section = this.level.sectionAt(this.player.cx, this.player.cy) ?? this.section;
+          },
+          say: (text) => {
+            this.banner.setText(text).setVisible(true);
+            this.time.delayedCall(1000, () => this.banner.setVisible(false));
+          },
+        })
+      : null;
+    this.tileFx = new TileFx(this, this.level, stage.theme, (c, r) => this.layer.removeTileAt(c, r));
     this.sky = new Sky(
       {
         scene: this,
@@ -605,6 +638,8 @@ export class GameScene extends Phaser.Scene {
       this.hitStop--;
       return;
     }
+    this.tileFx?.step(++this.fxFrame, { x: this.camX, y: this.camY, w: VIEW_W, h: VIEW_H });  // tiles keep living through cards and intros
+    this.stepIceCracks();
     if (this.weaponLabelT > 0 && --this.weaponLabelT === 0) this.weaponLabel.setVisible(false);
 
     if (this.clearTimer > 0) {
@@ -683,6 +718,7 @@ export class GameScene extends Phaser.Scene {
     if (this.stageId === 'dojo') for (const w of this.unlocked) p.ammo[w] = p.maxAmmo; // free ammo
     this.cycleWeapon();
     this.sky.stepMovers();
+    this.elevator?.step();
     p.update();
     this.sky.stepCrumbles();
     this.hazards.step();
@@ -1245,6 +1281,95 @@ export class GameScene extends Phaser.Scene {
     }
   }
 
+  // --- thin ice ----------------------------------------------------------------------
+
+  /**
+   * Something heavy went over thin ice at columns c0..c1 of `row`: each slab
+   * cracks; a slab cracked twice wobbles, then breaks away into the water.
+   */
+  crackIce(c0: number, c1: number, row: number): void {
+    for (let c = c0; c <= c1; c++) {
+      if (!this.level.thinIce.some((t) => t.c === c && t.r === row) || this.level.tileAt(c, row) !== Tile.Ice) continue;
+      const k = row * this.level.cols + c;
+      let crack = this.iceCracks.get(k);
+      if (!crack) {
+        crack = { c, r: row, n: 0, breakT: 0, img: this.add.image(c * TILE, row * TILE, 'ice_crack1').setOrigin(0, 0).setDepth(0.4) };
+        this.iceCracks.set(k, crack);
+      }
+      crack.n++;
+      sfx.crumble();
+      if (crack.n >= 2 && crack.breakT === 0) {
+        crack.img.setTexture('ice_crack2');
+        crack.breakT = 40;
+      }
+    }
+  }
+
+  private stepIceCracks(): void {
+    for (const [k, crack] of this.iceCracks) {
+      if (crack.breakT === 0) continue;
+      crack.img.x = crack.c * TILE + (crack.breakT % 4 < 2 ? 1 : -1); // wobble
+      if (--crack.breakT > 0) continue;
+      // Never out from under the miniboss (it would fall in): wait for it to move.
+      const b = this.boss;
+      if (b && b.x < (crack.c + 1) * TILE && b.x + b.w > crack.c * TILE && Math.abs(b.bottom - crack.r * TILE) < 4) {
+        crack.breakT = 10;
+        continue;
+      }
+      this.level.setTile(crack.c, crack.r, Tile.Empty);
+      this.layer.removeTileAt(crack.c, crack.r);
+      crack.img.destroy();
+      this.iceCracks.delete(k);
+      this.iceHoles.push({ c: crack.c, r: crack.r, t: 300 });
+      for (let i = 0; i < 6; i++) this.addEffect(crack.c * TILE + 8, crack.r * TILE + 4, (Math.random() - 0.5) * 3, -1 - Math.random() * 2, 0.2, 30, false, 'spark');
+      sfx.crumble();
+      this.shake(2);
+    }
+    // Holes freeze back over after a while (not on top of anyone).
+    const p = this.player;
+    this.iceHoles = this.iceHoles.filter((h) => {
+      if (--h.t > 0) return true;
+      const x0 = h.c * TILE;
+      const y0 = h.r * TILE;
+      const inside = (o: { x: number; y: number; w: number; h: number }) => o.x < x0 + TILE && o.x + o.w > x0 && o.y < y0 + TILE && o.y + o.h > y0;
+      if ((p.alive && inside(p)) || (this.boss && inside(this.boss))) {
+        h.t = 10;
+        return true;
+      }
+      this.level.setTile(h.c, h.r, Tile.Ice);
+      this.layer.putTileAt(Tile.Ice - 1, h.c, h.r);
+      this.markThin(h.c, h.r);
+      for (let i = 0; i < 4; i++) this.addEffect(x0 + 2 + Math.random() * 12, y0 + Math.random() * 6, 0, -0.4, 0, 24, false, 'spark');
+      return false;
+    });
+  }
+
+  /** Thin ice reads as thin: paler and see-through, so you can tell it from the solid kind. */
+  private markThin(c: number, r: number): void {
+    const t = this.layer.getTileAt(c, r);
+    if (!t) return;
+    t.setAlpha(0.6);
+    t.tint = 0xc8f0ff;
+  }
+
+  /** Put every thin-ice slab back (after a death). */
+  private restoreIce(): void {
+    for (const crack of this.iceCracks.values()) crack.img.destroy();
+    this.iceCracks.clear();
+    this.iceHoles = [];
+    for (const { c, r } of this.level.thinIce) {
+      if (this.level.tileAt(c, r) === Tile.Ice) continue;
+      this.level.setTile(c, r, Tile.Ice);
+      this.layer.putTileAt(Tile.Ice - 1, c, r);
+      this.markThin(c, r);
+    }
+  }
+
+  /** A spring was bounced on (squash it). */
+  springPop(c: number, r: number): void {
+    this.tileFx?.springPop(c, r);
+  }
+
   /** Puffs of dust at someone's feet, drifting `dir` (-1 / 1, 0 = both ways). */
   dust(x: number, y: number, dir: number, n: number): void {
     for (let i = 0; i < n; i++) {
@@ -1259,7 +1384,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   landOnMover(p: Player, prevBottom: number): boolean {
-    return this.sky.landOnMover(p, prevBottom);
+    return this.sky.landOnMover(p, prevBottom) || (this.elevator?.landOn(p, prevBottom) ?? false);
   }
 
   /** Wind streak blowing across the screen in direction `dir`. */
@@ -1844,6 +1969,8 @@ export class GameScene extends Phaser.Scene {
       p.vx = 0;
     }
 
+    // Riding the magma elevator: the lift has the camera, no screen changes (the magma kills).
+    if (this.elevator?.active) return;
     if (p.cy > bottom || p.cy < top) {
       const next = this.level.sectionAt(p.cx, p.cy);
       if (next && next !== sec) {
@@ -1863,6 +1990,11 @@ export class GameScene extends Phaser.Scene {
   }
 
   private followCamera(): void {
+    if (this.elevator?.active) {
+      this.camX = this.elevator.camX;
+      this.camY = this.elevator.camY;
+      return;
+    }
     // Ease into an arena lock (minibosses lock mid-scroll) and back out of it.
     const target = this.arena ? this.arena.camX : this.cameraTargetX(this.section);
     const d = target - this.camX;
@@ -1995,6 +2127,8 @@ export class GameScene extends Phaser.Scene {
   }
 
   private respawn(): void {
+    this.restoreIce();
+    this.elevator?.reset();
     this.clearActors();
     for (const f of this.effects) f.sprite.destroy();
     this.effects = [];

@@ -380,6 +380,15 @@ function makeEffects(scene: Phaser.Scene): void {
     rect(g, C.white, 1, 1, 1, 1);
   });
   make(scene, 'windline', 10, 1, (g) => rect(g, 0xffffff, 0, 0, 10, 1));
+  // Cracks in thin ice: hairline (first hit), then wide (about to give way).
+  make(scene, 'ice_crack1', 16, 16, (g) => {
+    for (const [x, y, w, h] of [[4, 2, 1, 3], [5, 4, 2, 1], [7, 5, 1, 3], [11, 1, 1, 2], [10, 3, 1, 3]]) rect(g, 0x3a6a98, x, y, w, h);
+  });
+  make(scene, 'ice_crack2', 16, 16, (g) => {
+    for (const [x, y, w, h] of [[2, 1, 1, 4], [3, 4, 3, 1], [6, 5, 1, 5], [7, 9, 3, 1], [11, 0, 1, 3], [10, 3, 2, 1], [9, 4, 1, 4], [13, 6, 2, 1]]) rect(g, 0x1a3a68, x, y, w, h);
+    rect(g, 0xffffff, 5, 3, 1, 1);
+    rect(g, 0xffffff, 10, 7, 1, 1);
+  });
   // Bolts (the shop's currency): a hex nut, a big one, and a cache of them.
   const nut = (g: G, x: number, y: number, s: number) => {
     rect(g, 0x1a1428, x, y + 1, s, s - 2);

@@ -18,7 +18,7 @@ import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
 
 const ROCK = '################';
 const room = bossRoom('I');
-const hall = miniHall('I');
+const hall = miniHall('I', false, false, true);
 
 export const GLACIER: StageData = {
   id: 'glacier',
