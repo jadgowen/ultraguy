@@ -12,9 +12,10 @@ import { BOSS_STAGES, getStage } from '../level/stages';
 import { THEMES } from '../level/themes';
 import { Box, moveY, overlaps } from '../physics';
 import { skinForStage } from '../skins';
-import { MAX_TANKS, recordExClear, loadSave, recordClear, recordPart, setTanks, wearSavedSkin } from '../save';
+import { BOLT_BIG, BOLT_CACHE, BOLT_SMALL } from '../shop';
+import { MAX_TANKS, addBolts, updateSave, recordExClear, loadSave, recordClear, recordPart, setTanks, wearSavedSkin } from '../save';
 import { sfx } from '../sfx';
-import { WEAPONS, WeaponId } from '../weapons';
+import { WEAPONS, WeaponId, WEAPON_ORDER } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
 import { dialogue, pixelateIn, pixelateOut } from './cutscene';
 import { Encounter, MINI_ENCOUNTERS, PART_GUARDIANS, Resume, Ret, VAULT_ENCOUNTERS } from './encounters';
@@ -35,6 +36,14 @@ const ELECTRIC_PERIOD = 100;
 const WEAKNESS_DAMAGE = 4;
 /** Freeze-frames when a weakness hit lands. */
 const WEAK_HIT_STOP = 6;
+/** Extra lives on entering a stage (shown on the HUD), and the most you can hold. */
+const LIVES_START = 2;
+const LIVES_MAX = 9;
+/**
+ * Lives and taken 1-UPs for the current stage visit. They live outside the
+ * scene so a trip into an encounter (and back) doesn't reset them.
+ */
+const visit = { stage: '' as string, lives: LIVES_START, oneUpsTaken: new Set<number>(), cachesTaken: new Set<number>() };
 /** Freeze-frame when a full charge shot hits a boss. */
 const CHARGE_HIT_STOP = 3;
 
@@ -112,6 +121,8 @@ interface DoorSequence {
 interface Pickup extends Projectile {
   heal: number;
   ammo: number;
+  /** Bolts (currency) it's worth. */
+  bolts?: number;
 }
 
 interface Effect {
@@ -160,6 +171,18 @@ export class GameScene extends Phaser.Scene {
   private miniDefeated = false;
   /** Energy tanks lying in the stage (taken ones stay taken this visit). */
   private tankItems: { box: Box; sprite: Phaser.GameObjects.Image; taken: boolean }[] = [];
+  private oneUpItems: { box: Box; sprite: Phaser.GameObjects.Image; taken: boolean; key: number }[] = [];
+  private cacheItems: { box: Box; sprite: Phaser.GameObjects.Image; taken: boolean; key: number }[] = [];
+  /** The Bolt Magnet (bought at Rivet's): pickups fly to you. */
+  private magnet = false;
+  private boltIcon!: Phaser.GameObjects.Image;
+  private boltText!: PixelText;
+  /** Bolts held (mirrors the save, so the HUD needn't read it every frame). */
+  private boltCount = 0;
+  /** Counts down after the last life is lost, then back to the select screen. */
+  private gameOverT = 0;
+  private livesIcon!: Phaser.GameObjects.Image;
+  private livesText!: PixelText;
   /** Rematch room: capsules, which are done, and a teleport in progress. */
   private capsules: { box: Box; sprite: Phaser.GameObjects.Image; kind: BossKind; done: boolean; bonus: boolean }[] = [];
   private teleport: { t: number; to: 'arena' | 'hub'; kind?: BossKind; back?: Point } | null = null;
@@ -203,7 +226,7 @@ export class GameScene extends Phaser.Scene {
 
   private layer!: Phaser.Tilemaps.TilemapLayer;
   /** Wall drawn over a hidden room until the player steps inside it. */
-  private secret: { cells: Set<number>; layer: Phaser.Tilemaps.TilemapLayer } | null = null;
+  private secrets: { cells: Set<number>; layer: Phaser.Tilemaps.TilemapLayer }[] = [];
   /** Background layers and how fast each scrolls with the camera. */
   private bgLayers: { sprite: Phaser.GameObjects.TileSprite; factor: number }[] = [];
   private hud!: Phaser.GameObjects.Graphics;
@@ -234,6 +257,24 @@ export class GameScene extends Phaser.Scene {
     this.bossDefeated = false;
     this.miniDefeated = false;
     this.tankItems = [];
+    this.oneUpItems = [];
+    this.cacheItems = [];
+    this.magnet = loadSave().magnet;
+    this.boltCount = loadSave().bolts;
+    this.gameOverT = 0;
+    // A fresh visit to a stage starts with the usual lives; coming back from an encounter keeps them.
+    if (!data?.resume || visit.stage !== this.stageId) {
+      visit.stage = this.stageId;
+      visit.lives = LIVES_START;
+      visit.oneUpsTaken = new Set();
+      visit.cachesTaken = new Set();
+      // 1-UPs bought at Rivet's go into this stage's lives.
+      const bought = this.stageId === 'dojo' ? 0 : loadSave().spareLives;
+      if (bought) {
+        visit.lives = Math.min(LIVES_MAX, visit.lives + bought);
+        updateSave((d) => (d.spareLives = 0));
+      }
+    }
     this.capsules = [];
     this.teleport = null;
     this.hubSpot = null;
@@ -244,7 +285,8 @@ export class GameScene extends Phaser.Scene {
     this.bossDeathT = 0;
     this.weaponGetT = 0;
     this.wind = 0;
-    this.unlocked = loadSave().weapons;
+    // The dojo hands you every weapon.
+    this.unlocked = this.stageId === 'dojo' ? [...WEAPON_ORDER] : loadSave().weapons;
     this.acc = 0;
     this.paused = false;
     this.transition = null;
@@ -293,7 +335,7 @@ export class GameScene extends Phaser.Scene {
       if (env) fakeSets.push(fakeMap.addTilesetImage('auto', `auto_${stage.theme}`, TILE, TILE, 0, 0, AUTO_GID)!);
       fakeMap.createLayer(0, fakeSets, 0, 0)!.setDepth(16);
     }
-    this.secret = this.coverSecretRoom(env, stage.theme);
+    this.secrets = env ? this.coverSecrets(stage.theme) : [];
     this.sky = new Sky(
       {
         scene: this,
@@ -335,6 +377,18 @@ export class GameScene extends Phaser.Scene {
     for (const t of this.exMode ? [] : this.level.tanks) {
       const sprite = this.add.image(t.x, t.y, 'etank').setOrigin(0.5, 1).setDepth(4);
       this.tankItems.push({ box: { x: t.x - 6, y: t.y - 10, w: 12, h: 10 }, sprite, taken: false });
+    }
+    for (const o of this.level.oneUps) {
+      const key = o.y * 10000 + o.x;
+      if (visit.oneUpsTaken.has(key)) continue;
+      const sprite = this.add.image(o.x, o.y, 'oneup').setOrigin(0.5, 1).setDepth(4);
+      this.oneUpItems.push({ box: { x: o.x - 7, y: o.y - 12, w: 14, h: 12 }, sprite, taken: false, key });
+    }
+    for (const o of this.level.boltCaches) {
+      const key = o.y * 10000 + o.x;
+      if (visit.cachesTaken.has(key)) continue;
+      const sprite = this.add.image(o.x, o.y, 'nut_cache').setOrigin(0.5, 1).setDepth(4);
+      this.cacheItems.push({ box: { x: o.x - 7, y: o.y - 12, w: 14, h: 12 }, sprite, taken: false, key });
     }
     // Rematch room: one capsule per boss; the exit opens once all are beaten.
     const gameCleared = loadSave().cleared.includes('finale');
@@ -378,6 +432,14 @@ export class GameScene extends Phaser.Scene {
       .setScrollFactor(0)
       .setDepth(60);
     this.pauseLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(70).setVisible(false);
+    this.boltIcon = this.add.image(10, 112, 'nut').setOrigin(0, 0).setScrollFactor(0).setDepth(60);
+    this.boltText = pixelText(this, 24, 111, '', { fontFamily: 'monospace', fontSize: '8px', color: '#c8ccd8', stroke: '#000000', strokeThickness: 2 })
+      .setScrollFactor(0)
+      .setDepth(60);
+    this.livesIcon = this.add.image(8, 96, 'oneup').setOrigin(0, 0).setScrollFactor(0).setDepth(60);
+    this.livesText = pixelText(this, 24, 98, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0', stroke: '#000000', strokeThickness: 2 })
+      .setScrollFactor(0)
+      .setDepth(60);
     this.weaponLabel = pixelText(this, 12, 80, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0', stroke: '#000000', strokeThickness: 2 })
       .setScrollFactor(0)
       .setDepth(60)
@@ -403,36 +465,61 @@ export class GameScene extends Phaser.Scene {
    * frozen wall), is covered with wall until you step in, so the camera can't
    * give it away.
    */
-  private coverSecretRoom(env: boolean, theme: string): { cells: Set<number>; layer: Phaser.Tilemaps.TilemapLayer } | null {
+  /**
+   * Hidden spots get drawn over as solid wall until you're inside: the armor
+   * part's room (and anything else in a small closed room), and the
+   * crawlspaces under low blocks where E-tanks and 1-UPs hide (left notched
+   * open at each end, the only hint).
+   */
+  private coverSecrets(theme: string): { cells: Set<number>; layer: Phaser.Tilemaps.TilemapLayer }[] {
     const L = this.level;
-    if (!L.upgrade || !env) return null;
-    const start = { c: Math.floor(L.upgrade.x / TILE), r: Math.floor((L.upgrade.y - 1) / TILE) };
-    const cells = new Set<number>();
-    const queue = [start];
     const key = (c: number, r: number) => r * L.cols + c;
-    while (queue.length) {
-      const { c, r } = queue.pop()!;
-      if (r < 0 || r >= L.rows || c < 0 || c >= L.cols || cells.has(key(c, r))) continue;
-      const t = L.tileAt(c, r);
-      if (L.isSolid(c, r) || t === Tile.Fake) continue;
-      cells.add(key(c, r));
-      if (cells.size > 80) return null; // open space, not a room
-      queue.push({ c: c + 1, r }, { c: c - 1, r }, { c, r: r + 1 }, { c, r: r - 1 });
+    const open = (c: number, r: number) => r >= 0 && r < L.rows && c >= 0 && c < L.cols && !L.isSolid(c, r) && L.tileAt(c, r) !== Tile.Fake;
+    const spots = [L.upgrade, ...L.tanks, ...L.oneUps].filter((p): p is Point => !!p);
+    const found: Set<number>[] = [];
+    for (const p of spots) {
+      const start = { c: Math.floor(p.x / TILE), r: Math.floor((p.y - 1) / TILE) };
+      if (found.some((f) => f.has(key(start.c, start.r)))) continue;
+      // A small closed room?
+      const room = new Set<number>();
+      const queue = [start];
+      while (queue.length && room.size <= 80) {
+        const { c, r } = queue.pop()!;
+        if (!open(c, r) || room.has(key(c, r))) continue;
+        room.add(key(c, r));
+        queue.push({ c: c + 1, r }, { c: c - 1, r }, { c, r: r + 1 }, { c, r: r - 1 });
+      }
+      if (room.size <= 80) {
+        found.push(room);
+        continue;
+      }
+      // A crawlspace: the run of open cells with a ceiling right overhead.
+      if (L.isSolid(start.c, start.r - 1)) {
+        let c0 = start.c;
+        let c1 = start.c;
+        while (open(c0 - 1, start.r) && L.isSolid(c0 - 1, start.r - 1)) c0--;
+        while (open(c1 + 1, start.r) && L.isSolid(c1 + 1, start.r - 1)) c1++;
+        const cells = new Set<number>();
+        for (let c = c0 + 1; c <= c1 - 1; c++) cells.add(key(c, start.r));
+        if (cells.size) found.push(cells);
+      }
     }
-    const data = Array.from({ length: L.rows }, (_, r) => Array.from({ length: L.cols }, (_, c) => (cells.has(key(c, r)) ? autoIndex(15, c, r) : -1)));
-    const map = this.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
-    const set = map.addTilesetImage('auto', `auto_${theme}`, TILE, TILE, 0, 0, AUTO_GID)!;
-    return { cells, layer: map.createLayer(0, set, 0, 0)!.setDepth(16) };
+    return found.map((cells) => {
+      const data = Array.from({ length: L.rows }, (_, r) => Array.from({ length: L.cols }, (_, c) => (cells.has(key(c, r)) ? autoIndex(15, c, r) : -1)));
+      const map = this.make.tilemap({ data, tileWidth: TILE, tileHeight: TILE });
+      const set = map.addTilesetImage('auto', `auto_${theme}`, TILE, TILE, 0, 0, AUTO_GID)!;
+      return { cells, layer: map.createLayer(0, set, 0, 0)!.setDepth(16) };
+    });
   }
 
-  /** Fade the cover off a hidden room once the player is inside. */
+  /** Fade the cover off a hidden spot once the player is inside. */
   private revealSecret(): void {
-    const s = this.secret;
-    if (!s) return;
     const p = this.player;
-    if (!s.cells.has(Math.floor(p.cy / TILE) * this.level.cols + Math.floor(p.cx / TILE))) return;
+    const here = Math.floor((p.bottom - 4) / TILE) * this.level.cols + Math.floor(p.cx / TILE);
+    const s = this.secrets.find((x) => x.cells.has(here));
+    if (!s) return;
     this.tweens.add({ targets: s.layer, alpha: 0, duration: 350 });
-    this.secret = null;
+    this.secrets = this.secrets.filter((x) => x !== s);
     sfx.checkpoint();
   }
 
@@ -499,6 +586,11 @@ export class GameScene extends Phaser.Scene {
       if (--this.clearTimer === 0) this.scene.start(this.exitScene(true));
       return;
     }
+    if (this.gameOverT > 0) {
+      this.stepEffects();
+      if (--this.gameOverT === 0) this.scene.start(this.exitScene(false));
+      return;
+    }
     if (this.titleT > 0) {
       this.stepTitleCard();
       this.player.sprite.setVisible(false);
@@ -562,6 +654,7 @@ export class GameScene extends Phaser.Scene {
     if (this.intro && !this.intro.done) this.endBossIntro();
 
     const p = this.player;
+    if (this.stageId === 'dojo') for (const w of this.unlocked) p.ammo[w] = p.maxAmmo; // free ammo
     this.cycleWeapon();
     this.sky.stepMovers();
     p.update();
@@ -569,7 +662,7 @@ export class GameScene extends Phaser.Scene {
     this.hazards.step();
     this.revealSecret();
     if (!p.alive && p.deadTimer <= 0) {
-      this.respawn();
+      this.loseLife();
       return;
     }
 
@@ -646,7 +739,7 @@ export class GameScene extends Phaser.Scene {
     switch (def.id) {
       case 'quake':
         // Starts at the feet; if fired in the air it falls to the floor first.
-        b = new Projectile(this, p.cx + f * 6 - 4, p.bottom - 12, 8, 12, f * 3, 0, 'pwave');
+        b = new Projectile(this, p.cx + f * 6 - 4, p.bottom - 12, 8, 12, f * 3, 0, 'quake0');
         b.pierce = true;
         b.ignoresShield = true;
         b.stopAtWalls = true;
@@ -664,7 +757,7 @@ export class GameScene extends Phaser.Scene {
         sfx.freeze();
         break;
       case 'cyclone':
-        b = new Projectile(this, muzzleX - 9 + f * 4, p.bottom - 24, 18, 22, f * 1.8, 0, 'cyclone0');
+        b = new Projectile(this, muzzleX - 9 + f * 4, p.bottom - 24, 18, 22, f * 1.8, 0, 'cyclonef0');
         b.pierce = true;
         b.maxLife = 240;
         sfx.cyclone();
@@ -730,12 +823,17 @@ export class GameScene extends Phaser.Scene {
     const p = this.player;
     for (const b of this.bullets) {
       switch (b.weapon) {
-        case 'quake':
+        case 'quake': {
           b.life++;
           b.x += b.vx;
           b.vy = Math.min(b.vy + PHYS.gravity, PHYS.maxFall);
-          if (moveY(this.level, b, b.vy, true)) b.vy = 0;
+          const onFloor = moveY(this.level, b, b.vy, true);
+          if (onFloor) b.vy = 0;
+          // The crest heaves as it rolls, kicking dust out behind it.
+          b.sprite.setTexture(`quake${Math.floor(b.life / 4) % 4}`);
+          if (onFloor && b.life % 6 === 0) this.dust(b.cx - Math.sign(b.vx) * 4, b.y + b.h, -Math.sign(b.vx), 1);
           break;
+        }
         case 'thorn': {
           // Flies out, slows, then homes back to the player (who catches it).
           if (b.life < 18) b.vx -= Math.sign(b.vx) * 0.2;
@@ -753,7 +851,8 @@ export class GameScene extends Phaser.Scene {
         case 'cyclone':
           b.step();
           b.y += Math.sin(b.life * 0.15) * 0.6;
-          b.sprite.setTexture(`cyclone${Math.floor(b.life / 4) % 2}`);
+          b.sprite.setTexture(`cyclonef${Math.floor(b.life / 3) % 4}`);
+          if (b.life % 10 === 0) this.addEffect(b.cx + (Math.random() - 0.5) * 14, b.y + b.h - 2, -Math.sign(b.vx) * 0.6, -0.3, 0, 14, false, 'windline');
           break;
         case 'spark':
           if (b.state === 0) {
@@ -924,6 +1023,7 @@ export class GameScene extends Phaser.Scene {
         e.hp -= b.power;
         e.flash = 8;
         sfx.hit();
+        if (this.stageId === 'dojo') this.damageNumber(e.cx, e.y, b.power);
         this.impact(b);
         if (b.charge === 2) this.hitStop = Math.max(this.hitStop, 2);
         if (e.hp <= 0) this.killEnemy(e);
@@ -963,8 +1063,11 @@ export class GameScene extends Phaser.Scene {
       if (!k.dead && overlaps(p, k)) {
         p.heal(k.heal);
         if (k.ammo) this.refillAmmo(k.ammo);
+        if (k.bolts) {
+          this.boltCount = addBolts(k.bolts);
+          sfx.tick();
+        } else sfx.pickup();
         k.dead = true;
-        sfx.pickup();
       }
     }
     const u = this.upgradeItem;
@@ -974,6 +1077,23 @@ export class GameScene extends Phaser.Scene {
         this.partGuardianBeaten = true; // (until we hear back)
         this.startEncounter(guardian, { kind: 'part', step: 0 });
       } else this.startPartGet();
+    }
+    for (const o of this.cacheItems) {
+      if (o.taken || !overlaps(p, o.box)) continue;
+      o.taken = true;
+      o.sprite.setVisible(false);
+      visit.cachesTaken.add(o.key);
+      this.boltCount = addBolts(BOLT_CACHE);
+      sfx.pickup();
+      this.burst(o.box.x + 7, o.box.y + 4, 'spark', 6);
+      this.flashLabel(`+${BOLT_CACHE} BOLTS`);
+    }
+    for (const o of this.oneUpItems) {
+      if (o.taken || !overlaps(p, o.box)) continue;
+      o.taken = true;
+      o.sprite.setVisible(false);
+      visit.oneUpsTaken.add(o.key);
+      this.gainLife();
     }
     for (const t of this.tankItems) {
       if (t.taken || !overlaps(p, t.box)) continue;
@@ -1000,6 +1120,12 @@ export class GameScene extends Phaser.Scene {
     else if (roll < 0.26) this.dropPickup(e.cx, e.cy, 3, 0, 'hp_small', 8, 6);
     else if (hasAmmoWeapons && roll < 0.31) this.dropPickup(e.cx, e.cy, 0, 14, 'ammo_big', 12, 10);
     else if (hasAmmoWeapons && roll < 0.45) this.dropPickup(e.cx, e.cy, 0, 6, 'ammo_small', 8, 6);
+    // Bolts, on their own roll (not in the dojo).
+    if (this.stageId !== 'dojo') {
+      const b = Math.random();
+      if (b < 0.08) this.dropBolts(e.cx, e.cy, BOLT_BIG);
+      else if (b < 0.5) this.dropBolts(e.cx, e.cy, BOLT_SMALL);
+    }
   }
 
   private dropPickup(cx: number, cy: number, heal: number, ammo: number, tex: string, w: number, h: number): void {
@@ -1021,12 +1147,33 @@ export class GameScene extends Phaser.Scene {
   }
 
   private stepPickups(): void {
+    const p = this.player;
     for (const k of this.pickups) {
       k.life++;
-      k.vy = Math.min(k.vy + PHYS.gravity, PHYS.maxFall);
-      if (moveY(this.level, k, k.vy, true)) k.vy = 0;
+      // Bolt Magnet: anything close drifts in to you.
+      const dx = p.cx - k.cx;
+      const dy = p.cy - k.cy;
+      if (this.magnet && p.alive && k.life > 12 && Math.hypot(dx, dy) < 96) {
+        const d = Math.max(1, Math.hypot(dx, dy));
+        k.x += (dx / d) * 2.6;
+        k.y += (dy / d) * 2.6;
+        k.vy = 0;
+      } else {
+        k.vy = Math.min(k.vy + PHYS.gravity, PHYS.maxFall);
+        if (moveY(this.level, k, k.vy, true)) k.vy = 0;
+      }
       if (k.life > 300) k.dead = true;
     }
+  }
+
+  /** Bolts burst out of a beaten enemy. */
+  private dropBolts(cx: number, cy: number, value: number): void {
+    const big = value >= BOLT_BIG;
+    const k = new Projectile(this, cx - (big ? 5 : 3), cy - (big ? 5 : 3), big ? 10 : 6, big ? 10 : 6, (Math.random() - 0.5) * 1.5, -2.5, big ? 'nut_big' : 'nut') as Pickup;
+    k.heal = 0;
+    k.ammo = 0;
+    k.bolts = value;
+    this.pickups.push(k);
   }
 
   // --- effects ------------------------------------------------------------------
@@ -1047,6 +1194,14 @@ export class GameScene extends Phaser.Scene {
       const sp = 0.5 + Math.random();
       this.addEffect(x, y, Math.cos(a) * sp, Math.sin(a) * sp - 0.5, 0.05, 20, false, tex);
     }
+  }
+
+  /** Dojo: how much a hit did, floating up off the target. */
+  private damageNumber(x: number, y: number, n: number): void {
+    const t = pixelText(this, x, y - 2, String(n), { fontFamily: 'monospace', fontSize: '8px', color: n >= 3 ? '#ffe14a' : '#fff1e0', stroke: '#000000', strokeThickness: 2 })
+      .setOrigin(0.5, 1)
+      .setDepth(30);
+    this.tweens.add({ targets: t, y: y - 18, alpha: 0, duration: 700, ease: 'Cubic.easeOut', onComplete: () => t.destroy() });
   }
 
   /** Sparks where a shot connects, thrown back the way it came. */
@@ -1764,6 +1919,46 @@ export class GameScene extends Phaser.Scene {
 
   // --- life cycle -------------------------------------------------------------
 
+  /**
+   * Spike Guard (from Rivet's): touching spikes or lava uses one up instead of
+   * killing you; you're thrown clear and flash. Returns true if one was used.
+   */
+  useGuard(): boolean {
+    if (this.stageId === 'dojo' || this.exMode || loadSave().guards <= 0) return false;
+    updateSave((d) => d.guards--);
+    sfx.deflect();
+    this.shake(4);
+    this.burst(this.player.cx, this.player.bottom, 'spark', 10);
+    this.flashLabel('SPIKE GUARD!');
+    return true;
+  }
+
+  /** One more try (up to the cap). */
+  private gainLife(): void {
+    visit.lives = Math.min(LIVES_MAX, visit.lives + 1);
+    sfx.clear();
+    this.flashLabel('1UP!');
+  }
+
+  /** Out of life: back to the last checkpoint if there's a try left, else GAME OVER. */
+  private loseLife(): void {
+    if (this.stageId === 'dojo') {
+      this.respawn();
+      return;
+    }
+    if (visit.lives > 0) {
+      visit.lives--;
+      this.respawn();
+      return;
+    }
+    visit.stage = ''; // next visit starts fresh
+    stopMusic();
+    this.boss?.destroy();
+    this.boss = null;
+    this.banner.setText('GAME OVER').setFontSize(16).setVisible(true);
+    this.gameOverT = 200;
+  }
+
   private respawn(): void {
     this.clearActors();
     for (const f of this.effects) f.sprite.destroy();
@@ -1793,6 +1988,7 @@ export class GameScene extends Phaser.Scene {
 
   /** Where to go after leaving this stage. */
   private exitScene(cleared: boolean): string {
+    if (this.stageId === 'dojo') return 'title';
     if (this.stageId === 'finale') return cleared ? 'ending' : 'fortress';
     if (getStage(this.stageId).theme === 'fortress') return 'fortress';
     return 'select';
@@ -1819,7 +2015,7 @@ export class GameScene extends Phaser.Scene {
 
   private stageClear(): void {
     if (this.clearTimer > 0) return;
-    recordClear(this.stageId);
+    if (this.stageId !== 'dojo') recordClear(this.stageId);
     stopMusic();
     this.clearTimer = 200;
     this.banner.setText('STAGE CLEAR').setVisible(true);
@@ -1846,6 +2042,12 @@ export class GameScene extends Phaser.Scene {
     const bossHp = this.boss && this.boss.state !== 'dying' ? this.boss.barHp : -1;
     const ammo = p.weapon === 'buster' ? -1 : p.ammo[p.weapon];
     const bossMax = this.boss?.maxHp ?? 0;
+    const showBolts = this.stageId !== 'dojo';
+    this.boltIcon.setVisible(showBolts);
+    this.boltText.setText(showBolts ? String(this.boltCount) : '');
+    const lives = this.stageId === 'dojo' ? -1 : visit.lives;
+    this.livesIcon.setVisible(lives >= 0);
+    this.livesText.setText(lives >= 0 ? `x${lives}` : '');
     const key = `${hp}|${bossHp}|${bossMax}|${p.weapon}|${ammo}`;
     if (key === this.hudKey) return;
     this.hudKey = key;
@@ -1888,10 +2090,10 @@ export class GameScene extends Phaser.Scene {
 
   /**
    * Pause menu rows: every weapon (moving the cursor equips it), E-TANK
-   * (Z / X refills life), EXIT STAGE.
+   * (Z / X refills life), W-TANK (refills every weapon), EXIT STAGE.
    */
   private get pauseRows(): number {
-    return this.unlocked.length + 2;
+    return this.unlocked.length + 3;
   }
 
   private buildPauseMenu(): void {
@@ -1929,11 +2131,20 @@ export class GameScene extends Phaser.Scene {
     for (let i = 0; i < MAX_TANKS; i++) {
       layer.add(this.add.image(left + 126 + i * 14, tankY + 4, 'etank').setAlpha(i < tanks ? 1 : 0.2));
     }
-    const exitY = tankY + rowH;
-    const onExit = this.pauseIndex === tankRow + 1;
+    const wtanks = loadSave().wtanks;
+    const wRow = tankRow + 1;
+    const wY = tankY + rowH;
+    const onW = this.pauseIndex === wRow;
+    layer.add(pixelText(this, left + 12, wY, `${onW ? '>' : ' '} W-TANK`, { ...style, color: onW ? '#ffe14a' : '#8a8fa8' }));
+    for (let i = 0; i < 2; i++) layer.add(this.add.image(left + 126 + i * 14, wY + 4, 'etank').setTint(0xffe14a).setAlpha(i < wtanks ? 1 : 0.2));
+    const exitY = wY + rowH;
+    const onExit = this.pauseIndex === tankRow + 2;
     layer.add(pixelText(this, left + 12, exitY, `${onExit ? '>' : ' '} EXIT STAGE`, { ...style, color: onExit ? '#ff9a7a' : '#8a8fa8' }));
+    const ammoFull = this.unlocked.every((w) => WEAPONS[w].cost === 0 || p.ammo[w] >= p.maxAmmo);
     const hint = onExit
       ? 'Z / X to leave the stage'
+      : onW
+        ? this.exMode ? 'no W-tanks in an EX rematch' : wtanks === 0 ? "none: buy them at Rivet's" : ammoFull ? 'weapons are already full' : 'Z / X to refill every weapon'
       : onTank
         ? this.exMode ? 'no E-tanks in an EX rematch' : tanks === 0 ? 'none left: find them in stages' : p.hp >= p.maxHp ? 'life is already full' : 'Z / X to refill your life'
         : WEAPONS[this.unlocked[this.pauseIndex]].blurb;
@@ -1966,6 +2177,14 @@ export class GameScene extends Phaser.Scene {
         this.buildPauseMenu();
       }
     } else if (this.pauseIndex === this.unlocked.length + 1) {
+      const p = this.player;
+      if (loadSave().wtanks > 0 && !this.exMode && this.unlocked.some((w) => WEAPONS[w].cost > 0 && p.ammo[w] < p.maxAmmo)) {
+        updateSave((d) => d.wtanks--);
+        for (const w of this.unlocked) p.ammo[w] = p.maxAmmo;
+        sfx.pickup();
+        this.buildPauseMenu();
+      }
+    } else if (this.pauseIndex === this.unlocked.length + 2) {
       sfx.select();
       this.scene.start(this.exitScene(false));
     }

@@ -18,7 +18,7 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 const CEIL = '################';
 const FLOOR = '################';
 const room = bossRoom();
-const hall = miniHall('#');
+const hall = miniHall('#', false, true);
 
 export const CALDERA: StageData = {
   id: 'caldera',

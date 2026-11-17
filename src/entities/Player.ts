@@ -51,6 +51,8 @@ export class Player {
   private landT = 0;
   private wasGrounded = true;
   private climbT = 0;
+  /** Steps of grace after a Spike Guard saves you. */
+  private guardT = 0;
   /** Steps of slide left (keeps going while there's no room to stand). */
   private slideT = 0;
   /** Double-tap detection: the last direction tapped and how long ago. */
@@ -148,8 +150,17 @@ export class Player {
 
     if (this.alive) this.updateCharge();
     const L = this.g.level;
-    if (this.alive && this.invuln === 0 && touchesSpike(L, this)) this.die(true);
-    if (this.alive && touchesTile(this, (c, r) => L.isLava(c, r), 4)) this.die(true);
+    // Spikes and lava kill, unless a Spike Guard takes it: thrown clear, a little hurt, flashing.
+    if (this.guardT > 0) this.guardT--;
+    const deadly = (this.invuln === 0 && touchesSpike(L, this)) || touchesTile(this, (c, r) => L.isLava(c, r), 4);
+    if (this.alive && deadly && this.guardT === 0) {
+      if (this.invuln === 0 && this.g.useGuard()) {
+        this.hurt(4, this.cx - this.facing);
+        this.vy = -PHYS.jump * 1.2;
+        this.grounded = false;
+        this.guardT = 45; // a moment to get clear
+      } else if (this.invuln === 0 || !touchesSpike(L, this)) this.die(true);
+    }
     if (this.alive && this.g.electricOn && touchesTile(this, (c, r) => L.isElectric(c, r), 3)) {
       this.hurt(PHYS.electricDamage, this.cx - this.facing);
     }

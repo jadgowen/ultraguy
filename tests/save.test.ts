@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_TANKS, clearSave, exUnlocked, loadSave, recordClear, recordExClear, recordPart, setSkin, setTanks, slotKey, slotUsed } from '../src/save';
+import { MAX_TANKS, addBolts, buy, clearSave, exUnlocked, loadSave, recordClear, recordExClear, recordPart, setSkin, setTanks, slotKey, slotUsed } from '../src/save';
 import { unlockedSkins } from '../src/skins';
 import { updateSettings } from '../src/settings';
 
@@ -10,7 +10,7 @@ const useSlot = (slot: number) =>
 
 describe('save data', () => {
   it('starts fresh: just the Ultra Gun, nothing cleared', () => {
-    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic' });
+    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false });
   });
 
   it('records cleared stages and weapons once, in weapon order', () => {
@@ -107,5 +107,19 @@ describe('save slots', () => {
     // A scheme that isn't earned (an edited save) falls back to classic.
     localStorage.setItem(slotKey(1), JSON.stringify({ ...JSON.parse(localStorage.getItem(slotKey(1))!), skin: 'tide' }));
     expect(loadSave().skin).toBe('classic');
+  });
+
+  it('buys from the shop with bolts, up to each limit', () => {
+    useSlot(1);
+    expect(buy('oneup')).toBe('broke');
+    addBolts(100);
+    expect(buy('oneup')).toBe('ok');
+    expect(buy('oneup')).toBe('ok');
+    expect(buy('oneup')).toBe('ok');
+    expect(buy('oneup')).toBe('full');
+    expect(loadSave().bolts).toBe(10);
+    expect(loadSave().spareLives).toBe(3);
+    addBolts(5000);
+    expect(loadSave().bolts).toBe(999);
   });
 });

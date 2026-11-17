@@ -1,5 +1,6 @@
 import { CALDERA } from './caldera';
 import { CANOPY } from './canopy';
+import { DOJO } from './dojo';
 import { FINALE, FORTRESS_1, FORTRESS_2, FORTRESS_3, GAUNTLET } from './fortress';
 import { FOUNDRY } from './foundry';
 import { GLACIER } from './glacier';
@@ -32,7 +33,7 @@ export const FORTRESS_STAGES: Record<FortressStageId, StageData> = {
 /** Fortress stages in play order. */
 export const FORTRESS_ORDER: FortressStageId[] = ['fortress1', 'fortress2', 'fortress3', 'gauntlet', 'finale'];
 
-const OTHER_STAGES: Partial<Record<StageId, StageData>> = { ...FORTRESS_STAGES, intro: INTRO };
+const OTHER_STAGES: Partial<Record<StageId, StageData>> = { ...FORTRESS_STAGES, intro: INTRO, dojo: DOJO };
 
 export function hasStage(id: StageId): boolean {
   return id in BOSS_STAGES || id in OTHER_STAGES;

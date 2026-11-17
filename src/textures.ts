@@ -3,6 +3,8 @@ import type { ThemeId } from './level/Level';
 import { THEMES, Theme } from './level/themes';
 import { makeEnvArt } from './envArt';
 import { makeStoreArt } from './storeArt';
+import { makeWeaponFx } from './weaponFx';
+import { makeShopArt } from './shopArt';
 import { makePixelFont } from './pixelFont';
 import { makeHazardTextures } from './scenes/hazards';
 
@@ -377,6 +379,54 @@ function makeEffects(scene: Phaser.Scene): void {
     rect(g, C.white, 1, 1, 1, 1);
   });
   make(scene, 'windline', 10, 1, (g) => rect(g, 0xffffff, 0, 0, 10, 1));
+  // Bolts (the shop's currency): a hex nut, a big one, and a cache of them.
+  const nut = (g: G, x: number, y: number, s: number) => {
+    rect(g, 0x1a1428, x, y + 1, s, s - 2);
+    rect(g, 0x1a1428, x + 1, y, s - 2, s);
+    rect(g, 0xb8c0d0, x + 1, y + 1, s - 2, s - 2);
+    rect(g, 0xeef2fa, x + 1, y + 1, s - 2, 1);
+    rect(g, 0x55607a, x + Math.floor(s / 2) - 1, y + Math.floor(s / 2) - 1, 2, 2);
+  };
+  make(scene, 'nut', 6, 6, (g) => nut(g, 0, 0, 6));
+  make(scene, 'nut_big', 10, 10, (g) => {
+    nut(g, 0, 0, 10);
+    rect(g, 0xffe14a, 2, 2, 2, 1);
+  });
+  make(scene, 'nut_cache', 14, 12, (g) => {
+    rect(g, 0x1a1428, 0, 4, 14, 8); // crate
+    rect(g, 0x9a6a3a, 1, 5, 12, 6);
+    rect(g, 0xc8904a, 1, 5, 12, 1);
+    rect(g, 0x6a4a2a, 1, 8, 12, 1);
+    nut(g, 1, 0, 6);
+    nut(g, 6, 1, 6);
+  });
+  // Dojo training dummies: a padded post with a target on it.
+  const dummy = (g: G, shield: boolean) => {
+    rect(g, 0x1a1428, 6, 18, 4, 8); // post
+    rect(g, 0x7a5a3a, 7, 18, 2, 8);
+    rect(g, 0x1a1428, 3, 25, 10, 1); // base
+    rect(g, 0x1a1428, 1, 1, 14, 18); // pad
+    rect(g, 0xc8a070, 2, 2, 12, 16);
+    rect(g, 0xe8c890, 2, 2, 12, 2);
+    rect(g, 0xd83a4a, 4, 6, 8, 8); // target
+    rect(g, 0xfff1e0, 6, 8, 4, 4);
+    rect(g, 0xd83a4a, 7, 9, 2, 2);
+    if (shield) {
+      rect(g, 0x1a1428, 12, 0, 4, 20);
+      rect(g, 0x8a8fa8, 13, 1, 2, 18);
+      rect(g, 0xc8ccd8, 13, 1, 1, 18);
+    }
+  };
+  make(scene, 'dummy', 16, 26, (g) => dummy(g, false));
+  make(scene, 'dummy_shield', 16, 26, (g) => dummy(g, true));
+  make(scene, 'dummy_air', 14, 14, (g) => {
+    rect(g, 0x1a1428, 1, 1, 12, 12);
+    rect(g, 0xd83a4a, 2, 2, 10, 10);
+    rect(g, 0xfff1e0, 4, 4, 6, 6);
+    rect(g, 0xd83a4a, 6, 6, 2, 2);
+    rect(g, 0x8a8fa8, 0, 6, 1, 2);
+    rect(g, 0x8a8fa8, 13, 6, 1, 2);
+  });
   // A puff of dust kicked up by feet (landing, sliding, turning).
   make(scene, 'dust', 7, 5, (g) => {
     rect(g, 0xb8b4c8, 1, 1, 5, 3);
@@ -384,6 +434,8 @@ function makeEffects(scene: Phaser.Scene): void {
     rect(g, 0xe8e4f0, 2, 1, 2, 2);
   });
   makeStoreArt(scene);
+  makeWeaponFx(scene);
+  makeShopArt(scene);
   make(scene, 'bubble_fx', 4, 4, (g) => {
     g.lineStyle(1, 0xd8f0ff, 0.9);
     g.strokeRect(0.5, 0.5, 3, 3);

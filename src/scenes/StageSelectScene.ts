@@ -123,9 +123,9 @@ export class StageSelectScene extends MenuScene {
     for (const o of this.normalMarks) (o as PixelText).setVisible(!this.exOn);
     for (const o of this.exMarks) (o as PixelText).setVisible(this.exOn);
     this.title.setText(this.exOn ? 'EX REMATCH' : 'SELECT STAGE').setColor(this.exOn ? '#ff5050' : '#f28c28');
-    const toggle = this.exOpen ? (this.exOn ? '   X normal' : '   X EX mode') : '';
-    const test = DEV_TOOLS ? '   B boss test' : '';
-    this.hintText.setText(`ARROWS choose   ENTER/Z start${toggle}${test}   BKSP back`);
+    const toggle = this.exOpen ? (this.exOn ? '  X normal' : '  X EX') : '';
+    const test = DEV_TOOLS ? '  B test' : '';
+    this.hintText.setText(`ARROWS choose  Z start  Q shop${toggle}${test}  BKSP back`);
   }
 
   /** The color scheme on the center panel. */
@@ -183,6 +183,12 @@ export class StageSelectScene extends MenuScene {
     // ESC is a 'start' key here, so Backspace goes back to the title.
     if (Phaser.Input.Keyboard.JustDown(this.backKey) || touch.takeBack()) {
       this.scene.start('title');
+      return true;
+    }
+    // Q (L1): Rivet's shop.
+    if (c.justPressed('prev')) {
+      sfx.select();
+      this.scene.start('shop');
       return true;
     }
     if (this.exOpen && c.justPressed('fire')) {

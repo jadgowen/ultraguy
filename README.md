@@ -72,7 +72,23 @@ The first time you reach a stage boss it gets a full intro: letterbox bars, the 
 signature pose (with its own flourish), a name card with its title slides in, it calls out a voice line, and
 then its health bar fills (`src/scenes/bossIntro.ts`). Retries after a death skip straight to the quick version.
 
-Each boss stage has a miniboss halfway through, and an energy tank (E-tank) on a ledge just before it.
+Each boss stage has a miniboss halfway through. Just before it, a low block hides a crawlspace (only the
+slide gets in) holding an energy tank (E-tank), and in some stages a 1-UP; it looks like solid wall,
+notched at each end, until you're inside. The armor-part rooms hide a 1-UP too.
+
+**Lives.** You start each stage with 2 extra lives (shown under the health bars); 1-UPs add one (up to 9).
+Dying with lives left sends you to the last checkpoint; with none left it's GAME OVER and back to the stage
+select (or the fortress map).
+
+**Bolts and Rivet's shop.** Beaten enemies drop bolts (big ones now and then), and bolt caches hide in the
+crawlspaces and armor-part rooms. Press Q (L1) on the stage select to visit RIVET'S PARTS & PROVISIONS:
+1-UPs (added to your lives when you next enter a stage), E-tanks, W-tanks (refill every weapon from the pause
+menu), the Spike Guard (survive one spike or lava fall) and the Bolt Magnet (pickups fly to you). More stock
+comes in as you beat bosses (`src/shop.ts`).
+
+**Dojo** (title screen): a training hall with every weapon, free ammo and endless lives. Target dummies show
+the damage each hit does (one hides behind a shield), and the back half has a ladder, ice, a slide tunnel,
+conveyor belts, a spring, water and an updraft. Handy for checking weapons and physics changes.
 You can carry up to 4 E-tanks (saved); use one from the pause menu to refill your life. Enemies drop
 small and large life and weapon-energy pellets.
 

@@ -53,7 +53,7 @@ import type { WeaponId } from '../weapons';
 
 export type BossStageId = 'foundry' | 'canopy' | 'glacier' | 'stratos' | 'powerplant' | 'caldera' | 'scrapyard' | 'reef';
 export type FortressStageId = 'fortress1' | 'fortress2' | 'fortress3' | 'gauntlet' | 'finale';
-export type StageId = BossStageId | FortressStageId | 'intro';
+export type StageId = BossStageId | FortressStageId | 'intro' | 'dojo';
 
 export const ALL_STAGE_IDS: StageId[] = [
   'intro',
@@ -70,6 +70,7 @@ export const ALL_STAGE_IDS: StageId[] = [
   'fortress3',
   'gauntlet',
   'finale',
+  'dojo',
 ];
 export type ThemeId = 'foundry' | 'jungle' | 'ice' | 'sky' | 'power' | 'volcano' | 'scrap' | 'water' | 'fortress' | 'city';
 export type MiniKind = 'press' | 'toad' | 'mammoth' | 'kite' | 'dynamo' | 'crab' | 'crusher' | 'angler';
@@ -186,7 +187,10 @@ export type EnemyKind =
   | 'grinder'
   | 'junkbot'
   | 'puffer'
-  | 'clam';
+  | 'clam'
+  | 'dummy'
+  | 'shieldDummy'
+  | 'airDummy';
 
 export interface Spawn {
   kind: EnemyKind;
@@ -226,6 +230,10 @@ const ENEMY_CHARS: Record<string, EnemyKind> = {
   j: 'junkbot',
   u: 'puffer',
   q: 'clam',
+  // Dojo targets.
+  d: 'dummy',
+  n: 'shieldDummy',
+  a: 'airDummy',
 };
 
 const TILE_CHARS: Record<string, Tile> = {
@@ -251,7 +259,7 @@ const TILE_CHARS: Record<string, Tile> = {
   '}': Tile.CurrentR,
 };
 
-const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U', '=', '-', 'v', ':', '!', '@']);
+const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U', '=', '-', 'v', ':', '!', '@', '+', '$']);
 
 /** Water, including currents. */
 export function isWaterTile(t: Tile): boolean {
@@ -270,6 +278,9 @@ export class Level {
   boss: Point | null = null;
   miniboss: Point | null = null;
   readonly tanks: Point[] = [];
+  /** Hidden extra lives ('+') and bolt caches ('$'). */
+  readonly oneUps: Point[] = [];
+  readonly boltCaches: Point[] = [];
   readonly teleporters: Point[] = [];
   upgrade: Point | null = null;
   bossTestStart: Point | null = null;
@@ -391,6 +402,8 @@ export class Level {
         else if (ch === '*') this.goal = { x: cx, y: bottom };
         else if (ch === 'M') this.miniboss = { x: cx, y: bottom };
         else if (ch === 'E') this.tanks.push({ x: cx, y: bottom });
+        else if (ch === '+') this.oneUps.push({ x: cx, y: bottom });
+        else if (ch === '$') this.boltCaches.push({ x: cx, y: bottom });
         else if (ch === 'T') this.teleporters.push({ x: cx, y: bottom });
         else if (ch === 'U') this.upgrade = { x: cx, y: bottom };
         else if (ch === '!') this.crushers.push({ x: gc * TILE, y: gr * TILE });

@@ -17,7 +17,7 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 //   row 3:  A B C D E F W
 
 const room = bossRoom();
-const hall = miniHall('#');
+const hall = miniHall('#', false, true);
 
 export const STRATOS: StageData = {
   id: 'stratos',

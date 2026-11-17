@@ -42,6 +42,8 @@ const MUSIC = {
 /** Music for the special modes, in a 16-bit console style. */
 const STYLE16 = 'instrumental 16-bit chiptune in the style of classic SNES-era sports games, punchy FM-style lead, slap bass, sampled drums, seamless loop';
 const MUSIC16 = {
+  shop: 'Cozy robot shop theme, light jazzy bossa nova groove, plucky bass, warm keys, friendly and relaxed, loopable',
+  dojo: 'Calm martial-arts training hall theme, steady mid-tempo groove, wooden percussion, focused and motivating, loopable',
   breaker: 'Forge brick-breaker theme, bouncy and metallic, steady driving beat, hammer-like percussion',
   hockey: 'Ice hockey arena theme, upbeat and cool, crisp percussion, organ-like stabs, sporty energy',
   puzzle: 'Falling-block puzzle duel theme, catchy and quirky, junkyard clank percussion, building tension',
@@ -107,6 +109,12 @@ const VOICE = {
   jared_intro: ['iP95p4xoKVk53GoZ742B', "Store's closed, pal. But hey... hot dogs are on the house!"],
   gate_intro: ['2EiwWnXFnvU5JabPnv8n', 'None pass this gate. Turn back, machine.'],
   overlord_intro: ['nPczCjzI2devNBz1zQrb', 'So. The little machine finally arrives. Kneel.'],
+  // Rivet, the shopkeeper.
+  shop_welcome: ['MF3mGyEYCl7XYWbV9V6O', "Welcome to Rivet's! Bolts in, goodies out!"],
+  shop_thanks: ['MF3mGyEYCl7XYWbV9V6O', 'Pleasure doing business, sugar!'],
+  shop_broke: ['MF3mGyEYCl7XYWbV9V6O', "Ooh, you're a few bolts short. Go bust some bots!"],
+  shop_full: ['MF3mGyEYCl7XYWbV9V6O', "Whoa there, you can't carry any more of those!"],
+  shop_bye: ['MF3mGyEYCl7XYWbV9V6O', 'Come back soon! Bring bolts!'],
   overlord_challenge: ['nPczCjzI2devNBz1zQrb', 'Pathetic machine. My armada will blot you from the sky!'],
   overlord_loses: ['nPczCjzI2devNBz1zQrb', 'Impossible... my fleet... destroyed!'],
   toad_challenge: ['IKne3meq5aSn9XLyUdCD', 'Ribbit! You want past me? Hop across my thicket first, tin can. Fill all three lily pads before the time runs out!'],

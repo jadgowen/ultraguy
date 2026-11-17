@@ -32,12 +32,16 @@ export function water(screen: string[]): string[] {
 
 /**
  * Two-screen miniboss hall: a flat floor with the miniboss ('M') near the
- * right, a checkpoint before it, and an energy tank ('E') up a two-step ledge
- * just left of the fight. `top` is the floor's surface tile ('I' for ice).
+ * right and a checkpoint before it. Just left of the fight a low block sits
+ * on the floor; under it runs a one-tile crawlspace (only a slide gets in)
+ * hiding the energy tank ('E'), a bolt cache ('$'), and a 1-UP ('+') too if `oneUp`. The game
+ * draws the crawlspace as solid wall, notched at each end, until you're in.
+ * `top` is the floor's surface tile ('I' for ice).
  */
-export function miniHall(top = '#', underwater = false): { a: string[]; b: string[] } {
+export function miniHall(top = '#', underwater = false, oneUp = false): { a: string[]; b: string[] } {
   const floor = [top.repeat(16), '################'];
-  const a = [...rows(SKY, 8), '...E............', '..###...........', SKY, '##..............', '.....c..........', ...floor];
+  const crawl = oneUp ? '....+.E.$...c...' : '......E.$...c...';
+  const a = [...rows(SKY, 11), '..#########.....', crawl, ...floor];
   const b = [...rows(SKY, 12), '............M...', ...floor];
   return underwater ? { a: water(a), b: water(b) } : { a, b };
 }
@@ -51,7 +55,7 @@ export const SECRET_ROOM: string[] = [
   ...rows('################', 10),
   '.........#######',
   '.........#######',
-  '....U....#######',
+  '.+..U..$.#######',
   '################',
   '################',
 ];

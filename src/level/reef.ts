@@ -17,7 +17,7 @@ import { bossRoom, miniHall, rows, SKY, water } from './rooms';
 
 const ROCK = '################';
 const room = bossRoom();
-const hall = miniHall('#', true);
+const hall = miniHall('#', true, true);
 
 export const REEF: StageData = {
   id: 'reef',

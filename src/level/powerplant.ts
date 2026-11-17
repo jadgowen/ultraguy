@@ -16,7 +16,7 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 
 const CEIL = '################';
 const room = bossRoom();
-const hall = miniHall('#');
+const hall = miniHall('#', false, true);
 
 export const POWERPLANT: StageData = {
   id: 'powerplant',

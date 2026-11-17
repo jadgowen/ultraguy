@@ -1,5 +1,6 @@
 import { ALL_STAGE_IDS, StageId } from './level/Level';
 import { PART_ORDER, PartId } from './parts';
+import { MAX_BOLTS, SHOP_ITEMS, ShopItemId } from './shop';
 import { SKIN_IDS, SkinId, setCurrentSkin, unlockedSkins } from './skins';
 import { SLOT_COUNT, loadSettings } from './settings';
 import { WEAPON_ORDER, WeaponId } from './weapons';
@@ -16,6 +17,13 @@ export interface SaveData {
   exCleared: StageId[];
   /** The hero color scheme worn (EX wins unlock them). */
   skin: SkinId;
+  /** Currency, spent at Rivet's shop. */
+  bolts: number;
+  /** Shop goods: W-tanks, 1-UPs waiting for the next stage, spike guards, and the bolt magnet. */
+  wtanks: number;
+  spareLives: number;
+  guards: number;
+  magnet: boolean;
 }
 
 export const MAX_TANKS = 4;
@@ -34,7 +42,7 @@ export function activeSlot(): number {
 }
 
 function fresh(): SaveData {
-  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic' };
+  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false };
 }
 
 /** Load the active slot (or `slot`). */
@@ -55,7 +63,21 @@ export function loadSave(slot = activeSlot()): SaveData {
     const exCleared = (data.exCleared ?? []).filter((s): s is StageId => ALL_STAGE_IDS.includes(s as StageId));
     // A scheme only counts if it's still unlocked.
     const skin = SKIN_IDS.includes(data.skin as SkinId) && unlockedSkins(exCleared).some((s) => s.id === data.skin) ? (data.skin as SkinId) : 'classic';
-    return { weapons: WEAPON_ORDER.filter((w) => weapons.includes(w)), cleared, tanks, parts, exCleared, skin };
+    const count = (v: unknown, max: number) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
+    const cap = (id: ShopItemId) => SHOP_ITEMS.find((i) => i.id === id)!.max;
+    return {
+      weapons: WEAPON_ORDER.filter((w) => weapons.includes(w)),
+      cleared,
+      tanks,
+      parts,
+      exCleared,
+      skin,
+      bolts: count(data.bolts, MAX_BOLTS),
+      wtanks: count(data.wtanks, cap('wtank')),
+      spareLives: count(data.spareLives, cap('oneup')),
+      guards: count(data.guards, cap('guard')),
+      magnet: data.magnet === true,
+    };
   } catch {
     return fresh(); // corrupt or blocked storage: start fresh
   }
@@ -77,6 +99,53 @@ export function recordClear(stage: StageId, weapon?: WeaponId): boolean {
   if (!data.cleared.includes(stage)) data.cleared.push(stage);
   write(data);
   return isNew;
+}
+
+/** Change the save in place (for bolts and shop goods). */
+export function updateSave(fn: (data: SaveData) => void): SaveData {
+  const data = loadSave();
+  fn(data);
+  write(data);
+  return data;
+}
+
+/** Bolts picked up. */
+export function addBolts(n: number): number {
+  return updateSave((d) => {
+    d.bolts = Math.min(MAX_BOLTS, d.bolts + n);
+  }).bolts;
+}
+
+/** How many of a shop item you hold now. */
+export function owned(data: SaveData, id: ShopItemId): number {
+  switch (id) {
+    case 'etank':
+      return data.tanks;
+    case 'wtank':
+      return data.wtanks;
+    case 'oneup':
+      return data.spareLives;
+    case 'guard':
+      return data.guards;
+    case 'magnet':
+      return data.magnet ? 1 : 0;
+  }
+}
+
+/** Buy one: 'ok', 'broke' (not enough bolts) or 'full' (holding the most you can). */
+export function buy(id: ShopItemId): 'ok' | 'broke' | 'full' {
+  const item = SHOP_ITEMS.find((i) => i.id === id)!;
+  const data = loadSave();
+  if (owned(data, id) >= item.max) return 'full';
+  if (data.bolts < item.price) return 'broke';
+  data.bolts -= item.price;
+  if (id === 'etank') data.tanks++;
+  else if (id === 'wtank') data.wtanks++;
+  else if (id === 'oneup') data.spareLives++;
+  else if (id === 'guard') data.guards++;
+  else data.magnet = true;
+  write(data);
+  return 'ok';
 }
 
 /** Record an EX rematch won. */

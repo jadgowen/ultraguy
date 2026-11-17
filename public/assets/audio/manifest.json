@@ -26,7 +26,9 @@
     "puzzle": "music_puzzle.mp3",
     "skies": "music_skies.mp3",
     "pinball": "music_pinball.mp3",
-    "dungeon": "music_dungeon.mp3"
+    "dungeon": "music_dungeon.mp3",
+    "dojo": "music_dojo.mp3",
+    "shop": "music_shop.mp3"
   },
   "sfx": {
     "shoot": "sfx_shoot.mp3",
@@ -178,6 +180,11 @@
     "tide_intro": "voice_tide_intro.mp3",
     "jared_intro": "voice_jared_intro.mp3",
     "gate_intro": "voice_gate_intro.mp3",
-    "overlord_intro": "voice_overlord_intro.mp3"
+    "overlord_intro": "voice_overlord_intro.mp3",
+    "shop_welcome": "voice_shop_welcome.mp3",
+    "shop_thanks": "voice_shop_thanks.mp3",
+    "shop_broke": "voice_shop_broke.mp3",
+    "shop_full": "voice_shop_full.mp3",
+    "shop_bye": "voice_shop_bye.mp3"
   }
 }

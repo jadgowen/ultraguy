@@ -558,6 +558,50 @@ class Clam extends Enemy {
   }
 }
 
+// --- dojo ----------------------------------------------------------------------
+
+/** A training dummy: stands there, can't be beaten, never hurts. */
+class Dummy extends Enemy {
+  constructor(g: GameScene, s: Spawn, tex = 'dummy') {
+    super(g, s, 16, 26, tex);
+    this.hp = 1e9;
+  }
+  harmful(): boolean {
+    return false;
+  }
+  protected update(): void {
+    this.hp = 1e9;
+    this.physics();
+  }
+}
+
+/** A dummy behind a shield on its right side: shots from that side bounce off. */
+class ShieldDummy extends Dummy {
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 'dummy_shield');
+  }
+  shielded(): boolean {
+    return this.g.player.cx > this.cx;
+  }
+}
+
+/** A floating target that drifts up and down. */
+class AirDummy extends Enemy {
+  private y0: number;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 14, 14, 'dummy_air');
+    this.hp = 1e9;
+    this.y0 = this.y;
+  }
+  harmful(): boolean {
+    return false;
+  }
+  protected update(): void {
+    this.hp = 1e9;
+    this.y = this.y0 + Math.sin(this.t / 40) * 14;
+  }
+}
+
 export function createEnemy(g: GameScene, s: Spawn): Enemy {
   const ctor: Record<EnemyKind, new (g: GameScene, s: Spawn) => Enemy> = {
     walker: Walker,
@@ -578,6 +622,9 @@ export function createEnemy(g: GameScene, s: Spawn): Enemy {
     junkbot: Junkbot,
     puffer: Puffer,
     clam: Clam,
+    dummy: Dummy,
+    shieldDummy: ShieldDummy,
+    airDummy: AirDummy,
   };
   return new ctor[s.kind](g, s);
 }

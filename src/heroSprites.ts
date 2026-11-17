@@ -91,6 +91,18 @@ export function createHeroTextures(scene: Phaser.Scene): void {
   swap.set(VISOR[0], 0xff3050);
   swap.set(VISOR[1], 0xa01830);
   recolorHero(scene, 'hero_shade', swap);
+  makeOneUp(scene);
+}
+
+/** The 1-UP pickup and lives icon: UltraGuy's helmet, cut from his idle frame. */
+function makeOneUp(scene: Phaser.Scene): void {
+  const meta = scene.cache.json.get('hero_frames') as HeroFrameData;
+  const src = scene.textures.get('hero_buster').getSourceImage() as HTMLCanvasElement;
+  const fx = meta.frames.idle * meta.frameWidth;
+  const tex = scene.textures.createCanvas('oneup', 14, 12)!;
+  const ctx = tex.getContext();
+  ctx.drawImage(src, fx + 5, 0, 14, 12, 0, 0, 14, 12);
+  tex.refresh();
 }
 
 /** Steps each run frame shows (8 frames: about two strides a second). */

@@ -19,7 +19,7 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 const FLOOR = '################';
 const GIRDER = '################';
 const room = bossRoom();
-const hall = miniHall('#');
+const hall = miniHall('#', false, true);
 
 export const SCRAPYARD: StageData = {
   id: 'scrapyard',
