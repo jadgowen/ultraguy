@@ -61,21 +61,85 @@ export function loadAudio(scene: Phaser.Scene, done: () => void): void {
   scene.load.start();
 }
 
-/** Loop a music track (no-op if it's already playing or wasn't generated). */
+type Track = Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
+
+/**
+ * Fade a track's volume to `to` over `ms`, independent of any scene (they come
+ * and go). Runs on a timer, not animation frames, so it still finishes when
+ * the page is in the background; `done` is guaranteed to run once.
+ */
+function fade(sound: Track, from: number, to: number, ms: number, done?: () => void): void {
+  const start = performance.now();
+  let finished = false;
+  const finish = (): void => {
+    if (finished) return;
+    finished = true;
+    clearInterval(timer);
+    try {
+      sound.setVolume(to);
+    } catch {
+      // destroyed meanwhile
+    }
+    done?.();
+  };
+  const timer = setInterval(() => {
+    const k = Math.min(1, (performance.now() - start) / ms);
+    try {
+      sound.setVolume(from + (to - from) * k);
+    } catch {
+      finish();
+      return;
+    }
+    if (k >= 1) finish();
+  }, 16);
+  setTimeout(finish, ms + 60); // backstop if the interval is throttled
+}
+
+/** How long tracks take to fade out and in when one replaces another. */
+const CROSSFADE_MS = 420;
+
+/** Loop a music track (no-op if it's already playing or wasn't generated); the old one fades out as it fades in. */
 export function playMusic(scene: Phaser.Scene, key: string): void {
   if (current?.key === key) return;
-  stopMusic();
+  stopMusic(CROSSFADE_MS);
   const audioKey = `music_${key}`;
   if (!scene.cache.audio.exists(audioKey)) return;
-  const sound = scene.sound.add(audioKey, { loop: true, volume: MUSIC_VOLUME * musicLevel }) as Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound;
+  const sound = scene.sound.add(audioKey, { loop: true, volume: 0 }) as Track;
   sound.play();
+  fade(sound, 0, MUSIC_VOLUME * musicLevel, CROSSFADE_MS);
   current = { key, sound };
 }
 
-export function stopMusic(): void {
-  current?.sound.stop();
-  current?.sound.destroy();
+/** A one-shot jingle (e.g. after a boss): the music fades out quickly, then it plays once. */
+export function playJingle(scene: Phaser.Scene, key: string): void {
+  stopMusic(200);
+  const audioKey = `music_${key}`;
+  if (!scene.cache.audio.exists(audioKey)) return;
+  const sound = scene.sound.add(audioKey, { loop: false, volume: MUSIC_VOLUME * musicLevel * 1.1 }) as Track;
+  sound.play();
+  sound.once('complete', () => sound.destroy());
+  current = { key, sound };
+}
+
+/** Key of what's playing now (music or a jingle), if anything. */
+export function nowPlaying(): string | null {
+  return current?.key ?? null;
+}
+
+/** Stop the music, fading it out over `fadeMs` (0 cuts it). */
+export function stopMusic(fadeMs = 0): void {
+  const old = current;
   current = null;
+  if (!old) return;
+  if (fadeMs <= 0) {
+    old.sound.stop();
+    old.sound.destroy();
+    return;
+  }
+  fade(old.sound, old.sound.volume, 0, fadeMs, () => {
+    old.sound.stop();
+    old.sound.destroy();
+  });
 }
 
 /** The track for a stage (fortress stages share one). */

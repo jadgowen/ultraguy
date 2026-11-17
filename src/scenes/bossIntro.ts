@@ -27,6 +27,7 @@ export const BOSS_INTROS: Partial<Record<BossKind, IntroCard>> = {
   scrap: { title: 'KING OF THE JUNK HEAP', voice: 'scrap_intro', fx: { tex: 'shard', sound: 'crumble', n: 8 } },
   tide: { title: 'TERROR OF THE REEF', voice: 'tide_intro', fx: { tex: 'bubble_fx', sound: 'bubble', n: 10 } },
   gatekeeper: { title: 'KEEPER OF THE FORTRESS GATE', voice: 'gate_intro', fx: { tex: 'dust', sound: 'crush', n: 6 } },
+  baron: { title: "RIVET'S RIVAL, KING OF CUT-RATE", voice: 'baron_intro', color: 0xf8d040, fx: { tex: 'spark', sound: 'pickup', n: 12 } },
   abyss: { title: 'THE EYE IN THE DARK' },
   warden: { title: 'GUARDIAN OF THE SPIRE' },
   overlord: { title: 'MASTER OF THE FORTRESS', voice: 'overlord_intro', color: 0xff5050, fx: { tex: 'spark', sound: 'weakHit', n: 12 } },

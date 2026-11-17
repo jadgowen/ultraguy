@@ -39,16 +39,15 @@ change the game entirely; each is its own scene, entered through a dialogue and 
 | Where | Fight | Mode | Scene |
 |---|---|---|---|
 | Boss Hall capsule | Anvil | brick-breaker: smash his forge wall and hit him behind it; his sparks slow your paddle; hot bricks (and every hit on him) drop multiballs; he patches holes | `BreakerScene.ts` |
-| Boss Hall capsule | Mantis | top-down dungeon: four rooms, keys, a hookshot that swings you across chasms; Mantis guards until you stun him | `DungeonScene.ts` |
+| Boss Hall capsule | Mantis | lane-crossing hop: dodge the traffic, ride logs and pads, fill all three pads without landing where Mantis waits | `HopScene.ts` |
 | Boss Hall capsule | Frostline | one-on-one ice hockey: slippery skating, shots and body checks, first to 3 | `HockeyScene.ts` |
 | Boss Hall capsule | Gale | vertical sky shooter: kites, wind gusts that shove your ship, then Gale's feathers, blades and a low tornado you can fly over | `SkiesScene.ts` |
 | Boss Hall capsule | Volt | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
-| Boss Hall capsule | Scrap | versus falling-block puzzle: crush four of a kind, chains bury him in scrap | `PuzzleScene.ts` |
+| Boss Hall capsule | Scrap | top-down junk maze: four rooms, keys, a hookshot that swings you across shafts; Scrap's magnet field turns shots until you stun him | `DungeonScene.ts` |
 | Boss Hall capsule | Tide | undersea pinball: hit Tide while his shell is open; lanes pry it open, targets start a multiball; a ball saver after each serve | `PinballScene.ts` |
 | Boss Hall capsule | Magma | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
 | Boss Hall bonus | Gatekeeper | behind-the-back boxing, three rounds, Coach Jared in your corner | `BoxingScene.ts` |
 | Boss Hall bonus (after beating the game) | Overlord | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
-| Canopy miniboss | Briar Toad | lane-crossing hop: dodge the trail, ride logs and pads, fill all three pads in time | `HopScene.ts` |
 
 Every Boss Hall capsule is its own game (they share `ModeScene.ts`); the exit opens once all eight
 stage bosses are beaten (bonus capsules are optional). Win a mode and you're back where you were
@@ -85,6 +84,21 @@ crawlspaces and armor-part rooms. Press Q (L1) on the stage select to visit RIVE
 1-UPs (added to your lives when you next enter a stage), E-tanks, W-tanks (refill every weapon from the pause
 menu), the Spike Guard (survive one spike or lava fall) and the Bolt Magnet (pickups fly to you). More stock
 comes in as you beat bosses (`src/shop.ts`).
+
+**Signature enemies.** Each stage has one of its own: Foundry's Hammerbot (slams shockwaves), Canopy's
+Snapper (a bud that bites when you're close), Glacier's Snow Roller (grows as it rolls), Stratos's Gust Fan
+(blows you back), Power Plant's Tesla Coil (rings of sparks), Caldera's Lava Leaper, Scrapyard's Magnet Drone
+(pulls you under it) and Reef's Jelly (zaps straight down). They take the place of some of the stage's usual
+enemies (`signature` in each stage file).
+
+**The secret.** One 1-UP hides in every boss stage. Find all eight (they're remembered) and Rivet hands you the
+key to MEGAMART, the megastore of Rivet's rival, the BARGAIN BARON: a rooftop run past every signature enemy
+and a boss fight (coin tosses, a SALE-sign dash, a coin vacuum, falling stock). Beating him pays 250 bolts and
+unlocks the GOLD color scheme.
+
+**Presentation.** Stages open with a flyover (the camera starts a few screens ahead and sweeps back to you
+under the title card; JUMP skips). Music crossfades between tracks, and beating a stage boss plays a victory
+jingle. The ending is a cast roll: every boss, miniboss and guardian with their sprite and title.
 
 **Dojo** (title screen): a training hall with every weapon, free ammo and endless lives. Target dummies show
 the damage each hit does (one hides behind a shield), and the back half has a ladder, ice, a slide tunnel,

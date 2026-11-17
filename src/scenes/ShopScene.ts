@@ -1,13 +1,28 @@
 import Phaser from 'phaser';
 import { playMusic, playVoice } from '../audio';
 import { VIEW_H, VIEW_W } from '../constants';
-import { ALL_BOSS_STAGES } from '../level/stages';
+import { Level } from '../level/Level';
+import { ALL_BOSS_STAGES, getStage } from '../level/stages';
 import { PixelText, pixelText } from '../pixelFont';
 import { buy, loadSave, owned } from '../save';
 import { SHOP_ITEMS } from '../shop';
 import { sfx } from '../sfx';
 import { touch } from '../touch';
 import { FONT, MenuScene } from './menu';
+
+/** Every hidden 1-UP in the boss stages ("stage:x:y", as GameScene records them). */
+let secretOneUps: string[] | null = null;
+function allSecretOneUps(): string[] {
+  secretOneUps ??= ALL_BOSS_STAGES.flatMap((id) => new Level(getStage(id)).oneUps.map((o) => `${id}:${o.x - 7}:${o.y - 12}`));
+  return secretOneUps;
+}
+
+/** How many of the hidden 1-UPs have been found, of how many. */
+export function secretProgress(): { found: number; total: number } {
+  const all = allSecretOneUps();
+  const have = new Set(loadSave().oneUpsFound);
+  return { found: all.filter((k) => have.has(k)).length, total: all.length };
+}
 
 /**
  * RIVET'S PARTS & PROVISIONS, opened from the stage select. Rivet stands
@@ -50,7 +65,7 @@ export class ShopScene extends MenuScene {
     // The goods.
     this.panel(312, 108, 200, 132);
     const beaten = ALL_BOSS_STAGES.filter((id) => loadSave().cleared.includes(id)).length;
-    const labels = [...SHOP_ITEMS.map((i) => (beaten >= i.unlock ? i.name : '???')), 'LEAVE'];
+    const labels = [...SHOP_ITEMS.map((i) => (beaten >= i.unlock ? i.name : '???')), 'VAULT KEY', 'LEAVE'];
     this.rows = this.list(230, 50, labels);
     this.boltsText = pixelText(this, 230, 196, '', { fontFamily: FONT, fontSize: '12px', color: '#c8ccd8' });
     this.add.image(222, 202, 'nut').setScale(1.5);
@@ -71,10 +86,15 @@ export class ShopScene extends MenuScene {
       const tag = !open ? '' : item.max === 1 ? (have ? ' OWNED' : ` ${item.price}`) : ` ${item.price}  ${have}/${item.max}`;
       row.setText(`${open ? item.name.padEnd(12) : '???'.padEnd(12)}${tag}`);
     });
+    // The secret: Rivet's rival's vault, once every hidden 1-UP is found.
+    const secret = secretProgress();
+    const vaultOpen = secret.found >= secret.total;
+    this.rows[SHOP_ITEMS.length].setText(vaultOpen ? 'VAULT KEY'.padEnd(12) + ' FREE' : `???`.padEnd(12) + ` ${secret.found}/${secret.total}`);
     this.select(this.selected);
     this.boltsText.setText(String(save.bolts));
     const item = SHOP_ITEMS[this.selected];
-    if (!item) this.blurb.setText('back to the stage select');
+    if (this.selected === SHOP_ITEMS.length) this.blurb.setText(vaultOpen ? "the key to Rivet's rival's megastore" : 'find every hidden 1-UP (one per stage)');
+    else if (!item) this.blurb.setText('back to the stage select');
     else if (beaten < item.unlock) this.blurb.setText(`in stock once you've beaten ${item.unlock} bosses`);
     else this.blurb.setText(item.blurb);
   }
@@ -110,6 +130,19 @@ export class ShopScene extends MenuScene {
     }
     if (!this.confirmed()) return false;
     const item = SHOP_ITEMS[this.selected];
+    if (this.selected === SHOP_ITEMS.length) {
+      const secret = secretProgress();
+      if (secret.found < secret.total) {
+        sfx.tick();
+        this.speak(`Psst... a 1-UP hides in every stage. Find all ${secret.total} for a secret!`);
+        return false;
+      }
+      sfx.pickup();
+      this.speak("Found them all? Take this key to my rival's megastore. Teach him a lesson!", 'shop_vault');
+      this.time.delayedCall(3200, () => this.scene.start('game', { stage: 'vault' }));
+      this.leaving = 999; // (the delayed call takes over)
+      return false;
+    }
     if (!item) {
       this.leave();
       return false;

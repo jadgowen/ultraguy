@@ -28,6 +28,7 @@ export const CALDERA: StageData = {
   boss: 'magma',
   bossName: 'MAGMA',
   bossWeapon: 'flame',
+  signature: [{ kind: 'lavaLeaper', from: 'slug', every: 1 }, { kind: 'lavaLeaper', from: 'ember', every: 3 }],
   layout: ['...FGH12I|XY', '...E', 'ABCD'],
   miniboss: 'crab',
   rise: { screens: 'DE', speed: 0.35 },

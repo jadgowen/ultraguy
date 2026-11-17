@@ -24,6 +24,8 @@ export interface SaveData {
   spareLives: number;
   guards: number;
   magnet: boolean;
+  /** Hidden 1-UPs ever found ("stage:x:y"); finding them all opens the secret stage. */
+  oneUpsFound: string[];
 }
 
 export const MAX_TANKS = 4;
@@ -42,7 +44,7 @@ export function activeSlot(): number {
 }
 
 function fresh(): SaveData {
-  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false };
+  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [] };
 }
 
 /** Load the active slot (or `slot`). */
@@ -62,7 +64,7 @@ export function loadSave(slot = activeSlot()): SaveData {
       : cleared.some((id) => id !== 'intro') ? [...PART_ORDER] : [];
     const exCleared = (data.exCleared ?? []).filter((s): s is StageId => ALL_STAGE_IDS.includes(s as StageId));
     // A scheme only counts if it's still unlocked.
-    const skin = SKIN_IDS.includes(data.skin as SkinId) && unlockedSkins(exCleared).some((s) => s.id === data.skin) ? (data.skin as SkinId) : 'classic';
+    const skin = SKIN_IDS.includes(data.skin as SkinId) && unlockedSkins(exCleared, cleared).some((s) => s.id === data.skin) ? (data.skin as SkinId) : 'classic';
     const count = (v: unknown, max: number) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
     const cap = (id: ShopItemId) => SHOP_ITEMS.find((i) => i.id === id)!.max;
     return {
@@ -77,6 +79,7 @@ export function loadSave(slot = activeSlot()): SaveData {
       spareLives: count(data.spareLives, cap('oneup')),
       guards: count(data.guards, cap('guard')),
       magnet: data.magnet === true,
+      oneUpsFound: Array.isArray(data.oneUpsFound) ? data.oneUpsFound.filter((k): k is string => typeof k === 'string') : [],
     };
   } catch {
     return fresh(); // corrupt or blocked storage: start fresh

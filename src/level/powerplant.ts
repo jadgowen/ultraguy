@@ -26,6 +26,7 @@ export const POWERPLANT: StageData = {
   boss: 'volt',
   bossName: 'VOLT',
   bossWeapon: 'spark',
+  signature: [{ kind: 'teslaCoil', from: 'roller', every: 1 }],
   layout: ['....FGH12I|XY', 'ABCDE'],
   miniboss: 'dynamo',
   dark: 'CDEG',

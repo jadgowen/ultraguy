@@ -42,14 +42,14 @@ const MUSIC = {
 /** Music for the special modes, in a 16-bit console style. */
 const STYLE16 = 'instrumental 16-bit chiptune in the style of classic SNES-era sports games, punchy FM-style lead, slap bass, sampled drums, seamless loop';
 const MUSIC16 = {
+  vault: 'Flashy, cheeky megastore boss-stage theme, funky slap bass, brassy stabs, cash-register percussion, upbeat and mischievous, loopable',
   shop: 'Cozy robot shop theme, light jazzy bossa nova groove, plucky bass, warm keys, friendly and relaxed, loopable',
   dojo: 'Calm martial-arts training hall theme, steady mid-tempo groove, wooden percussion, focused and motivating, loopable',
   breaker: 'Forge brick-breaker theme, bouncy and metallic, steady driving beat, hammer-like percussion',
   hockey: 'Ice hockey arena theme, upbeat and cool, crisp percussion, organ-like stabs, sporty energy',
-  puzzle: 'Falling-block puzzle duel theme, catchy and quirky, junkyard clank percussion, building tension',
   skies: 'Vertical sky shooter theme, soaring and fast, heroic lead over rushing wind-like arpeggios',
   pinball: 'Undersea pinball table theme, bouncy and bubbly, playful bass and sparkling lead',
-  dungeon: 'Top-down jungle dungeon theme, mysterious and adventurous, minor key, steady exploration groove',
+  dungeon: 'Top-down junkyard dungeon theme, mysterious and clanky, metallic percussion, minor key, steady exploration groove with a mischievous edge',
   race: 'High-energy motocross race theme, fast tempo, revving rock energy, exciting and competitive',
   boxing: 'Boxing match theme, punchy and heroic, driving beat, tension and triumph, arena energy',
   rpg: 'Classic Japanese role-playing game battle theme, heroic and bouncy, brass and strings over a marching beat',
@@ -66,18 +66,18 @@ const VOICE = {
   frostline_challenge: ['D38z5RcWu1voky8WS1ja', "No blasters on my ice. Puck, sticks, and nerves of steel. First to three takes it!"],
   frostline_wins: ['D38z5RcWu1voky8WS1ja', "Ha! Put that one on ice."],
   frostline_loses: ['D38z5RcWu1voky8WS1ja', "Brrr... you skate like a pro. Good game."],
-  scrap_challenge: ['CYw3kZ02Hs0563khs1Fj', "Junk in, junk out, kid! Let's see who gets buried first!"],
-  scrap_wins: ['CYw3kZ02Hs0563khs1Fj', "Buried! Straight to the scrap heap!"],
-  scrap_loses: ['CYw3kZ02Hs0563khs1Fj', "Aw, nuts and bolts... you sorted me right out."],
+  scrap_challenge: ['CYw3kZ02Hs0563khs1Fj', 'Welcome to my junk maze, kid! Find the keys, find me... if you can!'],
+  scrap_wins: ['CYw3kZ02Hs0563khs1Fj', 'Lost in the junk! Straight to the scrap heap!'],
+  scrap_loses: ['CYw3kZ02Hs0563khs1Fj', 'Aw, nuts and bolts... you found your way right to me.'],
   gale_challenge: ['XB0fDUnXU5powFXDhCwa', "Up here, the wind decides who flies. Let's see if it decides for you!"],
   gale_wins: ['XB0fDUnXU5powFXDhCwa', "Grounded. Try flapping harder."],
   gale_loses: ['XB0fDUnXU5powFXDhCwa', "You rode my storm... and won. Impressive."],
   tide_challenge: ['cgSgspJ2msm6clMCkdW9', "Welcome to my tide pool! Bounce, roll, and try not to wash out!"],
   tide_wins: ['cgSgspJ2msm6clMCkdW9', "Washed out! The tide always wins."],
   tide_loses: ['cgSgspJ2msm6clMCkdW9', "Beached... by a pinball. How embarrassing."],
-  mantis_challenge: ['SOYHLrjzK2X1ezoPC6cr', "You found my thicket. Few find their way to its heart. Fewer leave."],
-  mantis_wins: ['SOYHLrjzK2X1ezoPC6cr', "The thicket keeps what it catches."],
-  mantis_loses: ['SOYHLrjzK2X1ezoPC6cr', "Swift... and patient. You have earned your way out."],
+  mantis_challenge: ['SOYHLrjzK2X1ezoPC6cr', 'Cross my pond to reach me. Fill all three lily pads... and do not land where I wait.'],
+  mantis_wins: ['SOYHLrjzK2X1ezoPC6cr', 'The pond keeps what it catches.'],
+  mantis_loses: ['SOYHLrjzK2X1ezoPC6cr', 'Swift... and patient. You have earned your way across.'],
   volt_challenge: ['TX3LPaxmHKxFdv7VOQHJ', "Heh. You can't beat me in a fight... but maybe you can beat me in a race. Winner takes all!"],
   volt_wins: ['TX3LPaxmHKxFdv7VOQHJ', 'Too slow! Better luck next lap.'],
   volt_loses: ['TX3LPaxmHKxFdv7VOQHJ', 'No way... you actually beat me!'],
@@ -109,6 +109,8 @@ const VOICE = {
   jared_intro: ['iP95p4xoKVk53GoZ742B', "Store's closed, pal. But hey... hot dogs are on the house!"],
   gate_intro: ['2EiwWnXFnvU5JabPnv8n', 'None pass this gate. Turn back, machine.'],
   overlord_intro: ['nPczCjzI2devNBz1zQrb', 'So. The little machine finally arrives. Kneel.'],
+  baron_intro: ['ErXwobaYiN019PkySvjV', "Rivet sent you? Ha! Everything here is for sale... including your spare parts!"],
+  shop_vault: ['MF3mGyEYCl7XYWbV9V6O', "You found every hidden 1-UP? Then take this key. My rival's megastore is open... go teach him a lesson!"],
   // Rivet, the shopkeeper.
   shop_welcome: ['MF3mGyEYCl7XYWbV9V6O', "Welcome to Rivet's! Bolts in, goodies out!"],
   shop_thanks: ['MF3mGyEYCl7XYWbV9V6O', 'Pleasure doing business, sugar!'],
@@ -280,6 +282,16 @@ for (const [name, mood] of Object.entries(MUSIC16)) {
     post('/music', { prompt: `${mood}. ${STYLE16}.`, music_length_ms: 60000, force_instrumental: true, model_id: 'music_v1' }),
   );
 }
+// Short one-shot jingles (stored as music, played once).
+const JINGLES = {
+  jingle_victory: ['Triumphant short victory fanfare after defeating a boss, bright brass and chiptune arpeggios, ends on a held major chord', 9000],
+};
+for (const [name, [mood, ms]] of Object.entries(JINGLES)) {
+  await job('music', name, () =>
+    post('/music', { prompt: `${mood}. ${STYLE16}.`, music_length_ms: ms, force_instrumental: true, model_id: 'music_v1' }),
+  );
+}
+
 for (const [name, [voice, text]] of Object.entries(VOICE)) {
   await job('voice', name, () => post(`/text-to-speech/${voice}`, { text, model_id: 'eleven_multilingual_v2' }));
 }

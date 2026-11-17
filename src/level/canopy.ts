@@ -28,6 +28,7 @@ export const CANOPY: StageData = {
   boss: 'mantis',
   bossName: 'MANTIS',
   bossWeapon: 'thorn',
+  signature: [{ kind: 'snapper', from: 'spitter', every: 2 }, { kind: 'snapper', from: 'lurker', every: 1 }],
   layout: ['...FGH12I|XY', '...E', 'ABCDS'],
   miniboss: 'toad',
   upgrade: 'boots',

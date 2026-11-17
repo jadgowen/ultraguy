@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { playMusic, playVoice, stageMusic, stopMusic } from '../audio';
+import { nowPlaying, playJingle, playMusic, playVoice, stageMusic, stopMusic } from '../audio';
 import { BOSS_INTROS, INTRO, IntroCard } from './bossIntro';
 import { DEV_TOOLS, PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
 import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
@@ -24,7 +24,7 @@ import { Sky } from './sky';
 import { PixelText, pixelText } from '../pixelFont';
 
 /** How long the stage title card shows, in steps. */
-const TITLE_CARD_FRAMES = 130;
+const TITLE_CARD_FRAMES = 170;
 const TRANSITION_FRAMES = 64;
 const DOOR_PAN_FRAMES = 80;
 const DOOR_TILE_FRAMES = 5; // frames per door tile opening/closing
@@ -141,6 +141,8 @@ export class GameScene extends Phaser.Scene {
   player!: Player;
   /** Horizontal push applied to the player this step (Gale's gusts, Scrap's magnet). */
   wind = 0;
+  /** Push from enemies this step (Gust Fans, Magnet Drones); becomes `wind` next step. */
+  enemyWind = 0;
   /** Moving clouds, crumbling clouds, updrafts and stage wind gusts. */
   private sky!: Sky;
   /** Crushers, switch blocks, roller chutes, currents, darkness, rising lava. */
@@ -220,6 +222,9 @@ export class GameScene extends Phaser.Scene {
   /** The full boss intro on screen: letterbox bars and the name card. */
   private intro: { bars: Phaser.GameObjects.Rectangle[]; card: Phaser.GameObjects.Container; name: PixelText; title: PixelText; full: string; data: IntroCard; done: boolean } | null = null;
   private titleT = 0;
+  /** Stage-intro flyover: the camera starts this far ahead and sweeps back to the hero (null: none). */
+  private flyFrom: number | null = null;
+  private flyTo = 0;
   private clearTimer = 0;
   /** An EX rematch (see Boss.ex). */
   exMode = false;
@@ -528,8 +533,18 @@ export class GameScene extends Phaser.Scene {
     this.titleCard?.destroy();
     this.titleCard = null;
     this.titleT = 0;
+    this.flyFrom = null;
     if (this.stageId === 'intro') return; // the intro has its own opening
-    const y = VIEW_H / 2 - 10;
+    // The flyover: a look a few screens ahead first, then back to the hero.
+    const sec = this.section;
+    const maxCam = (sec.x1 + 1) * SCREEN_W - VIEW_W;
+    const ahead = Math.min(this.camX + SCREEN_W * 3, maxCam);
+    if (ahead - this.camX > SCREEN_W) {
+      this.flyFrom = ahead;
+      this.flyTo = this.camX;
+      this.camX = ahead;
+    }
+    const y = VIEW_H - 44; // lower third, so the flyover shows
     const band = this.add.rectangle(0, y, VIEW_W, 58, 0x1a1428, 0.92).setOrigin(0, 0.5);
     const top = this.add.rectangle(0, y - 29, VIEW_W, 2, accent).setOrigin(0, 0.5);
     const bottom = this.add.rectangle(0, y + 29, VIEW_W, 2, accent).setOrigin(0, 0.5);
@@ -542,10 +557,21 @@ export class GameScene extends Phaser.Scene {
     sfx.ready();
   }
 
-  /** Slide in, hold, slide out. */
+  /** Slide in, hold, slide out (while the camera sweeps back to the hero). */
   private stepTitleCard(): void {
     const c = this.titleCard!;
+    // Jump or Start skips ahead to READY.
+    if (this.titleT > 20 && (this.controls.justPressed('jump') || this.controls.justPressed('start'))) this.titleT = 20;
     const t = TITLE_CARD_FRAMES - --this.titleT;
+    if (this.flyFrom !== null) {
+      const k = Math.min(1, t / (TITLE_CARD_FRAMES - 20));
+      const smooth = k * k * (3 - 2 * k);
+      this.camX = this.titleT <= 20 ? this.flyTo : this.flyFrom + (this.flyTo - this.flyFrom) * smooth;
+      if (this.titleT === 0) {
+        this.camX = this.flyTo;
+        this.flyFrom = null;
+      }
+    }
     const ease = (k: number) => 1 - (1 - k) ** 3;
     const slide = 18;
     if (t < slide) c.x = -VIEW_W * (1 - ease(t / slide));
@@ -668,7 +694,8 @@ export class GameScene extends Phaser.Scene {
 
     this.stepElectric();
     for (const e of this.enemies) e.step();
-    this.wind = 0; // the boss sets it again if it's blowing
+    this.wind = this.enemyWind; // fans and magnets (the boss adds to it if it's blowing)
+    this.enemyWind = 0;
     this.sky.stepGust();
     this.sky.stepUpdraftFx();
     this.boss?.step();
@@ -1094,6 +1121,11 @@ export class GameScene extends Phaser.Scene {
       o.sprite.setVisible(false);
       visit.oneUpsTaken.add(o.key);
       this.gainLife();
+      // Every hidden 1-UP ever found counts toward the secret stage.
+      const found = `${this.stageId}:${o.box.x}:${o.box.y}`;
+      updateSave((d) => {
+        if (!d.oneUpsFound.includes(found)) d.oneUpsFound.push(found);
+      });
     }
     for (const t of this.tankItems) {
       if (t.taken || !overlaps(p, t.box)) continue;
@@ -1554,6 +1586,7 @@ export class GameScene extends Phaser.Scene {
 
   private startBossDeath(): void {
     this.bossDeathT = 1;
+    stopMusic(900); // the boss theme fades as the explosions start
     this.hitStop = 14;
     this.wind = 0;
     for (const s of this.shots) s.dead = true;
@@ -1574,6 +1607,8 @@ export class GameScene extends Phaser.Scene {
       this.playerBurst(boss.cx, boss.cy, 'shard');
       this.shake(8);
       sfx.die();
+      // A stage boss down: the victory jingle (it carries on through the weapon get).
+      if (!(boss instanceof Miniboss) && boss.kind !== 'overlord') playJingle(this, 'jingle_victory');
       boss.sprite.setVisible(false);
     } else if (t === 170) {
       boss.destroy();
@@ -1677,7 +1712,7 @@ export class GameScene extends Phaser.Scene {
   // --- weapon get ---------------------------------------------------------------
 
   private startWeaponGet(id: WeaponId): void {
-    stopMusic();
+    if (nowPlaying() !== 'jingle_victory') stopMusic();
     recordClear(this.stageId, id);
     this.unlocked = loadSave().weapons;
     this.player.ammo[id] = this.player.maxAmmo;
@@ -1999,8 +2034,10 @@ export class GameScene extends Phaser.Scene {
     if (this.clearTimer > 0) return;
     const first = !loadSave().exCleared.includes(this.stageId);
     recordExClear(this.stageId);
-    stopMusic();
-    sfx.victory();
+    if (nowPlaying() !== 'jingle_victory') {
+      stopMusic();
+      sfx.victory();
+    }
     // The first win unlocks this boss's color scheme for the hero.
     const skin = skinForStage(this.stageId);
     if (first && skin) {
@@ -2015,12 +2052,18 @@ export class GameScene extends Phaser.Scene {
 
   private stageClear(): void {
     if (this.clearTimer > 0) return;
+    // The secret stage's vault: a pile of bolts (and the GOLD colors) the first time.
+    if (this.stageId === 'vault' && !loadSave().cleared.includes('vault')) {
+      this.boltCount = addBolts(250);
+      this.flashLabel('VAULT LOOT: +250 BOLTS, GOLD COLORS');
+    }
     if (this.stageId !== 'dojo') recordClear(this.stageId);
-    stopMusic();
+    const jingle = nowPlaying() === 'jingle_victory';
+    if (!jingle) stopMusic(400);
     this.clearTimer = 200;
     this.banner.setText('STAGE CLEAR').setVisible(true);
     this.goalSprite?.setVisible(false);
-    sfx.clear();
+    if (!jingle) sfx.clear(); // (after a boss the victory jingle is still going)
   }
 
   /** Checkpoints activate when the player gets close. */

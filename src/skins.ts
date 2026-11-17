@@ -5,13 +5,15 @@ import type { HeroColors } from './weapons';
  * Hero color schemes: one for each EX rematch won. A scheme replaces the
  * hero's default (Ultra Gun) colors; boss weapons still show their own.
  */
-export type SkinId = 'classic' | 'forge' | 'mantis' | 'glacier' | 'skyward' | 'voltage' | 'magma' | 'rust' | 'tide';
+export type SkinId = 'classic' | 'forge' | 'mantis' | 'glacier' | 'skyward' | 'voltage' | 'magma' | 'rust' | 'tide' | 'gold';
 
 export interface SkinDef {
   id: SkinId;
   name: string;
   /** The EX rematch that unlocks it (none: always yours). */
   stage: StageId | null;
+  /** Unlocked by clearing `stage` itself (the secret stage), not an EX rematch. */
+  secret?: boolean;
   colors: HeroColors | null;
   /** Visor (main, shade); default keeps the mint visor. */
   visor?: [number, number];
@@ -26,6 +28,7 @@ export const SKINS: SkinDef[] = [
   { id: 'voltage', name: 'VOLTAGE', stage: 'powerplant', colors: { light: 0xfff4a0, main: 0xf8d020, dark: 0xb08a08, suit: 0x18181e, suitLight: 0x34343e }, visor: [0x5ad8ff, 0x2a88c8] },
   { id: 'magma', name: 'MAGMA', stage: 'caldera', colors: { light: 0xff8a7a, main: 0xd8283a, dark: 0x881424, suit: 0x1a1214, suitLight: 0x3a2428 }, visor: [0xffc040, 0xd87a10] },
   { id: 'rust', name: 'RUST', stage: 'scrapyard', colors: { light: 0xe8b07a, main: 0xb8703a, dark: 0x7a4220, suit: 0x2a3a2a, suitLight: 0x4a5a44 }, visor: [0xe8f0a0, 0xa8b060] },
+  { id: 'gold', name: 'GOLD', stage: 'vault', secret: true, colors: { light: 0xfff4a0, main: 0xf0c020, dark: 0xa87808, suit: 0x3a2050, suitLight: 0x6a4088, shine: 0xffffff }, visor: [0xff5050, 0xa82030] },
   { id: 'tide', name: 'TIDE', stage: 'reef', colors: { light: 0x9af0e8, main: 0x2ab8b0, dark: 0x16747a, suit: 0x1a2250, suitLight: 0x34408a }, visor: [0xff8aa8, 0xc84a6a] },
 ];
 
@@ -37,8 +40,8 @@ export function skinTexture(id: SkinId): string {
 }
 
 /** The schemes a save has earned (classic, plus one per EX stage won). */
-export function unlockedSkins(exCleared: StageId[]): SkinDef[] {
-  return SKINS.filter((s) => !s.stage || exCleared.includes(s.stage));
+export function unlockedSkins(exCleared: StageId[], cleared: StageId[] = []): SkinDef[] {
+  return SKINS.filter((s) => !s.stage || (s.secret ? cleared.includes(s.stage) : exCleared.includes(s.stage)));
 }
 
 /** The scheme an EX win on this stage unlocks. */

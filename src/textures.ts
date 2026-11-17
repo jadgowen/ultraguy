@@ -5,6 +5,7 @@ import { makeEnvArt } from './envArt';
 import { makeStoreArt } from './storeArt';
 import { makeWeaponFx } from './weaponFx';
 import { makeShopArt } from './shopArt';
+import { makeEnemyArt } from './enemyArt';
 import { makePixelFont } from './pixelFont';
 import { makeHazardTextures } from './scenes/hazards';
 
@@ -436,6 +437,7 @@ function makeEffects(scene: Phaser.Scene): void {
   makeStoreArt(scene);
   makeWeaponFx(scene);
   makeShopArt(scene);
+  makeEnemyArt(scene);
   make(scene, 'bubble_fx', 4, 4, (g) => {
     g.lineStyle(1, 0xd8f0ff, 0.9);
     g.strokeRect(0.5, 0.5, 3, 3);

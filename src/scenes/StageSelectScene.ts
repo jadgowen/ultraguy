@@ -130,7 +130,7 @@ export class StageSelectScene extends MenuScene {
 
   /** The color scheme on the center panel. */
   private showSkin(): void {
-    const owned = unlockedSkins(loadSave().exCleared);
+    const owned = unlockedSkins(loadSave().exCleared, loadSave().cleared);
     const name = SKINS.find((k) => k.id === currentSkin())!.name;
     this.skinText.setText(owned.length > 1 ? `${name} ${owned.findIndex((k) => k.id === currentSkin()) + 1}/${owned.length}` : 'win EX for colors');
     this.heroImg.setTexture(heroTexture('buster'), heroFrames(this).idle);
@@ -138,7 +138,7 @@ export class StageSelectScene extends MenuScene {
 
   /** Put on the next color scheme you've earned. */
   private nextSkin(): void {
-    const owned = unlockedSkins(loadSave().exCleared);
+    const owned = unlockedSkins(loadSave().exCleared, loadSave().cleared);
     if (owned.length < 2) {
       sfx.tick();
       return;

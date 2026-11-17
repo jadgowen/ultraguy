@@ -1,6 +1,7 @@
 import type { BossKind, GuardianKind, MiniKind, Point } from '../../level/Level';
 import type { GameScene } from '../../scenes/GameScene';
 import { Anvil } from './Anvil';
+import { Baron } from './Baron';
 import { Boss, Room } from './Boss';
 import { Frostline } from './Frostline';
 import { Gale } from './Gale';
@@ -30,6 +31,7 @@ const BOSSES: Partial<Record<BossKind, new (g: GameScene, at: Point, room: Room)
   overlord: Overlord,
   shade: Shade,
   jared: Jared,
+  baron: Baron,
 };
 
 export function createBoss(kind: BossKind, g: GameScene, at: Point, room: Room): Boss {

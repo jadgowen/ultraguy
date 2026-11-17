@@ -602,6 +602,204 @@ class AirDummy extends Enemy {
   }
 }
 
+// --- signature enemies (one per stage) -----------------------------------------
+
+/** FOUNDRY: stomps toward you, raises its hammer (flashing), slams shockwaves both ways. */
+class Hammerbot extends Enemy {
+  private windup = 0;
+  private rest = 60;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 16, 20, 'hammerbot0');
+    this.hp = 4;
+  }
+  protected update(): void {
+    const near = Math.abs(this.g.player.cx - this.cx) < 60;
+    if (this.windup > 0) {
+      this.vx = 0;
+      if (--this.windup === 0) {
+        this.g.fireGroundWave(this.cx - 10, this.y + this.h, -1);
+        this.g.fireGroundWave(this.cx + 2, this.y + this.h, 1);
+        this.g.shake(2);
+        sfx.land();
+        this.rest = 80;
+      }
+    } else {
+      if (this.rest > 0) this.rest--;
+      this.vx = this.rest > 40 ? 0 : 0.5 * this.towardPlayer();
+      if (near && this.grounded && this.rest === 0) this.windup = 30;
+    }
+    if (this.physics()) this.vx = 0;
+    this.turnAtLedge();
+    this.sprite.setTexture(this.windup > 0 ? 'hammerbot1' : 'hammerbot0').setFlipX(this.towardPlayer() < 0);
+  }
+  render(): void {
+    super.render();
+    if (this.windup > 0 && this.windup % 6 < 3) this.sprite.setTintFill(0xffffff);
+  }
+}
+
+/** CANOPY: a bud in the ground (shots bounce off) that bursts open when you're close and spits seeds. */
+class Snapper extends Enemy {
+  private openT = 0;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 14, 18, 'snapper0');
+    this.hp = 3;
+  }
+  shielded(): boolean {
+    return this.openT === 0;
+  }
+  harmful(): boolean {
+    return this.openT > 0 && super.harmful();
+  }
+  protected update(): void {
+    this.physics();
+    const near = Math.abs(this.g.player.cx - this.cx) < 56;
+    if (this.openT === 0 && near && this.t % 20 === 0) this.openT = 90;
+    if (this.openT > 0) {
+      this.openT--;
+      if (this.openT === 70 || this.openT === 40) {
+        for (const vx of [-1.4, 1.4]) this.g.spawnEnemyShot({ x: this.cx - 3, y: this.y, w: 6, h: 6, vx, vy: -4, tex: 'seed', dmg: 3, gravity: true });
+        sfx.enemyShot();
+      }
+    }
+    this.sprite.setTexture(this.openT > 0 ? 'snapper1' : 'snapper0');
+  }
+}
+
+/** GLACIER: a snowball that rolls at you, growing and speeding up; it shatters on walls. */
+class SnowRoller extends Enemy {
+  private dir: 1 | -1;
+  private speed = 0.6;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 14, 14, 'snowball0');
+    this.hp = 2;
+    this.dir = this.towardPlayer();
+  }
+  protected update(): void {
+    this.speed = Math.min(2.6, this.speed + 0.012);
+    this.vx = this.dir * this.speed;
+    if (this.physics()) {
+      // Shatters against a wall.
+      this.g.burst(this.cx, this.cy, 'spark', 8);
+      sfx.crumble();
+      this.hp = 0;
+      return;
+    }
+    const k = 1 + Math.min(0.6, this.t / 300);
+    this.sprite.setScale(k).setTexture(`snowball${Math.floor(this.t / 6) % 2}`).setFlipX(this.dir < 0);
+  }
+}
+
+/** STRATOS: a hovering fan that blows you backward when you're in front of it. */
+class GustFan extends Enemy {
+  private y0: number;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 18, 14, 'gustfan0');
+    this.hp = 3;
+    this.y0 = this.y;
+  }
+  protected update(): void {
+    this.y = this.y0 + Math.sin(this.t / 30) * 6;
+    const p = this.g.player;
+    const dir = this.towardPlayer();
+    const inFront = Math.abs(p.cx - this.cx) < 150 && Math.abs(p.cy - this.cy) < 40;
+    if (inFront && Math.floor(this.t / 120) % 2 === 0) {
+      this.g.enemyWind += dir * 0.75;
+      if (this.t % 4 === 0) this.g.windStreak(dir);
+      if (this.t % 30 === 0) sfx.wind();
+    }
+    this.sprite.setTexture(`gustfan${Math.floor(this.t / 3) % 2}`).setFlipX(dir < 0);
+  }
+}
+
+/** POWER PLANT: a pylon that charges (glowing) and fires a ring of sparks. */
+class TeslaCoil extends Enemy {
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 12, 26, 'tesla0');
+    this.hp = 5;
+  }
+  protected update(): void {
+    this.physics();
+    const c = this.t % 150;
+    const charging = c > 100;
+    if (c === 149) {
+      for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2 + 0.26;
+        this.g.spawnEnemyShot({ x: this.cx - 4, y: this.y + 2, w: 8, h: 8, vx: Math.cos(a) * 1.7, vy: Math.sin(a) * 1.7, tex: 'vorb', dmg: 3, life: 120 });
+      }
+      sfx.zap();
+    }
+    if (charging && this.t % 6 === 0) this.g.burst(this.cx, this.y + 4, 'spark', 1);
+    this.sprite.setTexture(charging && this.t % 4 < 2 ? 'tesla1' : 'tesla0');
+  }
+}
+
+/** CALDERA: a molten blob that springs high at you, then rests. */
+class LavaLeaper extends Enemy {
+  private wait = 50;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 14, 12, 'leaper0');
+    this.hp = 2;
+  }
+  protected update(): void {
+    if (this.grounded) {
+      this.vx = 0;
+      if (--this.wait <= 0) {
+        this.vy = -6.8;
+        this.vx = Phaser.Math.Clamp((this.g.player.cx - this.cx) / 60, -1.6, 1.6);
+        this.wait = 90;
+        sfx.flame();
+      }
+    } else if (this.t % 4 === 0) this.g.burst(this.cx, this.y + this.h, 'shard', 1);
+    this.physics();
+    this.sprite.setTexture(this.grounded ? 'leaper0' : 'leaper1');
+  }
+}
+
+/** SCRAPYARD: hovers above, tugs you underneath it and drops scrap. */
+class MagnetDrone extends Enemy {
+  private hoverY: number;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 18, 14, 'magdrone0');
+    this.hp = 3;
+    this.hoverY = this.y;
+  }
+  protected update(): void {
+    const p = this.g.player;
+    this.x += Phaser.Math.Clamp(p.cx - this.cx, -0.7, 0.7);
+    this.y = this.hoverY + Math.sin(this.t / 25) * 4;
+    const pulling = Math.abs(p.cx - this.cx) < 90 && p.y > this.y && Math.floor(this.t / 90) % 2 === 1;
+    if (pulling) this.g.enemyWind += Math.sign(this.cx - p.cx) * 0.6;
+    if (this.t % 80 === 40 && Math.abs(p.cx - this.cx) < 30) {
+      this.g.spawnEnemyShot({ x: this.cx - 4, y: this.y + this.h, w: 8, h: 8, vx: 0, vy: 1, tex: 'scrap', dmg: 3, gravity: true, spin: 0.2 });
+      sfx.thorn();
+    }
+    this.sprite.setTexture(pulling ? 'magdrone1' : 'magdrone0');
+  }
+}
+
+/** REEF: drifts up and down, zapping straight down when you pass underneath. */
+class Jelly extends Enemy {
+  private y0: number;
+  private cool = 0;
+  constructor(g: GameScene, s: Spawn) {
+    super(g, s, 14, 18, 'jelly0');
+    this.hp = 2;
+    this.y0 = this.y;
+  }
+  protected update(): void {
+    this.y = this.y0 + Math.sin(this.t / 50) * 18;
+    if (this.cool > 0) this.cool--;
+    const p = this.g.player;
+    if (this.cool === 0 && Math.abs(p.cx - this.cx) < 14 && p.y > this.y) {
+      this.g.spawnEnemyShot({ x: this.cx - 3, y: this.y + this.h, w: 6, h: 12, vx: 0, vy: 3.5, tex: 'bolt', dmg: 3, life: 60 });
+      sfx.zap();
+      this.cool = 90;
+    }
+    this.sprite.setTexture(`jelly${Math.floor(this.t / 20) % 2}`);
+  }
+}
+
 export function createEnemy(g: GameScene, s: Spawn): Enemy {
   const ctor: Record<EnemyKind, new (g: GameScene, s: Spawn) => Enemy> = {
     walker: Walker,
@@ -625,6 +823,14 @@ export function createEnemy(g: GameScene, s: Spawn): Enemy {
     dummy: Dummy,
     shieldDummy: ShieldDummy,
     airDummy: AirDummy,
+    hammerbot: Hammerbot,
+    snapper: Snapper,
+    snowRoller: SnowRoller,
+    gustFan: GustFan,
+    teslaCoil: TeslaCoil,
+    lavaLeaper: LavaLeaper,
+    magnetDrone: MagnetDrone,
+    jelly: Jelly,
   };
   return new ctor[s.kind](g, s);
 }

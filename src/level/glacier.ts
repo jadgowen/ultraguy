@@ -28,6 +28,7 @@ export const GLACIER: StageData = {
   boss: 'frostline',
   bossName: 'FROSTLINE',
   bossWeapon: 'frost',
+  signature: [{ kind: 'snowRoller', from: 'slider', every: 1 }],
   layout: ['ABCS', '..D', '..EFG12H|XY'],
   miniboss: 'mammoth',
   upgrade: 'helmet',

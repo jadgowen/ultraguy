@@ -5,12 +5,15 @@ import { makeHopTextures } from './HopScene';
 import { ModeScene } from './ModeScene';
 
 /**
- * MANTIS'S THICKET: a small top-down action dungeon. Four rooms: hook the key
- * off its island, swing across the chasm on posts, clear the garden to find
- * the big key, then face Mantis in his arena. FIRE shoots, JUMP fires the
- * hookshot: it pulls you to posts, pulls items to you, and stuns what it hits.
- * Mantis blocks shots with his scythes while he stalks you: hook him (or let
- * his dash slam him into a wall) to make him dizzy, then let him have it.
+ * SCRAP'S JUNK MAZE: a small top-down action dungeon in the scrapyard. Four
+ * rooms: hook the key off its island, swing across the shaft on posts, clear
+ * the sorting floor to find the big key, then face Scrap in the compactor.
+ * FIRE shoots, JUMP fires the hookshot: it pulls you to posts, pulls items to
+ * you, and stuns what it hits. Scrap's magnet field turns your shots while he
+ * stalks you: hook him (or let his charge slam him into a wall) to make him
+ * dizzy, then let him have it. He throws spinning saw blades that come back.
+ *
+ * (Internally the boss is still "mantis": this dungeon was his before.)
  */
 
 const T = 16;
@@ -112,9 +115,9 @@ interface Hook {
 type MantisState = 'walk' | 'windup' | 'dash' | 'dizzy' | 'throw' | 'leap' | 'land';
 
 export class DungeonScene extends ModeScene {
-  protected readonly voice = 'mantis';
+  protected readonly voice = 'scrap';
   protected readonly music = 'dungeon';
-  protected readonly homeStage = 'canopy' as const;
+  protected readonly homeStage = 'scrapyard' as const;
 
   private rooms: Record<string, string[][]> = {};
   private room = 'A';
@@ -137,7 +140,7 @@ export class DungeonScene extends ModeScene {
 
   protected setup(): void {
     makeHopTextures(this);
-    this.cameras.main.setBackgroundColor('#0a140a');
+    this.cameras.main.setBackgroundColor('#14121a');
     this.rooms = Object.fromEntries(Object.entries(ROOMS).map(([k, rows]) => [k, rows.map((r) => r.split(''))]));
     this.cleared = new Set();
     this.keys = 0;
@@ -148,7 +151,7 @@ export class DungeonScene extends ModeScene {
     this.mantis = null;
     this.g = this.add.graphics();
     this.heroImg = this.add.image(0, 0, 'hop_hero').setDepth(6);
-    this.mantisImg = this.add.image(0, 0, 'mantis_idle').setDepth(5).setVisible(false);
+    this.mantisImg = this.add.image(0, 0, 'scrap_idle').setDepth(5).setVisible(false);
     this.p = { x: 0, y: 0, fx: 0, fy: 1, hp: MAX_HP, invuln: 0, entry: { x: 0, y: 0 } };
     this.enter('A', null);
     this.help('ARROWS MOVE   FIRE SHOOT   JUMP HOOKSHOT');
@@ -209,7 +212,7 @@ export class DungeonScene extends ModeScene {
       this.p.y = Math.max(this.p.y, T + T / 2);
       this.p.entry = { x: this.p.x, y: this.p.y };
       this.mantisImg.setVisible(true);
-      this.banner.setText('MANTIS!');
+      this.banner.setText('SCRAP!');
       this.time.delayedCall(1100, () => !this.result && this.banner.setText(''));
     }
   }
@@ -259,7 +262,7 @@ export class DungeonScene extends ModeScene {
     if (this.mantis) this.stepMantis();
     this.exits();
     const hearts = Array.from({ length: MAX_HP / 2 }, (_, i) => (p.hp >= (i + 1) * 2 ? '@' : p.hp === i * 2 + 1 ? 'o' : '-')).join('');
-    const boss = this.mantis && this.room === 'D' ? `   MANTIS ${'#'.repeat(Math.ceil(this.mantis.hp / 4))}` : '';
+    const boss = this.mantis && this.room === 'D' ? `   SCRAP ${'#'.repeat(Math.ceil(this.mantis.hp / 4))}` : '';
     this.hud.setText(`LIFE ${hearts}   KEYS ${this.keys}${this.bigKey ? ' +BIG' : ''}${boss}`).setX(OX);
   }
 
@@ -283,7 +286,7 @@ export class DungeonScene extends ModeScene {
     }
     sfx.hurt();
     this.cameras.main.shake(120, 0.008);
-    if (p.hp <= 0) this.finish(false, 'LOST IN THE THICKET...');
+    if (p.hp <= 0) this.finish(false, 'LOST IN THE JUNK...');
   }
 
   private stepHook(): void {
@@ -464,7 +467,7 @@ export class DungeonScene extends ModeScene {
         if (m.hp <= 0) {
           sfx.explode();
           this.cameras.main.shake(400, 0.02);
-          this.finish(true, 'MANTIS IS DOWN!');
+          this.finish(true, 'SCRAP IS SCRAPPED!');
         }
       }
     }
@@ -651,19 +654,25 @@ export class DungeonScene extends ModeScene {
         const x = OX + c * T;
         const y = OY + r * T;
         if (ch === '#') {
-          g.fillStyle(0x1e3a1a).fillRect(x, y, T, T);
-          g.fillStyle(0x2e5a24).fillRect(x + 1, y + 1, T - 2, 6);
-          g.fillStyle(0x3a7a2a).fillRect(x + 3, y + 2, 4, 2).fillRect(x + 9, y + 9, 4, 2);
+          // Stacked scrap: steel plates with rust and rivets.
+          g.fillStyle(0x2a2a36).fillRect(x, y, T, T);
+          g.fillStyle(0x55607a).fillRect(x + 1, y + 1, T - 2, 6);
+          g.fillStyle(0x8a8fa8).fillRect(x + 1, y + 1, T - 2, 1);
+          g.fillStyle(0x7a4a22).fillRect(x + 2, y + 9, 5, 4).fillRect(x + 10, y + 3, 3, 2);
+          g.fillStyle(0xc8ccd8).fillRect(x + 3, y + 3, 1, 1).fillRect(x + 12, y + 11, 1, 1);
           continue;
         }
         if (ch === '~') {
           g.fillStyle(0x050805).fillRect(x, y, T, T);
-          if (grid[r - 1]?.[c] !== '~') g.fillStyle(0x2a1a10).fillRect(x, y, T, 4);
+          if (grid[r - 1]?.[c] !== '~') g.fillStyle(0x3a2a1a).fillRect(x, y, T, 4);
           continue;
         }
         // Floor.
-        g.fillStyle((c + r) % 2 ? 0x4a6a2a : 0x527430).fillRect(x, y, T, T);
-        if ((c * 7 + r * 3) % 5 === 0) g.fillStyle(0x6a8a3a).fillRect(x + 4, y + 9, 2, 3).fillRect(x + 7, y + 8, 2, 4);
+        // Rusted floor plates.
+        g.fillStyle((c + r) % 2 ? 0x4a4438 : 0x544c3e).fillRect(x, y, T, T);
+        g.fillStyle(0x3a342a).fillRect(x, y + T - 1, T, 1).fillRect(x + T - 1, y, 1, T);
+        if ((c * 7 + r * 3) % 5 === 0) g.fillStyle(0x7a4a22).fillRect(x + 4, y + 9, 3, 2).fillRect(x + 9, y + 5, 2, 2);
+        if ((c + r * 2) % 4 === 0) g.fillStyle(0x6a6458).fillRect(x + 2, y + 2, 1, 1);
         if (ch === 'o') {
           g.fillStyle(0x1a1428).fillCircle(x + 8, y + 9, 6);
           g.fillStyle(0x8a8fa8).fillCircle(x + 8, y + 8, 5);
@@ -694,18 +703,25 @@ export class DungeonScene extends ModeScene {
         g.fillStyle(0x6ab8e8).fillRect(x - 1, y - 4, 1, 8);
       } else {
         g.fillStyle(0x1a1428).fillCircle(x, y, 7);
-        g.fillStyle(flash ? 0xffffff : 0x5ab84a).fillCircle(x, y, 6);
+        g.fillStyle(flash ? 0xffffff : 0xb8703a).fillCircle(x, y, 6);
         g.fillStyle(0xd83a4a).fillCircle(x, y, 2.5);
       }
     }
     // Shots and thorns.
     for (const s of this.shots) {
       g.fillStyle(0x1a1428).fillCircle(OX + s.x, OY + s.y, 3);
-      g.fillStyle(s.foe ? 0xa8e070 : 0x5ef0c8).fillCircle(OX + s.x, OY + s.y, 2);
+      g.fillStyle(s.foe ? 0xffa858 : 0x5ef0c8).fillCircle(OX + s.x, OY + s.y, 2);
     }
+    // Scrap's saw blades, spinning.
     for (const t of this.thorns) {
       const a = this.frame * 0.5;
-      g.lineStyle(2, 0x6cc04a).lineBetween(OX + t.x - Math.cos(a) * 5, OY + t.y - Math.sin(a) * 5, OX + t.x + Math.cos(a) * 5, OY + t.y + Math.sin(a) * 5);
+      g.fillStyle(0x1a1428).fillCircle(OX + t.x, OY + t.y, 6);
+      g.fillStyle(0xc8ccd8).fillCircle(OX + t.x, OY + t.y, 5);
+      g.fillStyle(0x55607a).fillCircle(OX + t.x, OY + t.y, 2);
+      for (let i = 0; i < 4; i++) {
+        const b = a + (i * Math.PI) / 2;
+        g.fillStyle(0xeef2fa).fillRect(OX + t.x + Math.cos(b) * 5 - 1, OY + t.y + Math.sin(b) * 5 - 1, 2, 2);
+      }
     }
     // Mantis (a shadow while he's in the air).
     const m = this.mantis;
@@ -713,11 +729,11 @@ export class DungeonScene extends ModeScene {
       const air = m.state === 'leap';
       const lift = air ? Math.sin((m.t / 55) * Math.PI) * 30 : 0;
       g.fillStyle(0x000000, 0.35).fillEllipse(OX + m.x, OY + m.y + 10, air ? 18 : 22, 7);
-      const tex = air ? 'mantis_jump' : m.state === 'throw' ? 'mantis_throw' : 'mantis_idle';
+      const tex = m.state === 'throw' ? 'scrap_toss' : m.guardT > 0 ? 'scrap_magnet' : 'scrap_idle';
       const shake = m.state === 'windup' ? (this.frame % 4 < 2 ? 1 : -1) : 0;
       this.mantisImg.setTexture(tex).setPosition(OX + m.x + shake, OY + m.y - 4 - lift).setFlipX(this.p.x < m.x);
       this.mantisImg.setTint(m.hurt > 0 ? 0xff8888 : m.state === 'dizzy' ? 0xc8c8ff : 0xffffff);
-      if (m.guardT > 0) g.lineStyle(2, 0xc8f080).strokeCircle(OX + m.x, OY + m.y - 4, 15);
+      if (m.guardT > 0) g.lineStyle(2, 0x9ad0ff, 0.8).strokeCircle(OX + m.x, OY + m.y - 4, 15 + (this.frame % 12) / 4); // magnet field
       if (m.state === 'dizzy') for (let i = 0; i < 3; i++) g.fillStyle(0xffe14a).fillCircle(OX + m.x + Math.cos(this.frame / 8 + i * 2) * 10, OY + m.y - 22 + Math.sin(this.frame / 8 + i * 2) * 3, 1.5);
     } else this.mantisImg.setVisible(false);
     if (m && this.room === 'D' && !this.result) this.mantisImg.setVisible(true);

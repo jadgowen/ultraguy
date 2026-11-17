@@ -28,6 +28,7 @@ export const FOUNDRY: StageData = {
   boss: 'anvil',
   bossName: 'ANVIL',
   bossWeapon: 'quake',
+  signature: [{ kind: 'hammerbot', from: 'walker', every: 2 }, { kind: 'hammerbot', from: 'hopper', every: 1 }],
   layout: ['ABCDS', '...Ee', '....FGHI12J|XY'],
   miniboss: 'press',
   upgrade: 'blaster',

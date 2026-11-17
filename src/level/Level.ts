@@ -53,7 +53,7 @@ import type { WeaponId } from '../weapons';
 
 export type BossStageId = 'foundry' | 'canopy' | 'glacier' | 'stratos' | 'powerplant' | 'caldera' | 'scrapyard' | 'reef';
 export type FortressStageId = 'fortress1' | 'fortress2' | 'fortress3' | 'gauntlet' | 'finale';
-export type StageId = BossStageId | FortressStageId | 'intro' | 'dojo';
+export type StageId = BossStageId | FortressStageId | 'intro' | 'dojo' | 'vault';
 
 export const ALL_STAGE_IDS: StageId[] = [
   'intro',
@@ -71,12 +71,13 @@ export const ALL_STAGE_IDS: StageId[] = [
   'gauntlet',
   'finale',
   'dojo',
+  'vault',
 ];
 export type ThemeId = 'foundry' | 'jungle' | 'ice' | 'sky' | 'power' | 'volcano' | 'scrap' | 'water' | 'fortress' | 'city';
 export type MiniKind = 'press' | 'toad' | 'mammoth' | 'kite' | 'dynamo' | 'crab' | 'crusher' | 'angler';
 /** Fortress stage bosses (no weapon reward). */
 export type GuardianKind = 'gatekeeper' | 'abyss' | 'warden';
-export type BossKind = 'anvil' | 'mantis' | 'frostline' | 'gale' | 'volt' | 'magma' | 'scrap' | 'tide' | 'overlord' | 'shade' | 'jared' | MiniKind | GuardianKind;
+export type BossKind = 'anvil' | 'mantis' | 'frostline' | 'gale' | 'volt' | 'magma' | 'scrap' | 'tide' | 'overlord' | 'shade' | 'jared' | 'baron' | MiniKind | GuardianKind;
 
 export interface StageData {
   id: StageId;
@@ -103,6 +104,11 @@ export interface StageData {
   tagline?: string;
   /** Lava rises through these screens once you enter them (px per step). */
   rise?: { screens: string; speed: number };
+  /**
+   * The stage's signature enemy: every `every`-th enemy of kind `from`
+   * (in reading order) becomes `kind`, so the layouts don't need redrawing.
+   */
+  signature?: { kind: EnemyKind; from: EnemyKind; every: number }[];
 }
 
 /** A moving cloud: its top-left travels between (x0, y0) and (x1, y1). */
@@ -190,7 +196,16 @@ export type EnemyKind =
   | 'clam'
   | 'dummy'
   | 'shieldDummy'
-  | 'airDummy';
+  | 'airDummy'
+  // Each stage's signature enemy.
+  | 'hammerbot'
+  | 'snapper'
+  | 'snowRoller'
+  | 'gustFan'
+  | 'teslaCoil'
+  | 'lavaLeaper'
+  | 'magnetDrone'
+  | 'jelly';
 
 export interface Spawn {
   kind: EnemyKind;
@@ -230,6 +245,15 @@ const ENEMY_CHARS: Record<string, EnemyKind> = {
   j: 'junkbot',
   u: 'puffer',
   q: 'clam',
+  // Signature enemies, for stages that place them directly (the secret stage).
+  R: 'hammerbot',
+  S: 'snapper',
+  W: 'snowRoller',
+  G: 'gustFan',
+  K: 'teslaCoil',
+  V: 'lavaLeaper',
+  J: 'magnetDrone',
+  Y: 'jelly',
   // Dojo targets.
   d: 'dummy',
   n: 'shieldDummy',
@@ -330,6 +354,10 @@ export class Level {
     this.fillMarkersInWater();
     this.findDoors();
     this.findMovers();
+    for (const rule of data.signature ?? []) {
+      let n = 0;
+      for (const s of this.spawns) if (s.kind === rule.from && ++n % rule.every === 0) s.kind = rule.kind;
+    }
   }
 
   /** Trace each moving cloud's track ('-' to the right of '=', ':' below 'v'). */

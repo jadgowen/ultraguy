@@ -23,12 +23,13 @@
     "hop": "music_hop.mp3",
     "breaker": "music_breaker.mp3",
     "hockey": "music_hockey.mp3",
-    "puzzle": "music_puzzle.mp3",
     "skies": "music_skies.mp3",
     "pinball": "music_pinball.mp3",
     "dungeon": "music_dungeon.mp3",
     "dojo": "music_dojo.mp3",
-    "shop": "music_shop.mp3"
+    "shop": "music_shop.mp3",
+    "jingle_victory": "music_jingle_victory.mp3",
+    "vault": "music_vault.mp3"
   },
   "sfx": {
     "shoot": "sfx_shoot.mp3",
@@ -185,6 +186,8 @@
     "shop_thanks": "voice_shop_thanks.mp3",
     "shop_broke": "voice_shop_broke.mp3",
     "shop_full": "voice_shop_full.mp3",
-    "shop_bye": "voice_shop_bye.mp3"
+    "shop_bye": "voice_shop_bye.mp3",
+    "baron_intro": "voice_baron_intro.mp3",
+    "shop_vault": "voice_shop_vault.mp3"
   }
 }

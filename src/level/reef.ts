@@ -27,6 +27,7 @@ export const REEF: StageData = {
   boss: 'tide',
   bossName: 'TIDE',
   bossWeapon: 'bubble',
+  signature: [{ kind: 'jelly', from: 'puffer', every: 1 }],
   layout: ['AB', '.CDEF', '....GHI12J|XY'],
   miniboss: 'angler',
   screens: {

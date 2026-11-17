@@ -27,6 +27,7 @@ export const STRATOS: StageData = {
   boss: 'gale',
   bossName: 'GALE',
   bossWeapon: 'cyclone',
+  signature: [{ kind: 'gustFan', from: 'bomber', every: 2 }, { kind: 'gustFan', from: 'flyer', every: 3 }],
   layout: ['......KLMN12O|XY', '......IJ', '......GH', 'ABCDEFW'],
   miniboss: 'kite',
   upgrade: 'armor',

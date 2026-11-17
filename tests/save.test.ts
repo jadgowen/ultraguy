@@ -10,7 +10,7 @@ const useSlot = (slot: number) =>
 
 describe('save data', () => {
   it('starts fresh: just the Ultra Gun, nothing cleared', () => {
-    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false });
+    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [] });
   });
 
   it('records cleared stages and weapons once, in weapon order', () => {

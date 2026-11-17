@@ -29,6 +29,7 @@ export const SCRAPYARD: StageData = {
   boss: 'scrap',
   bossName: 'SCRAP',
   bossWeapon: 'saw',
+  signature: [{ kind: 'magnetDrone', from: 'flyer', every: 1 }, { kind: 'magnetDrone', from: 'junkbot', every: 2 }],
   layout: ['......HIJ12K|XY', 'ABCDEFG'],
   miniboss: 'crusher',
   screens: {

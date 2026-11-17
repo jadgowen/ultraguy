@@ -61,8 +61,8 @@ export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
     lines: () => [{ name: 'FROSTLINE', text: "No blasters on my ice. Puck, sticks, and nerves of steel. First to three takes it!", portrait: { key: 'frostline_idle' }, voice: 'frostline_challenge', color: 0x9ee8ff }],
   },
   scrap: {
-    scene: 'puzzle',
-    lines: () => [{ name: 'SCRAP', text: "Junk in, junk out, kid! Let's see who gets buried first!", portrait: { key: 'scrap_idle' }, voice: 'scrap_challenge', color: 0xc8ccd8 }],
+    scene: 'dungeon',
+    lines: () => [{ name: 'SCRAP', text: "Welcome to my junk maze, kid! Find the keys, find me... if you can!", portrait: { key: 'scrap_idle' }, voice: 'scrap_challenge', color: 0xc8ccd8 }],
   },
   gale: {
     scene: 'skies',
@@ -73,8 +73,8 @@ export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
     lines: () => [{ name: 'TIDE', text: "Welcome to my tide pool! Bounce, roll, and try not to wash out!", portrait: { key: 'tide_idle' }, voice: 'tide_challenge', color: 0x6ab8e8 }],
   },
   mantis: {
-    scene: 'dungeon',
-    lines: () => [{ name: 'MANTIS', text: "You found my thicket. Few find their way to its heart. Fewer leave.", portrait: { key: 'mantis_idle' }, voice: 'mantis_challenge', color: 0x6cc04a }],
+    scene: 'hop',
+    lines: () => [{ name: 'MANTIS', text: 'Cross my pond to reach me. Fill all three lily pads... and do not land where I wait.', portrait: { key: 'mantis_idle' }, voice: 'mantis_challenge', color: 0x6cc04a }],
   },
   volt: {
     scene: 'race',
@@ -98,14 +98,8 @@ export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
   },
 };
 
-export const MINI_ENCOUNTERS: Partial<Record<StageId, Encounter>> = {
-  canopy: {
-    scene: 'hop',
-    lines: () => [
-        { name: 'BRIAR TOAD', text: 'Ribbit! You want past me? Hop across my thicket first, tin can. Fill all three lily pads before the time runs out!', portrait: { key: 'toad_idle' }, voice: 'toad_challenge', color: 0x5ab84a },
-    ],
-  },
-};
+/** Minibosses fought in another game style (none now: Briar Toad's crossing became Mantis's Boss Hall game). */
+export const MINI_ENCOUNTERS: Partial<Record<StageId, Encounter>> = {};
 
 /** Every hidden part has a guardian, fought in a turn-based RPG battle (see rpgGuardians.ts). */
 export const PART_GUARDIANS: Partial<Record<PartId, Encounter>> = Object.fromEntries(

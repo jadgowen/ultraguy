@@ -86,15 +86,19 @@ export class HopScene extends Phaser.Scene {
     super('hop');
   }
 
+  /** Who sits on the pads: Mantis in his Boss Hall rematch, otherwise the Briar Toad. */
+  private host: 'mantis' | 'toad' = 'mantis';
+
   create(data: ModeData): void {
-    this.mode = { stage: data?.stage ?? 'canopy', ret: data?.ret ?? { kind: 'mini', step: 0 } };
+    this.mode = { stage: data?.stage ?? 'canopy', ret: data?.ret ?? { kind: 'vault', step: 0 } };
+    this.host = this.mode.ret.kind === 'vault' ? 'mantis' : 'toad';
     this.controls = new Controls(this);
     Object.assign(this, { acc: 0, frame: 0, lives: LIVES, filled: [false, false, false], toadPad: 1, toadT: 0, timer: CROSS_FRAMES, dead: 0, result: null, overT: 0, started: 0 });
     this.lanes = makeLanes();
     makeHopTextures(this);
     this.cameras.main.setBackgroundColor('#0e2218');
     this.g = this.add.graphics();
-    this.toad = this.add.image(0, 0, 'toad_idle').setScale(0.5).setDepth(5);
+    this.toad = this.add.image(0, 0, `${this.host}_idle`).setScale(0.5).setDepth(5);
     this.hero = this.add.image(0, 0, 'hop_hero').setDepth(6);
     this.banner = pixelText(this, VIEW_W / 2, VIEW_H / 2 - 20, 'FILL ALL THREE LILY PADS!', { fontSize: '16px', color: '#fff1e0', stroke: '#000000' }).setOrigin(0.5).setDepth(20);
     this.hud = pixelText(this, OX, 8, '', { color: '#fff1e0', stroke: '#000000' }).setDepth(20);
@@ -219,7 +223,7 @@ export class HopScene extends Phaser.Scene {
       const col = Math.floor(this.px / T);
       const pad = PAD_COLS.findIndex((pc) => Math.abs(pc - col) <= 0);
       if (pad < 0) return this.die('THORNS!');
-      if (pad === this.toadPad) return this.die('GULP!');
+      if (pad === this.toadPad) return this.die(this.host === 'mantis' ? 'SNIP!' : 'GULP!');
       if (this.filled[pad]) return this.die('TAKEN!');
       this.filled[pad] = true;
       sfx.pickup();
@@ -248,8 +252,8 @@ export class HopScene extends Phaser.Scene {
     stopMusic();
     if (won) {
       sfx.victory();
-      playVoice(this, 'toad_loses');
-    } else playVoice(this, 'toad_wins');
+      playVoice(this, `${this.host}_loses`);
+    } else playVoice(this, `${this.host}_wins`);
   }
 
   private draw(): void {
