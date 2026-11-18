@@ -19,6 +19,8 @@ export interface Line {
   voice?: string;
   /** Accent color for the name tag. */
   color?: number;
+  /** Runs as the line opens (a sound, a gesture). */
+  onOpen?: () => void;
 }
 
 /**
@@ -59,6 +61,7 @@ export function dialogue(scene: Phaser.Scene, lines: Line[], next: () => boolean
     t = 0;
     shown = 0;
     hold = Math.max(120, playVoice(scene, line.voice ?? '') / 16.7 + 30);
+    line.onOpen?.();
   };
 
   open((i = 0));

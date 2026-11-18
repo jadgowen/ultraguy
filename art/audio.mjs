@@ -56,6 +56,9 @@ const MUSIC16 = {
   shooter: 'Space shooter theme, urgent synth arpeggios, alien invasion, heroic and fast',
   bomb: 'Bomb battle maze theme, bouncy and mischievous with a hot volcanic flavor, fast tempo',
   hop: 'Light, playful jungle crossing theme, fast and cheerful, plucky bass and marimba-like lead',
+  // Set pieces.
+  chase: 'Frantic escape chase theme, a giant machine closing in, urgent pounding drums, rising tension, fast and relentless, loopable',
+  climb: 'Desperate climbing theme up a giant jungle tree, thorny vines rising below, driving tribal drums, urgent ascending melody, loopable',
 };
 
 /** Spoken lines: [voice id, text]. Played with the dialogue boxes. */
@@ -117,6 +120,9 @@ const VOICE = {
   shop_broke: ['MF3mGyEYCl7XYWbV9V6O', "Ooh, you're a few bolts short. Go bust some bots!"],
   shop_full: ['MF3mGyEYCl7XYWbV9V6O', "Whoa there, you can't carry any more of those!"],
   shop_bye: ['MF3mGyEYCl7XYWbV9V6O', 'Come back soon! Bring bolts!'],
+  pip_intro1: ['MF3mGyEYCl7XYWbV9V6O', "Hey, hero! Saw you flatten that robot master. Look what I've been tinkering on."],
+  pip_intro2: ['MF3mGyEYCl7XYWbV9V6O', "Meet Pip! It has a lamp for the dark, and I can bolt on more gadgets if you bring me bolts."],
+  pip_intro3: ['MF3mGyEYCl7XYWbV9V6O', "Ha! It likes you. Go on, take it along. Come see me for upgrades, sugar!"],
   overlord_challenge: ['nPczCjzI2devNBz1zQrb', 'Pathetic machine. My armada will blot you from the sky!'],
   overlord_loses: ['nPczCjzI2devNBz1zQrb', 'Impossible... my fleet... destroyed!'],
   toad_challenge: ['IKne3meq5aSn9XLyUdCD', 'Ribbit! You want past me? Hop across my thicket first, tin can. Fill all three lily pads before the time runs out!'],
@@ -225,6 +231,18 @@ const SFX = {
   rpgHit: ['16-bit SNES game sound, turn-based RPG attack hit, sharp slash', 0.5],
   rpgSpell: ['16-bit SNES game sound, RPG magic spell cast, shimmering', 0.8],
   victory: ['16-bit SNES game sound, short RPG victory fanfare jingle', 3],
+  // Pip the drone.
+  pip_chirp: ['tiny cute robot drone chirp, happy little electronic beep-boop, 16-bit game sound', 0.5],
+  pip_trill: ['tiny cute robot drone excited happy trill, rising chirpy electronic beeps, 16-bit game sound', 1.0],
+  pip_fetch: ['tiny robot drone grabbing an item, quick electronic blip with a little click, 16-bit game sound', 0.5],
+  pip_zap: ['tiny robot drone firing a small laser, quick high pew, 16-bit game sound', 0.5],
+  pip_guard: ['tiny robot drone electric shield zapping a bullet, crackle and sparkle, 16-bit game sound', 0.5],
+  pip_startle: ['tiny robot drone startled, surprised wobbly electronic warble, 16-bit game sound', 0.6],
+  pip_hum: ['tiny robot drone hovering, soft steady electric thruster hum, seamless loop', 2.0],
+  // Set pieces.
+  powerDown: ['16-bit SNES game sound, power failure, electricity dying, descending hum and a clunk into silence', 1.5],
+  powerUp: ['16-bit SNES game sound, generators powering back up, rising electric whine and lights clicking on', 1.5],
+  titanCrush: ['16-bit SNES game sound, giant hydraulic press crushing a robot, heavy metal crunch and sparks', 0.8],
 };
 
 // Same lookup as the other local projects: env var first, then ~/.elevenlabs_api_key.

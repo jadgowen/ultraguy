@@ -4,6 +4,7 @@ import { VIEW_H, VIEW_W } from '../constants';
 import { heroFrames } from '../heroSprites';
 import type { BossKind } from '../level/Level';
 import { ALL_BOSS_STAGES, BOSS_STAGES } from '../level/stages';
+import { makePipBits, pipTexture, pipUnlocked } from '../pip';
 import { pixelText } from '../pixelFont';
 import { loadSave, wearSavedSkin } from '../save';
 import { sfx } from '../sfx';
@@ -43,6 +44,9 @@ export class EndingScene extends MenuScene {
   private roll!: Phaser.GameObjects.Container;
   private rollH = 0;
   private hero!: Phaser.GameObjects.Image;
+  /** Pip keeps up with him along the bottom (if you've met). */
+  private pip: Phaser.GameObjects.Image | null = null;
+  private pipSparks: { img: Phaser.GameObjects.Image; vy: number; life: number }[] = [];
 
   constructor() {
     super('ending');
@@ -55,6 +59,7 @@ export class EndingScene extends MenuScene {
     this.backdrop('sky', 0.45);
 
     const save = loadSave();
+    makePipBits(this);
     const entries: Entry[] = [
       { text: 'THE FORTRESS HAS FALLEN', color: '#f28c28', size: '16px' },
       { text: '' },
@@ -81,6 +86,7 @@ export class EndingScene extends MenuScene {
         : { tex: '', name: '???', title: 'A 1-UP HIDES IN EVERY STAGE...' },
       { heading: 'AROUND TOWN' },
       { tex: 'rivet0', name: 'RIVET', title: "PROPRIETOR, RIVET'S PARTS & PROVISIONS" },
+      ...(pipUnlocked(save) ? [{ tex: pipTexture(this, save.pipShell, save.pipPaint, 0), name: 'PIP', title: "RIVET'S BEST WORK, AND YOUR PAL" }] : []),
       { heading: 'STARRING' },
       { tex: heroTexture('buster'), frame: heroFrames(this).idle, name: 'ULTRAGUY', title: 'THE HERO' },
       { text: '' },
@@ -119,6 +125,8 @@ export class EndingScene extends MenuScene {
     // UltraGuy runs along the bottom, trying on every weapon's colors.
     this.add.rectangle(0, VIEW_H - 22, VIEW_W, 22, 0x05060c, 0.7).setOrigin(0, 0);
     this.hero = this.add.image(36, VIEW_H - 22, heroTexture('buster'), heroFrames(this).run1).setOrigin(0.5, 1).setScale(1);
+    this.pipSparks = [];
+    this.pip = pipUnlocked(save) ? this.add.image(14, VIEW_H - 40, pipTexture(this, save.pipShell, save.pipPaint, 0)) : null;
     pixelText(this, VIEW_W - 8, VIEW_H - 14, 'HOLD JUMP: FASTER   ENTER: TITLE', { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' }).setOrigin(1, 0);
     sfx.clear();
   }
@@ -130,6 +138,23 @@ export class EndingScene extends MenuScene {
     const frames = heroFrames(this);
     const w = WEAPON_ORDER[Math.floor(this.frame / 90) % WEAPON_ORDER.length];
     this.hero.setTexture(heroTexture(w), frames[`run${1 + (Math.floor(this.frame / 4) % 8)}`]);
+    if (this.pip) {
+      // Just behind his shoulder, bobbing, fins flapping, thruster sparking.
+      const save = loadSave();
+      const f = this.frame;
+      const x = this.hero.x - 18 + Math.sin(f * 0.03) * 4;
+      const y = VIEW_H - 46 + Math.sin(f * 0.12) * 2;
+      this.pip.setTexture(pipTexture(this, save.pipShell, save.pipPaint, Math.floor(f / 5) % 2 === 0 ? 0 : 1)).setPosition(Math.round(x), Math.round(y)).setRotation(0.12);
+      if (f % 3 === 0) this.pipSparks.push({ img: this.add.image(x + (Math.random() - 0.5) * 3, y + 7, Math.random() < 0.5 ? 'pip_flame' : 'pip_dot'), vy: 0.6 + Math.random() * 0.5, life: 12 });
+      for (const s of this.pipSparks) {
+        s.life--;
+        s.img.y += s.vy;
+        s.img.x -= 0.6;
+        s.img.setAlpha(s.life / 12);
+        if (s.life <= 0) s.img.destroy();
+      }
+      this.pipSparks = this.pipSparks.filter((s) => s.life > 0);
+    }
     if (this.frame > 90 && (this.controls.justPressed('start') || (this.controls.justPressed('jump') && this.roll.y + this.rollH <= VIEW_H / 2 + 21))) {
       sfx.select();
       this.scene.start('title');

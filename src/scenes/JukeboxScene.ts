@@ -20,6 +20,8 @@ export const TRACKS: { key: string; title: string }[] = [
   { key: 'caldera', title: 'CALDERA' },
   { key: 'scrapyard', title: 'SCRAPYARD' },
   { key: 'reef', title: 'REEF' },
+  { key: 'climb', title: 'THE GREAT CLIMB' },
+  { key: 'chase', title: 'COMPACTOR CHASE' },
   { key: 'boss', title: 'ROBOT MASTER' },
   { key: 'jingle_victory', title: 'VICTORY!' },
   { key: 'fortress', title: 'THE FORTRESS' },

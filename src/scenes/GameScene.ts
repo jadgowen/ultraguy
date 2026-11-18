@@ -3,6 +3,7 @@ import { nowPlaying, playJingle, playMusic, playVoice, stageMusic, stopMusic } f
 import { BOSS_INTROS, INTRO, IntroCard } from './bossIntro';
 import { TileFx } from '../tileFx';
 import { ArenaFx } from './arenaFx';
+import { ensureScene, startScene } from './lazy';
 import { Blackout } from './blackout';
 import { Elevator } from './elevator';
 import { DEV_TOOLS, PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
@@ -367,6 +368,7 @@ export class GameScene extends Phaser.Scene {
     this.fxFrame = 0;
     this.iceCracks = new Map();
     this.iceHoles = [];
+    this.setPieceTrack = null;
     for (const { c, r } of this.level.thinIce) this.markThin(c, r);
     this.elevator = this.level.elevator
       ? new Elevator({
@@ -429,6 +431,7 @@ export class GameScene extends Phaser.Scene {
             },
             enemyCount: () => this.enemies.length,
             say: (text, frames) => this.say(text, frames),
+            music: (out) => (out ? stopMusic(700) : playMusic(this, stageMusic(this.level.data))),
           })
         : null;
     this.arenaFx = new ArenaFx({
@@ -770,6 +773,7 @@ export class GameScene extends Phaser.Scene {
     this.hazards.step();
     this.blackout?.step();
     this.arenaFx.step();
+    this.stepSetPieceMusic();
     this.revealSecret();
     if (!p.alive && p.deadTimer <= 0) {
       this.loseLife();
@@ -1610,9 +1614,10 @@ export class GameScene extends Phaser.Scene {
   private startEncounter(enc: Encounter, ret: Ret): void {
     stopMusic();
     const skip = () => this.controls.justPressed('start') || this.controls.justPressed('jump');
+    void ensureScene(this.game, enc.scene); // fetch its code while they talk
     this.story = dialogue(this, enc.lines(), skip, () => {
       this.story = () => {};
-      pixelateOut(this, 900, () => this.scene.start(enc.scene, { stage: this.stageId, ret }));
+      pixelateOut(this, 900, () => startScene(this, enc.scene, { stage: this.stageId, ret }));
     });
   }
 
@@ -2220,6 +2225,7 @@ export class GameScene extends Phaser.Scene {
       s.armed = true;
     }
     playMusic(this, stageMusic(this.level.data)); // back to the stage track after a boss
+    this.setPieceTrack = null;
     // Latest checkpoint the player has passed.
     this.player.reset(this.checkpoint.x, this.checkpoint.y);
     this.pip?.reset();
@@ -2336,6 +2342,20 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Short message under the health bars. */
+  /** The set piece playing its own track right now (chase, climb), if any. */
+  private setPieceTrack: string | null = null;
+
+  /** The compactor chase and the Great Climb get music of their own while they're on. */
+  private stepSetPieceMusic(): void {
+    if (this.boss || !this.player.alive) return;
+    const rise = this.level.data.rise;
+    const id = this.level.screenIdAt(this.player.cx, this.player.cy);
+    const want = this.hazards.wallOn ? 'chase' : this.hazards.lavaOn && this.level.data.theme === 'jungle' && rise?.screens.includes(id) ? 'climb' : null;
+    if (want === this.setPieceTrack) return;
+    this.setPieceTrack = want;
+    playMusic(this, want ?? stageMusic(this.level.data));
+  }
+
   /** Pip comes along once a stage boss is down, with what you've bought and switched on for it. */
   private makePip(): void {
     this.pip?.destroy();
@@ -2369,6 +2389,11 @@ export class GameScene extends Phaser.Scene {
       meetPip();
       this.time.delayedCall(2400, () => this.say('PIP JOINS YOU!', 100));
     }
+    // Its hum and particles go when the stage does.
+    this.events.once('shutdown', () => {
+      this.pip?.destroy();
+      this.pip = null;
+    });
   }
 
   /** Big centered text for a while (HOLD ON!, BLACKOUT!). */
@@ -2431,7 +2456,7 @@ export class GameScene extends Phaser.Scene {
     if (!(b instanceof Miniboss) || b.state !== 'fight' || !overlaps(box, b)) return false;
     b.hit(4, true);
     this.shake(6);
-    sfx.weakHit();
+    sfx.titanCrush();
     this.hitStop = WEAK_HIT_STOP;
     this.burst(b.cx, b.y + 4, 'spark', 10);
     this.flashLabel('CRUSHED!');

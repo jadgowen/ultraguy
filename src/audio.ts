@@ -17,6 +17,8 @@ interface Manifest {
 const MUSIC_VOLUME = 0.45;
 const SFX_VOLUME = 0.5;
 let current: { key: string; sound: Phaser.Sound.WebAudioSound | Phaser.Sound.HTML5AudioSound } | null = null;
+/** The track asked for last (it may still be loading). */
+let wanted: string | null = null;
 /** Music level from the mixer (0..1). */
 let musicLevel = volumeOf(loadSettings().music);
 
@@ -30,22 +32,89 @@ export function preloadAudioManifest(scene: Phaser.Scene): void {
   scene.load.json('audio_manifest', 'assets/audio/manifest.json');
 }
 
-/** Queue every file in the manifest; calls `done` once they're loaded. */
-export function loadAudio(scene: Phaser.Scene, done: () => void): void {
-  const m = scene.cache.json.get('audio_manifest') as Manifest | undefined;
-  let queued = 0;
-  for (const [name, file] of Object.entries(m?.music ?? {})) {
-    scene.load.audio(`music_${name}`, `assets/audio/${file}`);
-    queued++;
+/**
+ * Audio streams in. Only the sound effects and the title music load before the
+ * title screen; everything else (about 30 MB of music and voice) loads in the
+ * background afterwards, a couple of files at a time, in the order you're
+ * likely to need it. Anything wanted before its turn jumps the queue: a track
+ * asked for while it's still loading starts the moment it arrives.
+ */
+let manifest: Manifest | null = null;
+/** The scene whose loader streams audio (it stays running behind the others). */
+let streamer: Phaser.Scene | null = null;
+/** Keys still to fetch in the background, in order. */
+const backlog: string[] = [];
+/** Callbacks waiting on a key to finish loading. */
+const waiting = new Map<string, (() => void)[]>();
+const inFlight = new Set<string>();
+const BACKGROUND_AT_ONCE = 2;
+
+function urlFor(key: string): string | undefined {
+  const m = manifest;
+  if (!m) return undefined;
+  const [kind, ...rest] = key.split('_');
+  const name = rest.join('_');
+  const table = kind === 'music' ? m.music : kind === 'voice' ? m.voice : kind === 'sfx' ? m.sfx : undefined;
+  const file = table?.[name];
+  return file ? `assets/audio/${file}` : undefined;
+}
+
+/** Is this audio key loaded and ready? */
+export function audioReady(key: string): boolean {
+  return !!streamer?.cache.audio.exists(key);
+}
+
+function fetchNow(key: string): void {
+  const s = streamer;
+  const url = urlFor(key);
+  if (!s || !url || inFlight.has(key) || s.cache.audio.exists(key)) return;
+  inFlight.add(key);
+  const i = backlog.indexOf(key);
+  if (i >= 0) backlog.splice(i, 1);
+  const finish = () => {
+    inFlight.delete(key);
+    const cbs = waiting.get(key) ?? [];
+    waiting.delete(key);
+    for (const cb of cbs) cb();
+    pump();
+  };
+  s.load.once(`filecomplete-audio-${key}`, finish);
+  s.load.audio(key, url);
+  s.load.start();
+}
+
+/** Keep the background downloads going. */
+function pump(): void {
+  while (streamer && backlog.length && inFlight.size < BACKGROUND_AT_ONCE) fetchNow(backlog[0]);
+}
+
+/** Make sure `key` is (or is soon) loaded; `cb` runs once it is (right away if it already is). */
+export function requestAudio(key: string, cb?: () => void): void {
+  if (audioReady(key)) {
+    cb?.();
+    return;
   }
-  for (const [name, file] of Object.entries(m?.voice ?? {})) {
-    scene.load.audio(`voice_${name}`, `assets/audio/${file}`);
-    queued++;
-  }
-  for (const [name, file] of Object.entries(m?.sfx ?? {})) {
-    scene.load.audio(`sfx_${name}`, `assets/audio/${file}`);
-    queued++;
-  }
+  if (!urlFor(key)) return; // never generated
+  if (cb) waiting.set(key, [...(waiting.get(key) ?? []), cb]);
+  fetchNow(key); // jumps the queue
+}
+
+/**
+ * Background order: the menus' and first stage's music, then every voice line
+ * (small, and dialogue waits on them), then the rest of the music, roughly in
+ * the order a player meets it. (A stage's own track is asked for as you enter
+ * it, so it jumps the queue anyway.)
+ */
+const MUSIC_FIRST = ['select', 'intro', 'shop', 'boss', 'jingle_victory'];
+const MUSIC_ORDER = ['foundry', 'canopy', 'glacier', 'stratos', 'powerplant', 'caldera', 'scrapyard', 'reef', 'fortress'];
+
+/**
+ * Load the sound effects and the title music now (`done` when they're in), and
+ * start `stream` (a scene that keeps running) fetching the rest in the background.
+ */
+export function loadAudio(scene: Phaser.Scene, stream: Phaser.Scene, done: () => void): void {
+  manifest = (scene.cache.json.get('audio_manifest') as Manifest | undefined) ?? null;
+  const m = manifest;
   setSamplePlayer((name) => {
     const key = `sfx_${name}`;
     if (!scene.cache.audio.exists(key)) return false;
@@ -53,11 +122,27 @@ export function loadAudio(scene: Phaser.Scene, done: () => void): void {
     if (level > 0) scene.sound.play(key, { volume: SFX_VOLUME * level });
     return true;
   });
-  if (!queued) {
+  const now = [...Object.keys(m?.sfx ?? {}).map((n) => `sfx_${n}`), ...(m?.music.title ? ['music_title'] : [])];
+  const startStreaming = () => {
+    streamer = stream;
+    const music = Object.keys(m?.music ?? {}).map((n) => `music_${n}`);
+    const pick = (names: string[]) => names.map((n) => `music_${n}`).filter((k) => music.includes(k));
+    const first = pick(MUSIC_FIRST);
+    const later = [...pick(MUSIC_ORDER), ...music.filter((k) => !MUSIC_FIRST.includes(k.slice(6)) && !MUSIC_ORDER.includes(k.slice(6)))];
+    const voices = Object.keys(m?.voice ?? {}).map((n) => `voice_${n}`);
+    for (const k of [...first, ...voices, ...later]) if (!stream.cache.audio.exists(k) && !backlog.includes(k)) backlog.push(k);
+    pump();
+  };
+  if (!now.length) {
+    startStreaming();
     done();
     return;
   }
-  scene.load.once('complete', done);
+  for (const k of now) scene.load.audio(k, urlFor(k)!);
+  scene.load.once('complete', () => {
+    startStreaming();
+    done();
+  });
   scene.load.start();
 }
 
@@ -106,11 +191,23 @@ export function setMusicListener(fn: (key: string) => void): void {
 
 /** Loop a music track (no-op if it's already playing or wasn't generated); the old one fades out as it fades in. */
 export function playMusic(scene: Phaser.Scene, key: string): void {
-  if (current?.key === key) return;
+  if (current?.key === key || (wanted === key && !current)) return;
   stopMusic(CROSSFADE_MS);
   const audioKey = `music_${key}`;
-  if (!scene.cache.audio.exists(audioKey)) return;
-  const sound = scene.sound.add(audioKey, { loop: true, volume: 0 }) as Track;
+  wanted = key;
+  if (!scene.cache.audio.exists(audioKey)) {
+    // Still streaming in: start it the moment it lands (if it's still the one wanted).
+    requestAudio(audioKey, () => {
+      if (wanted === key && !current) startTrack(streamer ?? scene, key);
+    });
+    return;
+  }
+  startTrack(scene, key);
+}
+
+/** Start a loaded track looping, fading it in. */
+function startTrack(scene: Phaser.Scene, key: string): void {
+  const sound = scene.sound.add(`music_${key}`, { loop: true, volume: 0 }) as Track;
   sound.play();
   fade(sound, 0, MUSIC_VOLUME * musicLevel, CROSSFADE_MS);
   current = { key, sound };
@@ -121,7 +218,11 @@ export function playMusic(scene: Phaser.Scene, key: string): void {
 export function playJingle(scene: Phaser.Scene, key: string): void {
   stopMusic(200);
   const audioKey = `music_${key}`;
-  if (!scene.cache.audio.exists(audioKey)) return;
+  wanted = key;
+  if (!scene.cache.audio.exists(audioKey)) {
+    requestAudio(audioKey);
+    return;
+  }
   const sound = scene.sound.add(audioKey, { loop: false, volume: MUSIC_VOLUME * musicLevel * 1.1 }) as Track;
   sound.play();
   sound.once('complete', () => sound.destroy());
@@ -138,6 +239,7 @@ export function nowPlaying(): string | null {
 export function stopMusic(fadeMs = 0): void {
   const old = current;
   current = null;
+  wanted = null;
   if (!old) return;
   if (fadeMs <= 0) {
     old.sound.stop();
@@ -159,7 +261,14 @@ export function stageMusic(stage: StageData): string {
 /** Speak a dialogue line (if it was generated). Returns its length in ms, or 0. */
 export function playVoice(scene: Phaser.Scene, name: string): number {
   const key = `voice_${name}`;
-  if (!scene.cache.audio.exists(key)) return 0;
+  if (!scene.cache.audio.exists(key)) {
+    // Not in yet: fetch it, and still say it if it arrives within a moment.
+    const asked = performance.now();
+    requestAudio(key, () => {
+      if (performance.now() - asked < 900 && scene.sys?.isActive()) playVoice(scene, name);
+    });
+    return 0;
+  }
   const level = getSfxLevel();
   const sound = scene.sound.add(key, { volume: 0.9 * Math.max(level, 0.3) });
   sound.play();

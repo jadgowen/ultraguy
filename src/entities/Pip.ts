@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import type { Box } from '../physics';
 import { PIP_H, PIP_W, PipModule, PipPaint, PipShell, PipTrail, makePipBits, pipTexture } from '../pip';
-import { sfx } from '../sfx';
+import { loopSfx } from '../audio';
+import { getSfxLevel, sfx } from '../sfx';
 import type { Player } from './Player';
 
 /** What Pip needs from the game. */
@@ -69,6 +70,9 @@ export class Pip {
   private guard = 1;
   private zapCool = 60;
   private zapLineT = 0;
+  /** The thruster's hum: louder and higher the harder it flies. */
+  private hum: Phaser.Sound.BaseSound | null = null;
+  private chirpT = 600;
 
   constructor(
     private h: PipHost,
@@ -84,6 +88,7 @@ export class Pip {
     this.ring = h.scene.add.image(this.x, this.y, 'pip_ring').setDepth(10.4).setAlpha(0);
     this.zapLine = h.scene.add.graphics().setDepth(10.7);
     this.lastHp = p.hp;
+    this.hum = loopSfx(h.scene, 'pip_hum', 0);
   }
 
   has(m: PipModule): boolean {
@@ -106,6 +111,7 @@ export class Pip {
     const p = this.h.player();
     this.t++;
     if (!p.alive) {
+      this.stepHum(0);
       // The hero's down: Pip droops and drifts.
       this.vy += 0.03;
       this.vx *= 0.95;
@@ -114,6 +120,11 @@ export class Pip {
       return;
     }
     this.idleT = Math.abs(p.vx) < 0.05 && p.grounded ? this.idleT + 1 : 0;
+    // A happy chirp now and then (and as it starts a loop over his head).
+    if (this.idleT === 241 || --this.chirpT <= 0) {
+      sfx.pip_chirp();
+      this.chirpT = 900 + Math.floor(Math.random() * 900);
+    }
     if (this.idleT > 240 + 126) this.idleT = 0; // one loop, then back
 
     // Reactions: a jolt and a spin when he's hit; a dip when he lands hard.
@@ -122,6 +133,7 @@ export class Pip {
       this.vy -= 2.5;
       this.spin = 24;
       this.sparks(8, 1.5);
+      sfx.pip_startle();
     }
     this.lastHp = p.hp;
     if (p.grounded && !this.wasGrounded) this.vy += 1.2;
@@ -161,6 +173,15 @@ export class Pip {
     this.stepLook();
     this.stepBits();
     if (this.spin > 0) this.spin--;
+    this.stepHum(Math.hypot(this.vx, this.vy));
+  }
+
+  private stepHum(speed: number): void {
+    const hum = this.hum as (Phaser.Sound.BaseSound & { setVolume?: (v: number) => void; setRate?: (r: number) => void }) | null;
+    if (!hum) return;
+    const k = Math.min(1, speed / MAX_SPEED);
+    hum.setVolume?.((0.035 + k * 0.07) * getSfxLevel());
+    hum.setRate?.(0.9 + k * 0.5);
   }
 
   // --- upgrades ------------------------------------------------------------------
@@ -178,7 +199,7 @@ export class Pip {
       }
       if (!f.carried && Math.hypot(f.cx - this.x, f.cy - this.y) < 8) {
         f.carried = true;
-        sfx.tick();
+        sfx.pip_fetch();
         this.sparks(4, 1);
       }
       // Home with it: drop it right on him.
@@ -219,7 +240,7 @@ export class Pip {
     this.zapTo(s.cx, s.cy);
     this.vx += (s.cx - this.x) * 0.15;
     this.vy += (s.cy - this.y) * 0.15;
-    sfx.deflect();
+    sfx.pip_guard();
     this.burstAt(s.cx, s.cy, 6);
   }
 
@@ -237,7 +258,7 @@ export class Pip {
     this.vx -= Math.cos(a) * 1.6;
     this.vy -= Math.sin(a) * 1.6;
     this.burstAt(this.x + Math.cos(a) * 6, this.y + Math.sin(a) * 6, 3);
-    sfx.enemyShot();
+    sfx.pip_zap();
     this.zapCool = 80;
   }
 
@@ -384,6 +405,9 @@ export class Pip {
   }
 
   destroy(): void {
+    this.hum?.stop();
+    this.hum?.destroy();
+    this.hum = null;
     this.body.destroy();
     this.pupil.destroy();
     this.ring.destroy();

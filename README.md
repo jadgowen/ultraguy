@@ -133,7 +133,14 @@ LAMP (light around it in the dark). Rivet's PIP workshop sells FETCH (80: flies 
 pickups), GUARD (150: once charged, zaps an enemy shot about to hit you) and ZAP (200: pot shots at enemies,
 never bosses); upgrades you own can be switched off. Looks: shells (saucer, cube, birdie, and a golden one for
 winning every EX rematch), paints and trails (sparks, bubbles, music, stars) (`src/pip.ts`,
-`src/entities/Pip.ts`, `src/scenes/PipScene.ts`).
+`src/entities/Pip.ts`, `src/scenes/PipScene.ts`). You meet it in Rivet's shop the first time you come back to the
+stage select after a boss (`src/scenes/PipIntroScene.ts`): it bursts out of a crate on the counter. It has its
+own chirps (fetching, zapping, guarding, startled when you're hit) and a thruster hum that rises with its speed,
+and it's in the ending's cast roll, flying along with UltraGuy.
+
+The set pieces have their own audio: chase music while the compactor runs, climbing music while Canopy's
+brambles rise, the power dying (and the music with it) in the blackout and surging back, and a crunch when a
+press flattens the Press Titan.
 
 **Signature enemies.** Each stage has one of its own: Foundry's Hammerbot (slams shockwaves), Canopy's
 Snapper (a bud that bites when you're close), Glacier's Snow Roller (grows as it rolls), Stratos's Gust Fan
@@ -175,6 +182,12 @@ middle panel of the EX stage select; it replaces the Ultra Gun colors (boss weap
 `npm run audio` asks ElevenLabs for one looping chiptune track per area and a set of sound effects,
 saving them to `public/assets/audio/` with a `manifest.json`. Without it the game is silent apart from
 its built-in synthesized sound effects. Regenerate one item with `npm run audio -- --force reef`.
+
+The game doesn't wait for all of it. Only the sound effects and the title music load before the title screen;
+the rest (about 30 MB) streams in behind it, a couple of files at a time: the menu and first-stage music, then
+the voice lines, then the remaining music. Anything needed before its turn jumps the queue (a stage's track
+starts the moment it arrives). The minigames load their code on demand too, and Phaser is in its own file so it
+stays cached across updates.
 
 ## Controls
 | Action | Keyboard | Gamepad |

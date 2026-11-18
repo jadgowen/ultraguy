@@ -1,6 +1,6 @@
 import Phaser from 'phaser';
 import { VIEW_H, VIEW_W } from './constants';
-import { BootScene } from './scenes/BootScene';
+import { AudioStreamScene, BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
 import { EndingScene } from './scenes/EndingScene';
 import { FortressScene } from './scenes/FortressScene';
@@ -8,22 +8,12 @@ import { ControlsScene } from './scenes/ControlsScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { SlotScene } from './scenes/SlotScene';
 import { JukeboxScene } from './scenes/JukeboxScene';
+import { PipIntroScene } from './scenes/PipIntroScene';
 import { PipScene } from './scenes/PipScene';
 import { ShopScene } from './scenes/ShopScene';
 import { WardrobeScene } from './scenes/WardrobeScene';
 import { StageSelectScene } from './scenes/StageSelectScene';
 import { TitleScene } from './scenes/TitleScene';
-import { RaceScene } from './scenes/RaceScene';
-import { BoxingScene } from './scenes/BoxingScene';
-import { BombScene } from './scenes/BombScene';
-import { HopScene } from './scenes/HopScene';
-import { RpgScene } from './scenes/RpgScene';
-import { ShooterScene } from './scenes/ShooterScene';
-import { BreakerScene } from './scenes/BreakerScene';
-import { HockeyScene } from './scenes/HockeyScene';
-import { SkiesScene } from './scenes/SkiesScene';
-import { PinballScene } from './scenes/PinballScene';
-import { DungeonScene } from './scenes/DungeonScene';
 import { unlockAudio } from './sfx';
 import { mountTouchControls } from './touch';
 
@@ -38,7 +28,7 @@ const game = new Phaser.Game({
   input: { gamepad: true },
   // Stretch to fill the window (exact on 16:9; letterboxed otherwise).
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, TitleScene, SlotScene, SettingsScene, ControlsScene, StageSelectScene, ShopScene, WardrobeScene, PipScene, JukeboxScene, FortressScene, GameScene, RaceScene, BoxingScene, RpgScene, HopScene, BombScene, ShooterScene, BreakerScene, HockeyScene, SkiesScene, PinballScene, DungeonScene, EndingScene],
+  scene: [BootScene, AudioStreamScene, TitleScene, SlotScene, SettingsScene, ControlsScene, StageSelectScene, ShopScene, WardrobeScene, PipScene, PipIntroScene, JukeboxScene, FortressScene, GameScene, EndingScene],
 });
 
 // Handy for debugging in the browser console.

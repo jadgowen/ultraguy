@@ -172,6 +172,29 @@ const synth = {
     setTimeout(() => tone(784, 784, 0.12), 260);
     setTimeout(() => tone(1046, 1046, 0.4), 390);
   },
+  // Pip the drone (synth fallbacks: little bleeps).
+  pip_chirp: () => {
+    tone(1400, 2200, 0.05, 'square', 0.03);
+    setTimeout(() => tone(2000, 1600, 0.05, 'square', 0.03), 60);
+  },
+  pip_trill: () => {
+    for (let i = 0; i < 5; i++) setTimeout(() => tone(1200 + i * 250, 1500 + i * 250, 0.05, 'square', 0.03), i * 55);
+  },
+  pip_fetch: () => tone(1800, 2600, 0.04, 'square', 0.03),
+  pip_zap: () => tone(2400, 900, 0.05, 'square', 0.03),
+  pip_guard: () => {
+    tone(3000, 600, 0.08, 'sawtooth', 0.03);
+    noise(0.05, 0.03);
+  },
+  pip_startle: () => tone(1600, 700, 0.18, 'triangle', 0.04),
+  pip_hum: () => {},
+  // Set pieces.
+  powerDown: () => tone(400, 40, 1.0, 'sawtooth', 0.05),
+  powerUp: () => tone(60, 600, 0.9, 'sawtooth', 0.05),
+  titanCrush: () => {
+    noise(0.3, 0.12);
+    tone(120, 40, 0.3, 'square', 0.08);
+  },
   glitch: () => {
     for (let i = 0; i < 6; i++) setTimeout(() => tone(200 + Math.random() * 1800, 100, 0.05, 'square', 0.03), i * 60);
   },

@@ -229,6 +229,16 @@ export class Hazards {
     if (p.alive && W.on && p.x < W.x + 10 && p.bottom > W.y && p.y < W.y + SCREEN_H) p.die(true);
   }
 
+  /** The compactor is grinding after you right now. */
+  get wallOn(): boolean {
+    return !!this.wall?.on;
+  }
+
+  /** The rising lava (or brambles) is on its way up. */
+  get lavaOn(): boolean {
+    return !!this.lava?.on;
+  }
+
   /** The compactor wall's front edge (world x), or -Infinity. */
   get wallX(): number {
     return this.wall?.on ? this.wall.x + 10 : -Infinity;

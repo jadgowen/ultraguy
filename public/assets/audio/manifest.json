@@ -29,7 +29,9 @@
     "dojo": "music_dojo.mp3",
     "shop": "music_shop.mp3",
     "jingle_victory": "music_jingle_victory.mp3",
-    "vault": "music_vault.mp3"
+    "vault": "music_vault.mp3",
+    "chase": "music_chase.mp3",
+    "climb": "music_climb.mp3"
   },
   "sfx": {
     "shoot": "sfx_shoot.mp3",
@@ -83,7 +85,17 @@
     "alienDie": "sfx_alienDie.mp3",
     "rpgHit": "sfx_rpgHit.mp3",
     "rpgSpell": "sfx_rpgSpell.mp3",
-    "victory": "sfx_victory.mp3"
+    "victory": "sfx_victory.mp3",
+    "pip_chirp": "sfx_pip_chirp.mp3",
+    "pip_trill": "sfx_pip_trill.mp3",
+    "pip_startle": "sfx_pip_startle.mp3",
+    "pip_hum": "sfx_pip_hum.mp3",
+    "powerDown": "sfx_powerDown.mp3",
+    "powerUp": "sfx_powerUp.mp3",
+    "titanCrush": "sfx_titanCrush.mp3",
+    "pip_fetch": "sfx_pip_fetch.mp3",
+    "pip_zap": "sfx_pip_zap.mp3",
+    "pip_guard": "sfx_pip_guard.mp3"
   },
   "voice": {
     "volt_challenge": "voice_volt_challenge.mp3",
@@ -188,6 +200,9 @@
     "shop_full": "voice_shop_full.mp3",
     "shop_bye": "voice_shop_bye.mp3",
     "baron_intro": "voice_baron_intro.mp3",
-    "shop_vault": "voice_shop_vault.mp3"
+    "shop_vault": "voice_shop_vault.mp3",
+    "pip_intro1": "voice_pip_intro1.mp3",
+    "pip_intro2": "voice_pip_intro2.mp3",
+    "pip_intro3": "voice_pip_intro3.mp3"
   }
 }

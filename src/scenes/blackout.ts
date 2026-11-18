@@ -19,6 +19,8 @@ export interface BlackoutHost {
   /** How many enemies are about. */
   enemyCount: () => number;
   say: (text: string, frames?: number) => void;
+  /** The music dies with the power (true) and comes back with it (false). */
+  music: (out: boolean) => void;
 }
 
 /** A swarm member every this many steps while the lights are out (up to SWARM_MAX at once). */
@@ -62,7 +64,8 @@ export class Blackout {
       this.t = 0;
       this.h.setDark(this.screens, true);
       this.h.say('BLACKOUT!', 70);
-      sfx.zap();
+      sfx.powerDown();
+      this.h.music(true);
       this.h.shake(4);
     }
     if (this.state === 'dark' && p.alive) {
@@ -102,7 +105,8 @@ export class Blackout {
     this.state = 'done';
     this.h.setDark(this.screens, false);
     this.h.say('POWER RESTORED', 90);
-    sfx.clear();
+    sfx.powerUp();
+    this.h.music(false);
     this.h.shake(3);
     const { level, layer } = this.h;
     for (const { c, r } of level.shutters) {

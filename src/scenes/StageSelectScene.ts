@@ -7,6 +7,7 @@ import { ALL_BOSS_STAGES, BOSS_STAGES, STAGE_GRID } from '../level/stages';
 import { THEMES } from '../level/themes';
 import { exUnlocked, loadSave, setSkin, wearSavedSkin } from '../save';
 import { SKINS, currentSkin, unlockedSkins } from '../skins';
+import { pipUnlocked } from '../pip';
 import { sfx } from '../sfx';
 import { WEAPONS, heroTexture } from '../weapons';
 import type { GameSceneData } from './GameScene';
@@ -47,6 +48,12 @@ export class StageSelectScene extends MenuScene {
   }
 
   create(): void {
+    // Rivet has something for you once a boss is down: meet Pip first.
+    const first = loadSave();
+    if (pipUnlocked(first) && !first.pipMet) {
+      this.scene.start('pipintro');
+      return;
+    }
     wearSavedSkin();
     this.initMenu();
     playMusic(this, 'select');

@@ -23,6 +23,15 @@ export class BootScene extends Phaser.Scene {
     // Load generated music/sfx (if any), then go to the title.
     // Every track heard goes in the save, for Rivet's jukebox.
     setMusicListener(recordHeard);
-    loadAudio(this, () => this.scene.start('title'));
+    // The rest of the audio streams in behind the title (see audio.ts).
+    this.scene.launch('audiostream');
+    loadAudio(this, this.scene.get('audiostream'), () => this.scene.start('title'));
+  }
+}
+
+/** Runs behind every other scene for the whole game: its loader streams in the audio. */
+export class AudioStreamScene extends Phaser.Scene {
+  constructor() {
+    super({ key: 'audiostream', active: false });
   }
 }
