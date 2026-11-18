@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
+import { bossArena, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
 
 // GLACIER (ice). Built around cracking ice ('x': it holds for a moment, then
 // breaks) and snowball chutes ('@').
@@ -17,7 +17,13 @@ import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
 //          row 2:  . . E F G 1 2 H | X Y
 
 const ROCK = '################';
-const room = bossRoom('I');
+// FROSTLINE's rink: ice ledges to hop onto over his slides. When he slams
+// into a wall, icicles shake loose from the ceiling (see arenaFx.ts).
+const room = bossArena('I', {
+  11: '.....CCC........',
+}, {
+  11: '........CCC....#',
+});
 const hall = miniHall('I', false, false, true);
 
 export const GLACIER: StageData = {

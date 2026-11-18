@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { nowPlaying, playJingle, playMusic, playVoice, stageMusic, stopMusic } from '../audio';
 import { BOSS_INTROS, INTRO, IntroCard } from './bossIntro';
 import { TileFx } from '../tileFx';
+import { ArenaFx } from './arenaFx';
 import { Blackout } from './blackout';
 import { Elevator } from './elevator';
 import { DEV_TOOLS, PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
@@ -9,7 +10,7 @@ import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
 import { Player } from '../entities/Player';
 import { Boss, Miniboss, Room, createBoss } from '../entities/bosses';
 import { Controls } from '../input';
-import { BossKind, Door, ELECTRIC_OFF_INDEX, Level, Point, Section, StageId, Tile } from '../level/Level';
+import { BossKind, Door, ELECTRIC_OFF_INDEX, Level, MiniKind, Point, Section, StageId, Tile } from '../level/Level';
 import { PART_ORDER, PARTS } from '../parts';
 import { BOSS_STAGES, getStage } from '../level/stages';
 import { THEMES } from '../level/themes';
@@ -240,6 +241,8 @@ export class GameScene extends Phaser.Scene {
   private elevator: Elevator | null = null;
   /** Power Plant's blackout (null elsewhere). */
   private blackout: Blackout | null = null;
+  /** What the stage's boss room does by itself (Caldera's lava surge, Glacier's icicles). */
+  private arenaFx!: ArenaFx;
   private iceCracks = new Map<number, { c: number; r: number; n: number; breakT: number; img: Phaser.GameObjects.Image }>();
   /** Broken thin ice, freezing back over (frames left). */
   private iceHoles: { c: number; r: number; t: number }[] = [];
@@ -422,6 +425,16 @@ export class GameScene extends Phaser.Scene {
             say: (text, frames) => this.say(text, frames),
           })
         : null;
+    this.arenaFx = new ArenaFx({
+      scene: this,
+      stage: this.stageId,
+      player: () => this.player,
+      boss: () => (this.boss && !(this.boss instanceof Miniboss) ? this.boss : null),
+      room: () => this.bossRoom,
+      spawnShot: (o) => this.spawnEnemyShot(o),
+      shake: (n) => this.shake(n),
+      burst: (x, y, tex, n) => this.burst(x, y, tex, n),
+    });
     this.electricTiles = this.level.findTiles(Tile.Electric);
     this.electricOn = true;
     this.electricT = 0;
@@ -748,6 +761,7 @@ export class GameScene extends Phaser.Scene {
     this.sky.stepCrumbles();
     this.hazards.step();
     this.blackout?.step();
+    this.arenaFx.step();
     this.revealSecret();
     if (!p.alive && p.deadTimer <= 0) {
       this.loseLife();
@@ -1072,6 +1086,20 @@ export class GameScene extends Phaser.Scene {
         this.impact(b);
         b.dead = true;
         continue;
+      }
+      // A miniboss's breakable part soaks up the shots that hit it.
+      if (boss instanceof Miniboss && !b.hitTargets.has(boss)) {
+        const box = boss.partBoxes().find((pb) => overlaps(b, pb));
+        if (box) {
+          const weak = b.weapon === boss.weakness;
+          const dmg = weak ? WEAKNESS_DAMAGE : b.weapon === 'buster' ? b.power : 1;
+          if (boss.hitPart(dmg)) this.breakPart(boss, box);
+          else sfx.hit();
+          this.impact(b);
+          if (b.pierce) b.hitTargets.add(boss);
+          else b.dead = true;
+          continue;
+        }
       }
 
       // Shots that hit the boss's cover (Jared's counter) bounce off it.
@@ -2163,6 +2191,7 @@ export class GameScene extends Phaser.Scene {
     this.restoreIce();
     this.elevator?.reset();
     this.blackout?.reset();
+    this.arenaFx.reset();
     this.clearActors();
     for (const f of this.effects) f.sprite.destroy();
     this.effects = [];
@@ -2300,6 +2329,52 @@ export class GameScene extends Phaser.Scene {
     this.banner.setText(text).setVisible(true);
     this.sayT?.remove();
     this.sayT = this.time.delayedCall((frames * 1000) / 60, () => this.banner.setVisible(false));
+  }
+
+  /** A boss hit a wall hard: the room may react (icicles in Glacier). */
+  arenaSlam(): void {
+    this.arenaFx.slam();
+  }
+
+  /** A miniboss's part came off: bits fly, it staggers (a chunk of damage), and loses that attack. */
+  private breakPart(b: Miniboss, box: Box): void {
+    const x = box.x + box.w / 2;
+    const y = box.y + box.h / 2;
+    this.burst(x, y, 'boom', 3);
+    this.burst(x, y, 'spark', 10);
+    for (let i = 0; i < 6; i++) this.addEffect(x, y, (Math.random() - 0.5) * 4, -2 - Math.random() * 2, 0.2, 40, false, 'spark');
+    sfx.weakHit();
+    this.shake(6);
+    this.hitStop = WEAK_HIT_STOP;
+    b.hit(3, true);
+    this.flashLabel(`${b.part!.label} BROKEN!`);
+    if (b.hp === 0) this.startBossDeath();
+  }
+
+  /**
+   * A miniboss is down to half health: its fight changes.
+   *  - Press Titan: the presses speed up.
+   *  - Tusk Mammoth: enraged (its slams already shake the ice loose).
+   *  - Storm Kite: the storm builds: stronger, more frequent gusts, and lightning.
+   *  - Angler: the dark deepens: no more flashes, and its lure dims.
+   */
+  miniPhase(kind: MiniKind): void {
+    const lines: Partial<Record<MiniKind, string>> = {
+      press: 'THE LINE SPEEDS UP!',
+      mammoth: "IT'S ENRAGED!",
+      kite: 'THE STORM BUILDS!',
+      angler: 'THE DARK DEEPENS!',
+    };
+    this.say(lines[kind] ?? 'IT FIGHTS HARDER!', 80);
+    this.shake(5);
+    sfx.quake();
+    if (kind === 'press') this.hazards.rush = 1.7;
+    if (kind === 'kite') {
+      this.sky.storm = 1.35;
+      this.cameras.main.flash(180, 255, 255, 255);
+      sfx.zap();
+    }
+    if (kind === 'angler') this.hazards.noFlash = true;
   }
 
   /** A press came down on the miniboss (Foundry's line): a big hit. */

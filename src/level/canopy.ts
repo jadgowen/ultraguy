@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossRoom, rows, SECRET_ROOM, SKY } from './rooms';
+import { bossArena, rows, SECRET_ROOM, SKY } from './rooms';
 
 // CANOPY (jungle). Built around bounce flowers ('%'): land on one and it
 // throws you high (higher if you hold jump).
@@ -21,7 +21,16 @@ import { bossRoom, rows, SECRET_ROOM, SKY } from './rooms';
 
 const LEAVES = '################';
 const FLOOR = '################';
-const room = bossRoom();
+// MANTIS in the treetops: a bounce flower at each end throws you up to the
+// branches (and a breaking one near the top), out of reach of his leaps.
+const room = bossArena('#', {
+  7: '.........CCC....',
+  13: '#####%##########',
+}, {
+  4: '.......xxx.....#',
+  7: '...CCC.........#',
+  13: '##########%####' + '#',
+});
 const CEIL = '################';
 
 export const CANOPY: StageData = {

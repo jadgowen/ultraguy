@@ -52,6 +52,7 @@ export class Frostline extends Boss {
       case 'slide':
         if (this.physics().wall) {
           this.g.shake(4);
+          this.g.arenaSlam();
           sfx.land();
           if (!this.bounced && this.phase2) {
             // Phase 2: rebounds once and slides back.

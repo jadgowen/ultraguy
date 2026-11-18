@@ -22,6 +22,24 @@ interface MiniDef {
 }
 
 /**
+ * A part you can shoot off (Mega Man style): shots that hit it hurt the part,
+ * not the body. Boxes are relative to the miniboss's bottom-center, facing
+ * right (mirrored when it faces left). Breaking it takes away an attack.
+ */
+interface PartDef {
+  label: string;
+  hp: number;
+  boxes: [number, number, number, number][];
+}
+
+export const MINI_PARTS: Partial<Record<MiniKind, PartDef>> = {
+  // The hammer arms: without them its stomps are only hops (no shockwaves).
+  press: { label: 'HAMMER ARMS', hp: 6, boxes: [[-22, -26, 8, 21], [14, -26, 8, 21]] },
+  // The tusks: without them it can't charge.
+  mammoth: { label: 'TUSKS', hp: 6, boxes: [[12, -20, 12, 11]] },
+};
+
+/**
  * Minibosses guard the middle of each boss stage. Weaker than the stage
  * boss (MINI_HP) and weak to the same weapon as that boss.
  */
@@ -56,6 +74,13 @@ export class Miniboss extends Boss {
   private dir: 1 | -1 = -1;
   /** Columns of thin ice already cracked by this charge. */
   private cracked = new Set<number>();
+  /** Its breakable part: hits left (0 = broken off), and a short grace between hits. */
+  partHp = 0;
+  partInvuln = 0;
+  /** Past half health: the fight has changed (see GameScene.miniPhase). */
+  enraged = false;
+  private strike: { x: number; t: number } | null = null;
+  private strikeT = 0;
 
   constructor(g: GameScene, readonly mini: MiniKind | GuardianKind, at: Point, room: Room) {
     const def = mini in GUARDIANS ? GUARDIANS[mini as GuardianKind] : MINIBOSSES[mini as MiniKind];
@@ -64,6 +89,35 @@ export class Miniboss extends Boss {
     this.hp = this.maxHp = def.hp;
     // Fliers hover at chest height (low enough to hit with a jumping shot).
     this.homeY = room.floor - def.h - 52;
+    this.partHp = MINI_PARTS[mini as MiniKind]?.hp ?? 0;
+  }
+
+  get part(): PartDef | undefined {
+    return this.guardian ? undefined : MINI_PARTS[this.mini as MiniKind];
+  }
+
+  /** Its part has been shot off. */
+  get broken(): boolean {
+    return !!this.part && this.partHp <= 0;
+  }
+
+  /** World boxes of its part, while it still has one. */
+  partBoxes(): { x: number; y: number; w: number; h: number }[] {
+    const part = this.part;
+    if (!part || this.broken || this.state !== 'fight') return [];
+    return part.boxes.map(([dx, dy, w, h]) => ({ x: this.facing > 0 ? this.cx + dx : this.cx - dx - w, y: this.bottom + dy, w, h }));
+  }
+
+  /** A shot hit its part. Returns true if that broke it off. */
+  hitPart(dmg: number): boolean {
+    if (this.broken || this.partInvuln > 0) return false;
+    this.partHp = Math.max(0, this.partHp - dmg);
+    this.partInvuln = 10;
+    this.flash = 6;
+    if (this.partHp > 0) return false;
+    // Lose the attack it was for.
+    if (this.move === 'charge') this.setMove('idle', 30);
+    return true;
   }
 
   get name(): string {
@@ -76,7 +130,7 @@ export class Miniboss extends Boss {
   }
 
   protected get texKey(): string {
-    return this.mini;
+    return this.broken ? `${this.mini}_b` : this.mini;
   }
 
   private setMove(m: Move | 'idle', wait = 0): void {
@@ -122,6 +176,36 @@ export class Miniboss extends Boss {
       return;
     }
     super.step();
+    if (this.partInvuln > 0) this.partInvuln--;
+    if (this.state !== 'fight') return;
+    // Half health: the fight changes (the room joins in; see GameScene.miniPhase).
+    if (!this.enraged && this.phase2 && !this.guardian) {
+      this.enraged = true;
+      this.g.miniPhase(this.mini as MiniKind);
+    }
+    if (this.enraged && this.mini === 'kite') this.stepLightning();
+    // A cracked part smokes and sparks.
+    const box = this.partBoxes()[0];
+    if (box && this.part && this.partHp <= this.part.hp / 2 && this.t % 14 === 0) this.g.burst(box.x + box.w / 2, box.y + 4, 'spark', 1);
+  }
+
+  /**
+   * The Storm Kite, enraged: the storm itself joins in. A spot of floor
+   * crackles where you're standing, then lightning comes down on it.
+   */
+  private stepLightning(): void {
+    const p = this.g.player;
+    if (++this.strikeT % 110 === 0 && !this.strike) this.strike = { x: Phaser.Math.Clamp(p.cx, this.room.left + 8, this.room.right - 8), t: 0 };
+    const k = this.strike;
+    if (!k) return;
+    k.t++;
+    if (k.t < 40 && k.t % 4 === 0) this.g.burst(k.x, this.room.floor - 2, 'spark', 2);
+    if (k.t === 40) {
+      for (let i = 0; i < 4; i++) this.g.spawnEnemyShot({ x: k.x - 3, y: this.room.top + i * 40, w: 6, h: 12, vx: 0, vy: 7, tex: 'bolt', dmg: 4, life: 40 });
+      this.g.shake(3);
+      sfx.zap();
+      this.strike = null;
+    }
   }
 
   protected think(): void {
@@ -151,7 +235,7 @@ export class Miniboss extends Boss {
           this.vx = 0;
           this.g.shake(this.move === 'stomp' ? 5 : 2);
           sfx.land();
-          if (this.move === 'stomp') {
+          if (this.move === 'stomp' && !(this.mini === 'press' && this.broken)) {
             sfx.quake();
             this.g.fireGroundWave(this.cx - 4, this.room.floor, -1);
             this.g.fireGroundWave(this.cx - 4, this.room.floor, 1);
@@ -374,7 +458,7 @@ export class Miniboss extends Boss {
   lights(): { x: number; y: number; s: number }[] {
     if (this.mini !== 'angler' || this.state === 'dying') return [];
     const windup = this.move === 'dash' && this.t < 30;
-    const s = windup ? (this.t % 6 < 3 ? 0.3 : 0.55) : 0.75;
+    const s = (windup ? (this.t % 6 < 3 ? 0.3 : 0.55) : 0.75) * (this.enraged ? 0.7 : 1);
     return [{ ...this.lurePos(), s }];
   }
 
@@ -404,7 +488,9 @@ export class Miniboss extends Boss {
   }
 
   private choose(): void {
-    const pool = this.def.moves.filter((m) => m !== this.last);
+    // No tusks, no charge.
+    const moves = this.broken && this.mini === 'mammoth' ? this.def.moves.filter((m) => m !== 'charge') : this.def.moves;
+    const pool = moves.filter((m) => m !== this.last);
     const pick = pool[Math.floor(Math.random() * pool.length)];
     this.last = pick;
     this.setMove(pick);

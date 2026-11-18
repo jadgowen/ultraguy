@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossRoom, miniHall, rows, SKY } from './rooms';
+import { bossArena, miniHall, rows, SKY } from './rooms';
 
 // POWER PLANT. Built around switch blocks ('[' and ']' take turns being solid,
 // blinking before they vanish) and the dark: in the unlit rooms you only see
@@ -20,7 +20,15 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 //          row 1:  A B C D E
 
 const CEIL = '################';
-const room = bossRoom();
+// VOLT's switchyard: switch-block ledges take turns, and two live plates on
+// the floor switch on and off with the barriers.
+const room = bossArena('#', {
+  11: '.....[[[........',
+  12: '..........Z.....',
+}, {
+  11: '.....]]].......#',
+  12: '...Z....X......#',
+});
 const hall = miniHall('#', false, true);
 
 export const POWERPLANT: StageData = {

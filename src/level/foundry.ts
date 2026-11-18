@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
+import { bossArena, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
 
 // FOUNDRY. Built around crushers ('!'): presses that wait, slam to the floor
 // and slowly rise, in a rolling wave down a line.
@@ -20,7 +20,15 @@ import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
 
 const CEIL = '################';
 const FLOOR = '################';
-const room = bossRoom();
+// ANVIL's forge floor: belts either side of the middle push you outward, and
+// two catwalks lift you over his ground waves.
+const room = bossArena('#', {
+  11: '......CCCC......',
+  13: '##########<<<<<<',
+}, {
+  11: '.....CCCC......#',
+  13: '>>>>>##########' + '#',
+});
 const hall = miniHall('#');
 // The Titan's arena: under a ceiling, with presses over it and a belt floor.
 const lineA = [CEIL, CEIL, '..............!.', ...hall.a.slice(3)];

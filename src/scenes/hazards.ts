@@ -77,6 +77,10 @@ export class Hazards {
   private flash = 0;
   /** Screens made dark at run time (a blackout), and dark screens lit again. */
   readonly extraDark = new Set<string>();
+  /** Presses run this much faster (the Press Titan, enraged); 1 = normal. */
+  rush = 1;
+  /** No lightning flashes in the dark (the Angler, enraged). */
+  noFlash = false;
   readonly lit = new Set<string>();
   private wall: { x: number; start: number; stop: number; y: number; on: boolean; done: boolean; sprite: Phaser.GameObjects.TileSprite; face: Phaser.GameObjects.TileSprite } | null = null;
   /** Moving belt surfaces drawn over conveyor runs, scrolled the way they push. */
@@ -237,7 +241,7 @@ export class Hazards {
       k.t++;
       switch (k.state) {
         case 'wait':
-          if (k.t >= CRUSH_WAIT) {
+          if (k.t >= CRUSH_WAIT / this.rush) {
             k.state = 'fall';
             k.vy = 0;
           }
@@ -274,7 +278,7 @@ export class Hazards {
       }
       k.head.setY(Math.round(k.y));
       // Warning lamp: blinks during the last stretch of the wait, faster near the end.
-      const left = CRUSH_WAIT - k.t;
+      const left = CRUSH_WAIT / this.rush - k.t;
       const blink = k.state === 'wait' && left < 40 ? (left < 16 ? k.t % 4 < 2 : k.t % 10 < 5) : k.state === 'fall' || k.state === 'hold';
       k.lamp.setY(Math.round(k.y) + 5).setVisible(blink);
       k.rod.setSize(8, Math.max(1, Math.round(k.y - k.top)));
@@ -346,7 +350,7 @@ export class Hazards {
     this.dark.setVisible(dark);
     if (!dark) return;
     // Lightning-style flashes every few seconds light up the whole room.
-    if (this.t % 240 === 0) {
+    if (this.t % 240 === 0 && !this.noFlash) {
       this.flash = 26;
       sfx.zap();
     }
@@ -400,6 +404,8 @@ export class Hazards {
       k.t = 0;
     }
     this.flash = 0;
+    this.rush = 1;
+    this.noFlash = false;
     if (this.wall && !this.wall.done) {
       this.wall.x = this.wall.start;
       this.wall.on = false;

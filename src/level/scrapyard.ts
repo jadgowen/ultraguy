@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossRoom, miniHall, rows, SKY } from './rooms';
+import { bossArena, miniHall, rows, SKY } from './rooms';
 
 // SCRAPYARD. Built around the machinery: barrel chutes ('@') that keep sending
 // barrels rolling at you, compactor presses ('!'), crane platforms ('=' and
@@ -21,7 +21,15 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 
 const FLOOR = '################';
 const GIRDER = '################';
-const room = bossRoom();
+// SCRAP's junk heap: two humps of junk stop his rolling saws (hide behind
+// one), and a crane platform rides back and forth overhead.
+const room = bossArena('#', {
+  10: '......=---------',
+  12: '.........#......',
+}, {
+  10: '-------........#',
+  12: '....#...X......#',
+});
 const hall = miniHall('#', false, true);
 
 export const SCRAPYARD: StageData = {

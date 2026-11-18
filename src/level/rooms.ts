@@ -25,6 +25,24 @@ export function bossRoom(floor = '#'): { left: string[]; right: string[] } {
   };
 }
 
+/**
+ * A stage's own boss room: the standard room with some rows redrawn, by row
+ * number, on the left and right screens. Keep the right screen's wall
+ * (column 15) and its 'X' (row 12, column 8). Bosses walk on the floor and
+ * fall through one-way ledges ('C'), so ledges never get in their way; solid
+ * humps do (they also stop ground waves and rolling saws).
+ */
+export function bossArena(floor = '#', left: Record<number, string> = {}, right: Record<number, string> = {}): { left: string[]; right: string[] } {
+  const r = bossRoom(floor);
+  const pick = (rows: string[], over: Record<number, string>) =>
+    rows.map((row, i) => {
+      const o = over[i];
+      if (o !== undefined && o.length !== 16) throw new Error(`boss arena row ${i} must be 16 wide: "${o}"`);
+      return o ?? row;
+    });
+  return { left: pick(r.left, left), right: pick(r.right, right) };
+}
+
 /** Underwater screen: every '.' becomes water ('~'). */
 export function water(screen: string[]): string[] {
   return screen.map((r) => r.replace(/\./g, '~'));

@@ -81,6 +81,8 @@ export class Sky {
   private gustLabel: PixelText;
   /** Push from the current gust (0 when calm or off a windy screen). */
   gust = 0;
+  /** Gusts this much stronger, with shorter calms between (the Storm Kite, enraged); 1 = normal. */
+  storm = 1;
 
   constructor(private host: SkyHost, theme: string) {
     const { scene, level } = host;
@@ -204,19 +206,21 @@ export class Sky {
     const dir = wind.dirs[this.gustIndex % wind.dirs.length];
     const t = this.gustT++;
     const arrow = dir > 0 ? '>>>' : '<<<';
-    if (t < GUST_CALM) {
+    // A building storm: half the calm between gusts, and harder pushes.
+    const CALM = this.storm > 1 ? Math.round(GUST_CALM / 2) : GUST_CALM;
+    if (t < CALM) {
       this.gust = 0;
       this.gustLabel.setVisible(false);
-    } else if (t < GUST_CALM + GUST_WARN) {
+    } else if (t < CALM + GUST_WARN) {
       // Warning: a few light streaks and a blinking arrow.
       this.gust = 0;
       if (t % 10 === 0) this.host.windStreak(dir);
       this.gustLabel.setText(`${arrow}  WIND  ${arrow}`).setVisible(t % 16 < 10);
-    } else if (t < GUST_CALM + GUST_WARN + GUST_BLOW) {
+    } else if (t < CALM + GUST_WARN + GUST_BLOW) {
       // Ramp in and out so it never yanks you.
-      const b = t - GUST_CALM - GUST_WARN;
+      const b = t - CALM - GUST_WARN;
       const ramp = Math.min(1, b / 15, (GUST_BLOW - b) / 15);
-      this.gust = dir * PHYS.gust * ramp;
+      this.gust = dir * PHYS.gust * this.storm * ramp;
       if (t % 3 === 0) this.host.windStreak(dir);
       if (b === 0) sfx.wind();
       this.gustLabel.setText(`${arrow}  WIND  ${arrow}`).setVisible(true);
@@ -248,6 +252,7 @@ export class Sky {
     this.riding = null;
     this.gustT = 0;
     this.gust = 0;
+    this.storm = 1;
     this.gustLabel.setVisible(false);
   }
 }

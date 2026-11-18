@@ -85,6 +85,28 @@ matter, and four set pieces with no boss at all.
 | Scrapyard | COMPACTOR ESCAPE | a wall of grinding steel (`compactor`) chases you through junk: slide under the pipes, jump the rest |
 | Reef | the ANGLER's dark trench | pitch dark; its lure is the only other light, and it dims and flickers just before it lunges |
 
+The minibosses fight back differently as the fight goes on (`src/entities/bosses/Miniboss.ts`):
+- **Breakable parts.** The Press Titan's hammer arms and the Tusk Mammoth's tusks soak up the shots that hit
+  them (jump to shoot over them and hit the body instead). Break them off for a big hit, and the attack is gone:
+  no arms, no shockwaves from its stomps; no tusks, no charge (so no more cracked ice).
+- **Half health.** Each one's fight changes: the Titan's presses speed up, the Mammoth is enraged, the Kite's
+  storm builds (harder, more frequent gusts, and lightning strikes where you stand), and the Angler's trench
+  stops flashing while its lure dims.
+
+Each stage's boss room is its own too (`bossArena` in `src/level/rooms.ts`; the room's own behavior is in
+`src/scenes/arenaFx.ts`). Bosses fall through one-way ledges, so the ledges are only for you:
+
+| Boss | Arena |
+|---|---|
+| ANVIL | belts either side of the middle push you outward; two catwalks over his ground waves |
+| MANTIS | a bounce flower at each end throws you up to the branches |
+| FROSTLINE | ice ledges over his slides; slamming a wall shakes icicles loose from the ceiling |
+| GALE | an updraft up the middle carries you to her height, with a cloud either side |
+| VOLT | switch-block ledges that take turns, and live floor plates that switch with the barriers |
+| MAGMA | the lava surges over the floor every so often (it burns, it doesn't kill); wait it out on a basalt ledge |
+| SCRAP | two junk humps stop his rolling saws, and a crane platform rides back and forth overhead |
+| TIDE | underwater |
+
 Just before the midpoint, a low block hides a crawlspace (only the
 slide gets in) holding an energy tank (E-tank), and in some stages a 1-UP; it looks like solid wall,
 notched at each end, until you're inside. The armor-part rooms hide a 1-UP too.

@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossRoom, miniHall, rows, SKY } from './rooms';
+import { bossArena, miniHall, rows, SKY } from './rooms';
 
 // STRATOS (sky). Built around moving air:
 //  1. Low altitude (A-F): ride moving clouds, then learn the gusts. The WIND
@@ -18,7 +18,29 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 //   row 2:  . . . . . . G H
 //   row 3:  A B C D E F W
 
-const room = bossRoom();
+// GALE's sky deck: an updraft up the middle carries you to his height (you
+// can jump again inside it), and a cloud either side.
+const room = bossArena('#', {
+  4: '..............yy',
+  5: '..............yy',
+  6: '..............yy',
+  7: '..............yy',
+  8: '..............yy',
+  9: '..............yy',
+  10: '....CCC.......yy',
+  11: '..............yy',
+  12: '..............yy',
+}, {
+  4: 'y..............#',
+  5: 'y..............#',
+  6: 'y..............#',
+  7: 'y..............#',
+  8: 'y..............#',
+  9: 'y..............#',
+  10: 'y.........CCC..#',
+  11: 'y..............#',
+  12: 'y.......X......#',
+});
 const hall = miniHall('#', false, true);
 
 export const STRATOS: StageData = {

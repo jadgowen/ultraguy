@@ -350,6 +350,33 @@ function upgradeTileset(scene: Phaser.Scene, id: ThemeId, t: Theme, a: EnvArt, r
     px(ctx, K, 82, 0, 6, 3);
     px(ctx, '#4ca04a', 83, 0, 4, 2);
     px(ctx, '#7ad06a', 84, 0, 2, 1);
+  } else if (id !== 'sky') {
+    // Everywhere else a one-way ledge is the stage's own: a grated catwalk in
+    // the metal stages, a slab with a lit lip in stone and brick ones.
+    clear(5);
+    const L = a.lip;
+    px(ctx, r.ink, 80, 0, 16, 8);
+    px(ctx, L.top, 80, 0, 16, 1);
+    px(ctx, L.mid, 80, 1, 16, 2);
+    if (a.material === 'metal') {
+      px(ctx, r.base, 80, 3, 16, 3);
+      for (let x = 81; x < 96; x += 3) px(ctx, r.ink, x, 3, 1, 3); // grate slots
+      px(ctx, r.shadow, 80, 6, 16, 1);
+      if (L.accent) for (let x = 80; x < 96; x += 4) px(ctx, L.accent, x, 2, 2, 1); // hazard paint
+      px(ctx, r.dark, 83, 8, 2, 3); // brackets
+      px(ctx, r.dark, 91, 8, 2, 3);
+      px(ctx, r.ink, 83, 11, 2, 1);
+      px(ctx, r.ink, 91, 11, 2, 1);
+    } else {
+      px(ctx, L.low ?? r.base, 80, 3, 16, 2);
+      px(ctx, r.base, 80, 5, 16, 2);
+      for (let x = 80; x < 96; x++) if (hash(x, 5, 9) < 0.3) px(ctx, r.dark, x, 5, 1, 2);
+      if (L.accent) {
+        px(ctx, L.accent, 84, 5, 2, 1);
+        px(ctx, L.accent, 91, 6, 1, 1);
+      }
+      if (L.ragged) for (let x = 80; x < 96; x += 3) px(ctx, r.ink, x + 1, 8, 1, 1 + (x % 2)); // drips / roots
+    }
   }
 
   // 7: lava: bright crest, glowing bands, a bubble.

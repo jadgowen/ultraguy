@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossRoom, rows, SKY } from './rooms';
+import { bossArena, rows, SKY } from './rooms';
 
 // CALDERA. Built around lava: lifts over it, rock that crumbles into it, and
 // a climb with the lava rising behind you.
@@ -20,7 +20,13 @@ import { bossRoom, rows, SKY } from './rooms';
 
 const CEIL = '################';
 const FLOOR = '################';
-const room = bossRoom();
+// MAGMA's crucible: every so often the lava surges up over the floor (see
+// arenaFx.ts); get up on a basalt ledge until it drains.
+const room = bossArena('#', {
+  11: '.....CCC........',
+}, {
+  11: '..CCC....CCC...#',
+});
 
 export const CALDERA: StageData = {
   id: 'caldera',

@@ -1507,8 +1507,19 @@ const CHARACTER_FRAMES = {
 // --- minibosses (one per boss stage, mid-stage) ---------------------------------
 
 /** PRESS TITAN (Foundry): a hydraulic walker with a press plate on its back. */
-function pressTitan(attack) {
+function pressTitan(attack, broken = false) {
   const plate = attack ? 0 : 3;
+  // Hammer arms hang at its sides (raised to strike when attacking); shot off,
+  // only sparking stumps are left.
+  const hy = attack ? 6 : 14;
+  const hammer = (x) => [
+    [x + 2, 14, 3, hy, 'g'], [x + 2, 14, 1, hy, 'G'],
+    [x, 12 + hy, 8, 9, 'K'], [x + 1, 13 + hy, 6, 7, 'G'], [x + 1, 13 + hy, 6, 1, 'W'], [x + 1, 17 + hy, 6, 1, 'g'], [x + 1, 19 + hy, 6, 1, 'g'],
+    [x + 3, 15 + hy, 2, 2, 'Y'],
+  ];
+  const arms = broken
+    ? [[0, 13, 6, 5, 'K'], [38, 13, 6, 5, 'K'], [1, 14, 4, 3, 'g'], [39, 14, 4, 3, 'g'], [2, 17, 1, 2, 'Y'], [41, 17, 1, 2, 'Y']]
+    : [...hammer(0), ...hammer(36)];
   return boxes(44, 40, [
     [8, 30, 8, 7, 'g'], [28, 30, 8, 7, 'g'], [5, 36, 14, 4, 'G'], [25, 36, 14, 4, 'G'],
     [10, 26, 4, 6, 'w'], [30, 26, 4, 6, 'w'],
@@ -1522,6 +1533,7 @@ function pressTitan(attack) {
     [33, 15, 5, 5, 'W'], [33, 15, 5, 1, 'w'], [35, 16, 1, 2, attack ? 'R' : 'd'],
     ...[2, 10, 18, 26, 34].map((x) => [x, plate + 2, 4, 2, 'Y']),
     ...[6, 14, 22, 30, 38].map((x) => [x, plate + 2, 4, 2, 'd']),
+    ...arms,
   ]);
 }
 
@@ -1542,19 +1554,21 @@ function briarToad(attack) {
 }
 
 /** TUSK MAMMOTH (Glacier): an armored mammoth that charges across the ice. */
-function tuskMammoth(attack) {
+function tuskMammoth(attack, broken = false) {
   const trunk = attack ? [[43, 0, 4, 14, 'b']] : [[43, 12, 4, 16, 'b']];
+  // Shot off, the tusks are jagged stumps.
+  const tusks = broken ? [[36, 20, 4, 3, 'W'], [39, 21, 1, 1, 'w'], [36, 22, 4, 1, 'w']] : [[36, 20, 12, 3, 'W'], [36, 22, 12, 1, 'w']];
   return boxes(48, 36, [
     [8, 26, 8, 10, 'b'], [28, 26, 8, 10, 'b'],
     [6, 6, 32, 22, 'B'], [6, 22, 32, 6, 'b'], [6, 6, 32, 2, 'c'],
     [10, 2, 4, 6, 'C'], [18, 0, 4, 8, 'C'], [26, 2, 4, 6, 'C'],
     [30, 4, 16, 20, 'B'], [30, 4, 16, 2, 'c'], [36, 9, 4, 4, attack ? 'R' : 'Y'],
     ...trunk,
-    [36, 20, 12, 3, 'W'],
+    ...tusks,
     // detail: shaggy fur strokes, a riveted armor plate, tusk shading, eye glint
     ...[9, 14, 19, 24, 29].map((x) => [x, 11, 1, 9, 'b']),
     [10, 7, 20, 3, 'G'], [10, 7, 20, 1, 'w'], ...[12, 18, 24].map((x) => [x, 8, 1, 1, 'd']),
-    [36, 22, 12, 1, 'w'], [37, 9, 1, 1, 'W'],
+    [37, 9, 1, 1, 'W'],
   ]);
 }
 
@@ -1706,8 +1720,8 @@ function spireWarden(attack) {
   ]);
 }
 
-const MINI_ART = { press: pressTitan, toad: briarToad, mammoth: tuskMammoth, kite: stormKite, dynamo, crab: cinderCrab, crusher, angler, gatekeeper, abyss: abyssEye, warden: spireWarden };
-const MINI_SIZE = { press: [44, 40], toad: [44, 32], mammoth: [48, 36], kite: [44, 28], dynamo: [40, 40], crab: [46, 30], crusher: [48, 34], angler: [44, 32], gatekeeper: [52, 48], abyss: [46, 46], warden: [40, 56] };
+const MINI_ART = { press: pressTitan, press_b: (a) => pressTitan(a, true), mammoth_b: (a) => tuskMammoth(a, true), toad: briarToad, mammoth: tuskMammoth, kite: stormKite, dynamo, crab: cinderCrab, crusher, angler, gatekeeper, abyss: abyssEye, warden: spireWarden };
+const MINI_SIZE = { press: [44, 40], press_b: [44, 40], mammoth_b: [48, 36], toad: [44, 32], mammoth: [48, 36], kite: [44, 28], dynamo: [40, 40], crab: [46, 30], crusher: [48, 34], angler: [44, 32], gatekeeper: [52, 48], abyss: [46, 46], warden: [40, 56] };
 for (const [k, fn] of Object.entries(MINI_ART)) {
   P[`${k}Idle`] = fn(false);
   P[`${k}Attack`] = fn(true);
