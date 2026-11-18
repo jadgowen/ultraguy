@@ -103,8 +103,12 @@ flickering furnace glow, the visor (red when he means it), a muzzle flash and em
 (`src/entities/bosses/anvilAnchors.ts`). Magma is the second (the "Magma Core" design from `art/mockups/magma.html`, drawn by
 `art/magmaArt.mjs`): four glassy obsidian plates around a molten core, with floating fists that bob on their
 own. The plates breathe apart a little at rest and split wide on the wind-up, the landing and the eruption, so
-the core blazes through: that's the tell. The fireballs form over his raised, molten fist. Both share the
-drawing tools in `art/shadedParts.mjs`, and the other bosses can move over one at a time.
+the core blazes through: that's the tell. The fireballs form over his raised, molten fist. Volt is the third (the "Tesla Knight" design from `art/mockups/volt.html`,
+drawn by `art/voltArt.mjs`): navy armor, lightning-bolt antennae and coil hands, with a battery in his chest whose
+bar fills as he charges up to cast. Current crackles between his antennae (more as he charges) and from his
+battery to his hands when he casts (the effects layer's arcs), his orbs come out of his raised hand, and his warp
+comes apart in bands, throwing sparks. All three share the drawing tools in `art/shadedParts.mjs`, and the other
+bosses can move over one at a time.
 
 Each stage's boss room is its own too (`bossArena` in `src/level/rooms.ts`; the room's own behavior is in
 `src/scenes/arenaFx.ts`). Bosses fall through one-way ledges, so the ledges are only for you:

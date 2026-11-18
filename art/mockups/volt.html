@@ -1,0 +1,460 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>VOLT design mockups</title>
+<style>
+  body { margin: 0; background: #0b0d1a; color: #fff1e0; font: 14px/1.4 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 18px; color: #f28c28; margin: 16px 20px 4px; }
+  p.lead { margin: 0 20px 12px; color: #8a8fa8; max-width: 980px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 14px; padding: 0 20px 24px; }
+  .card { background: #141626; border: 2px solid #3a3f66; border-radius: 6px; padding: 12px; }
+  .card.current { border-color: #55607a; }
+  .card h2 { margin: 0; font-size: 15px; color: #5ef0c8; }
+  .card .tag { color: #8a8fa8; font-size: 12px; margin: 2px 0 8px; }
+  canvas { image-rendering: pixelated; background: #1c1f36; border-radius: 3px; display: block; }
+  .poses { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .poses div { font-size: 11px; color: #8a8fa8; text-align: center; }
+  .controls { margin: 0 20px 12px; display: flex; gap: 16px; color: #8a8fa8; }
+  .controls label { cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>VOLT: design mockups</h1>
+<p class="lead">Each card plays Volt's move set in a loop: idle, a fan of electric orbs, a lightning strike
+on a marked spot (sparks on the floor first), then the warp: he vanishes and comes back on the other side. The
+big view is 5x, next to UltraGuy for size; the row underneath is each pose at game scale. Arcs, glow and sparks
+are effects the game would add on top of the sprite (the layer Anvil and Magma use). CURRENT is today's two
+poses.</p>
+<div class="controls">
+  <label><input type="checkbox" id="slow" /> slow motion</label>
+  <label><input type="checkbox" id="fx" checked /> effects (glow, sparks, embers)</label>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+// --- palette -------------------------------------------------------------------------
+const PAL = {
+  K: '#1a1428', W: '#fff1e0', w: '#c8ccd8', G: '#8a8fa8', g: '#55607a', d: '#2b2540', x: '#141226',
+  // navy armor
+  A: '#9aaaf0', B: '#5a6ac8', S: '#34428a', s: '#1e2858',
+  // battery / charge
+  H: '#fffbe0', Y: '#ffe14a', y: '#d8a020', o: '#8a6410',
+  // electric
+  C: '#e6fbff', c: '#9ee8ff', V: '#4ac8f0', v: '#2a78b8', U: '#c8a8ff', u: '#7a4ad8',
+  // ceramic and hazard paint (the transformer)
+  E: '#f4eee0', e: '#c8bca8', f: '#8a7e6a', O: '#f28c28', k: '#2a2430',
+};
+const RAMP = {
+  armor: { shine: 'A', light: 'B', base: 'S', dark: 's' },
+  armorBack: { shine: 'B', light: 'S', base: 's', dark: 'x' },
+  steel: { shine: 'W', light: 'w', base: 'G', dark: 'g' },
+  steelBack: { shine: 'w', light: 'G', base: 'g', dark: 'd' },
+  battery: { shine: 'H', light: 'Y', base: 'Y', dark: 'y' },
+  visor: { shine: 'C', light: 'c', base: 'V', dark: 'v' },
+  plasma: { shine: 'C', light: 'c', base: 'V', dark: 'u' },
+  ceramic: { shine: 'W', light: 'E', base: 'e', dark: 'f' },
+  dark: { shine: 'd', light: 'd', base: 'x', dark: 'x' },
+};
+// --- pixel buffer with shaded, outlined parts (same as the hero mockups) -----------------
+class Buf {
+  constructor(w, h) { this.w = w; this.h = h; this.c = new Array(w * h).fill(''); }
+  part(inside, ramp, { shine = true, edge = true } = {}) {
+    const { w, h } = this;
+    const m = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (inside(x + 0.5, y + 0.5)) m[y * w + x] = 1;
+    const at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && m[y * w + x];
+    if (edge) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!at(x, y)) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h || at(nx, ny)) continue;
+        if (this.c[ny * w + nx]) this.c[ny * w + nx] = 'K';
+      }
+    }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!at(x, y)) continue;
+      let c = ramp.base;
+      if (!at(x, y - 1)) c = shine && !at(x - 1, y) ? ramp.shine : ramp.light;
+      else if (!at(x - 1, y) && at(x, y + 1)) c = ramp.light;
+      else if (!at(x, y + 1)) c = ramp.dark;
+      else if (!at(x + 1, y)) c = ramp.dark;
+      this.c[y * w + x] = c;
+    }
+  }
+  px(x, y, c) { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.c[y * this.w + x] = c; }
+  rect(x0, y0, w, h, c) { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) this.px(x, y, c); }
+  outline() {
+    const { w, h } = this;
+    const out = this.c.slice();
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (this.c[y * w + x]) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < w && ny < h && this.c[ny * w + nx] && this.c[ny * w + nx] !== 'K') { out[y * w + x] = 'K'; break; }
+      }
+    }
+    this.c = out;
+  }
+  draw(ctx, ox, oy, s, flash = false) {
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
+      const c = this.c[y * this.w + x];
+      if (!c) continue;
+      ctx.fillStyle = flash && c !== 'K' ? '#ffffff' : PAL[c];
+      ctx.fillRect(ox + x * s, oy + y * s, s, s);
+    }
+  }
+}
+const capsule = (ax, ay, bx, by, r) => (x, y) => {
+  const dx = bx - ax, dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(x - ax - dx * t, y - ay - dy * t) <= r;
+};
+const ellipse = (cx, cy, rx, ry) => (x, y) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+const rrect = (x0, y0, x1, y1, rad = 1) => (x, y) => {
+  if (x < x0 || x > x1 || y < y0 || y > y1) return false;
+  const cx = Math.max(x0 + rad, Math.min(x1 - rad, x));
+  const cy = Math.max(y0 + rad, Math.min(y1 - rad, y));
+  return Math.hypot(x - cx, y - cy) <= rad + 0.01;
+};
+const poly = (pts) => (x, y) => {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+const lerp = (a, b, k) => a + (b - a) * k;
+const ease = (k) => k * k * (3 - 2 * k);
+
+// --- the move set ----------------------------------------------------------------------
+const MOVES = [
+  { name: 'idle', len: 80 },
+  { name: 'orbs', len: 56 },
+  { name: 'idle', len: 24 },
+  { name: 'strike', len: 70 },
+  { name: 'idle', len: 20 },
+  { name: 'warpOut', len: 24 },
+  { name: 'warpIn', len: 16 },
+];
+const LOOP = MOVES.reduce((a, m) => a + m.len, 0);
+function moveAt(f) {
+  let t = f % LOOP;
+  for (const m of MOVES) { if (t < m.len) return { name: m.name, t, k: t / m.len }; t -= m.len; }
+  return { name: 'idle', t: 0, k: 0 };
+}
+function pose(m, f) {
+  const P = { cast: 0, point: 0, charge: 0.3, breath: (Math.sin(f * 0.08) + 1) / 2, fade: 1, t: f, hover: 0, side: 1 };
+  if (m.name === 'orbs') { P.cast = Math.min(1, m.t / 8); P.charge = m.t < 18 ? m.t / 18 : 1 - (m.t - 18) / 38; }
+  if (m.name === 'strike') { P.point = Math.min(1, m.t / 8); P.charge = 0.6 + Math.sin(m.t * 0.5) * 0.2; }
+  if (m.name === 'warpOut') { P.fade = 1 - m.k; P.charge = 1; P.hover = m.k * 4; }
+  if (m.name === 'warpIn') { P.fade = m.k; P.charge = 1 - m.k * 0.5; P.side = -1; }
+  return P;
+}
+
+const W = 48, H = 44;
+
+// --- A. TESLA KNIGHT --------------------------------------------------------------------
+function knight(P) {
+  const b = new Buf(W, H);
+  const ground = H - 1;
+  const cx = 24;
+  const top = 10 + P.breath * 0.5 - P.hover;
+  // Legs: armored, with yellow coil bands.
+  for (const [x, back] of [[19, true], [29, false]]) {
+    b.part(rrect(x - 2.5, top + 21, x + 2.5, ground - 3, 1), back ? RAMP.armorBack : RAMP.armor);
+    b.rect(x - 2, top + 25, 5, 1, back ? 'y' : 'Y');
+    b.part(rrect(x - 4, ground - 3, x + 4, ground, 1), back ? RAMP.steelBack : RAMP.steel);
+  }
+  // Back arm.
+  const arm = (sx, back) => {
+    const up = P.cast;
+    const ex = sx + (back ? -2 : 2) - P.point * (back ? 0 : -3);
+    const ey = top + 18 - up * 16 + P.point * -2;
+    b.part(capsule(sx, top + 10, ex, ey, 2.3), back ? RAMP.armorBack : RAMP.armor);
+    // Coil hand: copper-yellow rings, a glowing tip.
+    b.part(rrect(ex - 2.5, ey - 2.5, ex + 2.5, ey + 2.5, 1), back ? RAMP.steelBack : RAMP.steel);
+    b.rect(ex - 2, ey - 1, 5, 1, 'Y');
+    return [ex, ey - (up > 0.5 ? 3 : -3)];
+  };
+  const backHand = arm(cx - 10, true);
+  // Torso: a breastplate with the battery window.
+  b.part(rrect(cx - 10, top + 8, cx + 10, top + 22, 3), RAMP.armor);
+  b.part(rrect(cx - 7, top + 12, cx + 7, top + 18, 1), RAMP.dark, { shine: false });
+  // Charge level: the bar fills with his charge.
+  const fill = Math.round(1 + P.charge * 11);
+  for (let i = 0; i < 12; i++) for (let y = top + 13; y < top + 18; y++) b.px(cx - 6 + i, y, i < fill ? (y === top + 13 ? 'H' : 'Y') : 'o');
+  b.part(rrect(cx - 11, top + 20, cx + 11, top + 23, 1), RAMP.steel); // belt
+  // Head: helm with a visor and two lightning-bolt antennae.
+  b.part(rrect(cx - 7, top - 1, cx + 7, top + 8, 3), RAMP.armor);
+  b.part(rrect(cx - 4, top + 2, cx + 6, top + 5, 1), RAMP.visor);
+  b.rect(cx - 3, top + 2, 3, 1, 'C');
+  // A fat zig-zag bolt.
+  const bolt = (x0, dir) => b.part(poly([[x0 - dir, top + 1], [x0 + dir * 3, top - 4], [x0 + dir * 1, top - 4], [x0 + dir * 6, top - 10], [x0 + dir * 4, top - 3], [x0 + dir * 6, top - 3], [x0 + dir * 2, top + 2]]), RAMP.battery);
+  bolt(cx - 5, -1);
+  bolt(cx + 5, 1);
+  const frontHand = arm(cx + 10, false);
+  // Pauldrons.
+  b.part(ellipse(cx - 10, top + 10, 4, 3), RAMP.armorBack);
+  b.part(ellipse(cx + 10, top + 10, 4, 3), RAMP.armor);
+  b.outline();
+  return { b, glow: { core: [cx, top + 15], eye: [cx + 1, top + 3.5], antenna: [[cx - 10, top - 9], [cx + 10, top - 9]], hands: [backHand, frontHand] } };
+}
+
+// --- B. LIVE WIRE -------------------------------------------------------------------------
+function wire(P) {
+  const b = new Buf(W, H);
+  const ground = H - 1;
+  const cx = 24;
+  const top = 9 + Math.sin(P.t * 0.07) * 1.5 - P.hover; // he floats
+  // The plasma: a ball of lightning held in a frame of steel rings.
+  const r = 8 + P.charge * 1.5;
+  b.part(ellipse(cx, top + 16, r, r), RAMP.plasma, { shine: false });
+  // A white-hot heart in the plasma, with forks of current.
+  b.part(ellipse(cx, top + 16, 3 + P.charge * 1.5, 3 + P.charge * 1.5), { shine: 'C', light: 'C', base: 'C', dark: 'c' }, { shine: false });
+  for (const [dx, dy] of [[-5, -3], [4, -4], [-3, 5], [5, 3]]) { b.px(cx + dx * 0.6, top + 16 + dy * 0.6, 'C'); b.px(cx + dx, top + 16 + dy, 'c'); }
+  // Containment rings: a vertical hoop and a tilted one (it turns slowly).
+  const a = P.t * 0.04;
+  const ring = (tilt, back) => {
+    const rx = 11, ry = 11 * Math.abs(Math.cos(tilt)) + 1;
+    b.part((x, y) => {
+      const e = ((x - cx) / rx) ** 2 + ((y - top - 16) / ry) ** 2;
+      return e <= 1 && e >= 0.8 && (back ? y < top + 16 : y >= top + 16);
+    }, back ? RAMP.steelBack : RAMP.steel);
+  };
+  ring(a, true);
+  b.part(rrect(cx - 1.5, top + 4, cx + 1.5, top + 28, 1), RAMP.steel); // the spine
+  ring(a, false);
+  // A floating helm over it, and floating gauntlets.
+  b.part(rrect(cx - 6, top - 4, cx + 6, top + 3, 3), RAMP.armor);
+  b.part(rrect(cx - 3, top - 2, cx + 5, top + 1, 1), RAMP.visor);
+  b.part(poly([[cx - 6, top - 2], [cx - 10, top - 7], [cx - 5, top - 4]]), RAMP.battery);
+  b.part(poly([[cx + 6, top - 2], [cx + 10, top - 7], [cx + 5, top - 4]]), RAMP.battery);
+  const hand = (side) => {
+    const x = cx + side * (14 + P.point * (side > 0 ? 3 : 0));
+    const y = top + 16 - P.cast * 14 + Math.sin(P.t * 0.1 + side) * 1.2;
+    b.part(rrect(x - 3, y - 3, x + 3, y + 3, 1.5), side < 0 ? RAMP.armorBack : RAMP.armor);
+    b.rect(x - 1, y - 1, 2, 2, 'c');
+    return [x, y];
+  };
+  const hands = [hand(-1), hand(1)];
+  // A base it hovers over: a small pylon foot.
+  b.part(rrect(cx - 5, ground - 3, cx + 5, ground, 1), RAMP.steel);
+  b.rect(cx - 3, ground - 2, 6, 1, 'Y');
+  b.outline();
+  return { b, glow: { core: [cx, top + 16], eye: [cx + 1, top - 0.5], antenna: [[cx - 10, top - 7], [cx + 10, top - 7]], hands, big: 1.4 } };
+}
+
+// --- C. TRANSFORMER ---------------------------------------------------------------------
+function transformer(P) {
+  const b = new Buf(W, H);
+  const ground = H - 1;
+  const cx = 24;
+  const top = 12 + P.breath * 0.4 - P.hover;
+  // Stubby legs on a heavy base.
+  for (const [x, back] of [[18, true], [30, false]]) {
+    b.part(rrect(x - 3, top + 20, x + 3, ground - 3, 1), back ? RAMP.steelBack : RAMP.steel);
+    b.part(rrect(x - 5, ground - 3, x + 5, ground, 1), back ? RAMP.armorBack : RAMP.armor);
+  }
+  // The tank: a ribbed transformer body, hazard stripes, a gauge for a face.
+  b.part(rrect(cx - 12, top + 2, cx + 12, top + 22, 2), RAMP.armor);
+  for (let x = cx - 10; x <= cx + 10; x += 4) b.part(rrect(x, top + 4, x + 1.5, top + 20, 0.5), RAMP.armorBack, { shine: false });
+  for (let x = cx - 12; x < cx + 12; x++) b.px(x, top + 21, (Math.floor((x - cx) / 2) & 1) ? 'O' : 'k');
+  b.part(ellipse(cx + 2, top + 10, 7, 7), RAMP.steel);
+  b.part(ellipse(cx + 2, top + 10, 5.5, 5.5), RAMP.ceramic, { shine: false });
+  // Ticks, a red zone, and the needle (it swings up as he charges).
+  for (let k = 0; k <= 4; k++) { const ta = Math.PI + (k / 4) * Math.PI; b.px(cx + 2 + Math.cos(ta) * 4.6, top + 10 + Math.sin(ta) * 4.6, k === 4 ? 'O' : 'k'); }
+  const na = Math.PI + 0.2 + P.charge * (Math.PI - 0.4);
+  for (let i = 0; i < 5; i++) b.px(cx + 2 + Math.cos(na) * i, top + 10 + Math.sin(na) * i, 'k');
+  b.px(cx + 2, top + 10, 'O');
+  // Insulator stacks on the shoulders (ceramic discs), arms of cable.
+  const stack = (x, back) => {
+    for (let i = 0; i < 3; i++) b.part(ellipse(x, top + 1 - i * 3.2, 3.6 - i * 0.6, 1.6), back ? { ...RAMP.ceramic, base: 'f' } : RAMP.ceramic);
+    b.part(ellipse(x, top - 9, 1.6, 1.6), RAMP.steel);
+  };
+  stack(cx - 9, true);
+  const arm = (side) => {
+    const sx = cx + side * 12, sy = top + 8;
+    const ex = sx + side * (3 + (side > 0 ? P.point * 3 : 0));
+    const ey = sy + 9 - P.cast * 16;
+    b.part(capsule(sx, sy, ex, ey, 2), RAMP.dark);
+    b.part(rrect(ex - 3, ey - 3, ex + 3, ey + 3, 1.2), side < 0 ? RAMP.steelBack : RAMP.steel);
+    b.rect(ex - 1, ey - 1, 2, 2, 'c');
+    return [ex, ey];
+  };
+  const hands = [arm(-1), arm(1)];
+  stack(cx + 9, false);
+  b.outline();
+  return { b, glow: { core: [cx + 2, top + 10], eye: [cx + 2, top + 10], antenna: [[cx - 9, top - 9], [cx + 9, top - 9]], hands } };
+}
+
+const DESIGNS = [
+  { id: 'knight', name: 'A. TESLA KNIGHT', tag: "Today's Volt drawn properly: navy armor, a helm with a visor, lightning-bolt antennae with current crackling between them, coil hands, and a battery in his chest whose bar fills as he charges up to cast. Closest to now.", draw: knight },
+  { id: 'wire', name: 'B. LIVE WIRE', tag: "An energy being: a ball of crackling plasma held in turning steel rings, a floating helm and floating gauntlets, hovering over a pylon foot. Arcs leap between all his parts; the plasma swells as he charges. The most 'electric' of the three.", draw: wire },
+  { id: 'transformer', name: 'C. TRANSFORMER', tag: 'A walking power-plant transformer: a ribbed tank with hazard stripes, a gauge for a face (the needle swings up as he charges), ceramic insulator stacks on his shoulders that arc when he casts, cable arms. The most "power plant", and the funniest.', draw: transformer },
+];
+
+// --- page ------------------------------------------------------------------------------------
+const sheet = new Image();
+sheet.src = '/assets/sprites.png';
+let frames = null;
+fetch('/assets/sprites.json').then((r) => r.json()).then((j) => (frames = j));
+const heroImg = new Image();
+heroImg.src = '/assets/hero.png';
+let heroMeta = null;
+fetch('/assets/hero.json').then((r) => r.json()).then((j) => (heroMeta = j));
+
+const S = 5;
+const cards = [];
+function addCard(d) {
+  const card = document.createElement('div');
+  card.className = 'card' + (d.current ? ' current' : '');
+  card.innerHTML = `<h2>${d.name}</h2><div class="tag">${d.tag}</div>`;
+  const big = document.createElement('canvas');
+  big.width = 92 * S; big.height = 66 * S;
+  card.appendChild(big);
+  const row = document.createElement('div');
+  row.className = 'poses';
+  const minis = [];
+  for (const name of ['idle', 'orbs', 'strike', 'warpOut']) {
+    const wrap = document.createElement('div');
+    const c = document.createElement('canvas');
+    c.width = 52 * 2; c.height = 48 * 2;
+    wrap.appendChild(c);
+    wrap.appendChild(document.createTextNode(name === 'warpOut' ? 'warp' : name));
+    row.appendChild(wrap);
+    minis.push({ c, name });
+  }
+  card.appendChild(row);
+  document.getElementById('grid').appendChild(card);
+  cards.push({ d, big, minis, sparks: [], orbs: [], bolts: [] });
+}
+addCard({ id: 'current', name: 'CURRENT', tag: "Today's Volt: two flat poses (idle, cast) and a plain fade for the warp.", current: true });
+for (const d of DESIGNS) addCard(d);
+
+function drawCurrent(ctx, m, x, y, s, alpha = 1) {
+  if (!frames || !sheet.complete) return;
+  const [fx, fy, fw, fh] = frames[m.name === 'orbs' || m.name === 'strike' ? 'volt_cast' : 'volt_idle'];
+  ctx.imageSmoothingEnabled = false;
+  ctx.globalAlpha = alpha;
+  ctx.drawImage(sheet, fx, fy, fw, fh, x - (fw / 2) * s, y - fh * s, fw * s, fh * s);
+  ctx.globalAlpha = 1;
+}
+function glowAt(ctx, x, y, r, color, a) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, color.replace('A', a));
+  g.addColorStop(1, color.replace('A', 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+}
+/** A crackling arc between two points: a jagged line, redrawn every frame. */
+function arc(ctx, x0, y0, x1, y1, color, width, jag) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  const n = 6;
+  for (let i = 1; i < n; i++) {
+    const k = i / n;
+    ctx.lineTo(x0 + (x1 - x0) * k + (Math.random() - 0.5) * jag, y0 + (y1 - y0) * k + (Math.random() - 0.5) * jag);
+  }
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+}
+
+let f = 0;
+function tick() {
+  const slow = document.getElementById('slow').checked;
+  const fx = document.getElementById('fx').checked;
+  f += slow ? 0.25 : 1;
+  const fi = Math.floor(f);
+  const m = moveAt(fi);
+  const P = pose(m, fi);
+  for (const card of cards) {
+    const ctx = card.big.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, card.big.width, card.big.height);
+    const groundY = 60 * S;
+    ctx.fillStyle = '#16202e'; ctx.fillRect(0, groundY, card.big.width, card.big.height - groundY);
+    ctx.fillStyle = '#4e7a8e'; ctx.fillRect(0, groundY, card.big.width, S);
+    if (heroMeta && heroImg.complete) {
+      const fw = heroMeta.frameWidth, fh = heroMeta.frameHeight;
+      const idx = heroMeta.frames.idle1 ?? 0;
+      const cols = Math.max(1, Math.floor(heroImg.width / fw));
+      ctx.drawImage(heroImg, (idx % cols) * fw, Math.floor(idx / cols) * fh, fw, fh, 6 * S, groundY - fh * S, fw * S, fh * S);
+    }
+    // Where he stands: he warps across (from the right, to farther right and back).
+    const ax = m.name === 'warpIn' ? 74 : 56;
+    // The strike: sparks mark the floor at the hero, then lightning comes down.
+    if (fx && m.name === 'strike') {
+      const sx = 18 * S;
+      if (m.t < 40 && m.t % 4 === 0) for (let i = 0; i < 2; i++) card.sparks.push({ x: sx + (Math.random() - 0.5) * 30, y: groundY, vx: (Math.random() - 0.5) * 4, vy: -2 - Math.random() * 3, life: 14 });
+      if (m.t >= 40 && m.t < 52) {
+        ctx.globalCompositeOperation = 'lighter';
+        arc(ctx, sx, 0, sx, groundY, 'rgba(230,251,255,0.95)', 3 * S * 0.6, 40);
+        arc(ctx, sx, 0, sx, groundY, 'rgba(158,232,255,0.6)', 2, 60);
+        glowAt(ctx, sx, groundY, 20 * S, 'rgba(158,232,255,A)', 0.5);
+        ctx.globalCompositeOperation = 'source-over';
+      }
+    }
+    if (card.d.current) {
+      drawCurrent(ctx, m, ax * S, groundY, S, m.name === 'warpOut' ? 1 - m.k : m.name === 'warpIn' ? m.k : 1);
+    } else {
+      const { b, glow } = card.d.draw(P);
+      const ox = (ax - W / 2) * S;
+      const oy = groundY - H * S;
+      // The warp: he comes apart in horizontal bands (scanlines), not a plain fade.
+      const fade = P.fade;
+      ctx.save();
+      if (fade < 1) {
+        ctx.beginPath();
+        for (let y = 0; y < H; y++) if (((y * 7 + fi) % 10) / 10 < fade) ctx.rect(ox, oy + y * S, W * S, S);
+        ctx.clip();
+      }
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.beginPath(); ctx.ellipse(ax * S, groundY + S, 14 * S, 2 * S, 0, 0, Math.PI * 2); ctx.fill();
+      b.draw(ctx, ox, oy, S);
+      ctx.restore();
+      if (fx) {
+        ctx.globalCompositeOperation = 'lighter';
+        const cg = (0.3 + P.charge * 0.4) * fade;
+        glowAt(ctx, ox + glow.core[0] * S, oy + glow.core[1] * S, 12 * S * (glow.big ?? 1), card.d.id === 'knight' ? 'rgba(255,225,74,A)' : 'rgba(158,232,255,A)', cg);
+        glowAt(ctx, ox + glow.eye[0] * S, oy + glow.eye[1] * S, 5 * S, 'rgba(158,232,255,A)', 0.5 * fade);
+        // Current crackles: between the antennae always (more when charged), to the hands when casting.
+        const [a0, a1] = glow.antenna;
+        if (Math.random() < 0.35 + P.charge * 0.6) arc(ctx, ox + a0[0] * S, oy + a0[1] * S, ox + a1[0] * S, oy + a1[1] * S, `rgba(230,251,255,${0.8 * fade})`, 2, 18);
+        if (P.cast > 0.5 || P.point > 0.5 || card.d.id === 'wire') for (const h of glow.hands) if (Math.random() < 0.7) arc(ctx, ox + glow.core[0] * S, oy + glow.core[1] * S, ox + h[0] * S, oy + h[1] * S, `rgba(158,232,255,${0.7 * fade})`, 2, 22);
+        for (const h of glow.hands) if (P.cast > 0.5) glowAt(ctx, ox + h[0] * S, oy + h[1] * S, 6 * S, 'rgba(230,251,255,A)', 0.6);
+        // The warp throws sparks off him.
+        if ((m.name === 'warpOut' || m.name === 'warpIn') && fi % 2 === 0) for (let i = 0; i < 3; i++) card.sparks.push({ x: ox + (W / 2 + (Math.random() - 0.5) * 24) * S, y: oy + (10 + Math.random() * 28) * S, vx: (Math.random() - 0.5) * 6, vy: (Math.random() - 0.5) * 6, life: 12 });
+        ctx.globalCompositeOperation = 'source-over';
+        // Orbs: a fan of three, thrown from the raised hands.
+        if (m.name === 'orbs' && m.t === 20) for (const a of [-0.25, 0, 0.25]) card.orbs.push({ x: ox + glow.hands[1][0] * S, y: oy + glow.hands[1][1] * S, vx: -Math.cos(a) * 9, vy: Math.sin(a) * 9 + 2, life: 50 });
+      }
+    }
+    for (const o of card.orbs) { o.x += o.vx; o.y += o.vy; o.life--; ctx.globalCompositeOperation = 'lighter'; glowAt(ctx, o.x, o.y, 5 * S, 'rgba(158,232,255,A)', 0.8); ctx.globalCompositeOperation = 'source-over'; ctx.fillStyle = '#e6fbff'; ctx.fillRect(o.x - S, o.y - S, 2 * S, 2 * S); }
+    card.orbs = card.orbs.filter((o) => o.life > 0 && o.x > 0);
+    for (const s of card.sparks) { s.x += s.vx; s.y += s.vy; s.vy += 0.3; s.life--; ctx.fillStyle = s.life > 6 ? '#e6fbff' : '#9ee8ff'; ctx.fillRect(s.x, s.y, S * 0.8, S * 0.8); }
+    card.sparks = card.sparks.filter((s) => s.life > 0);
+    for (const mini of card.minis) {
+      const c = mini.c.getContext('2d');
+      c.imageSmoothingEnabled = false;
+      c.clearRect(0, 0, mini.c.width, mini.c.height);
+      c.fillStyle = '#16202e'; c.fillRect(0, 44 * 2, mini.c.width, 8);
+      const fake = { name: mini.name, t: 20, k: 0.4 };
+      if (card.d.current) drawCurrent(c, fake, 26 * 2, 44 * 2, 2, mini.name === 'warpOut' ? 0.5 : 1);
+      else {
+        const PP = pose(fake, 0);
+        PP.hover = 0;
+        const { b } = card.d.draw(PP);
+        b.draw(c, (26 - W / 2) * 2, 44 * 2 - H * 2, 2);
+      }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

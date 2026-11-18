@@ -25,6 +25,8 @@ export interface BossFxFrame {
   flash?: number;
   /** Embers drift up off the core. */
   embers?: boolean;
+  /** Crackling current between two spots (redrawn jagged every frame; `chance` it shows this frame). */
+  arcs?: { a: Spot; b: Spot; chance: number; color?: number }[];
   visible: boolean;
 }
 
@@ -66,6 +68,7 @@ export class BossFx {
   private readonly eye: Phaser.GameObjects.Image;
   private readonly flash: Phaser.GameObjects.Image;
   private hot: Phaser.GameObjects.Image[] = [];
+  private readonly arcs: Phaser.GameObjects.Graphics;
   private embers: { img: Phaser.GameObjects.Image; vx: number; vy: number; life: number; max: number }[] = [];
   private t = 0;
 
@@ -76,6 +79,7 @@ export class BossFx {
     this.core = glow();
     this.eye = glow();
     this.flash = glow();
+    this.arcs = scene.add.graphics().setBlendMode(Phaser.BlendModes.ADD).setDepth(depth + 0.4);
   }
 
   update(f: BossFxFrame): void {
@@ -111,6 +115,29 @@ export class BossFx {
       const p = at(f.muzzle);
       this.flash.setPosition(p.x, p.y).setTint(0xfff0b0).setAlpha(0.9 * f.flash!).setScale(0.5).setVisible(f.visible);
     } else this.flash.setVisible(false);
+    // Current: a jagged line, a new shape every frame, with a fainter wider one under it.
+    this.arcs.clear();
+    if (f.visible) {
+      for (const arc of f.arcs ?? []) {
+        if (Math.random() > arc.chance) continue;
+        const p0 = at(arc.a);
+        const p1 = at(arc.b);
+        const pts: { x: number; y: number }[] = [p0];
+        const n = 5;
+        for (let i = 1; i < n; i++) {
+          const k = i / n;
+          pts.push({ x: p0.x + (p1.x - p0.x) * k + (Math.random() - 0.5) * 6, y: p0.y + (p1.y - p0.y) * k + (Math.random() - 0.5) * 6 });
+        }
+        pts.push(p1);
+        for (const [w, a] of [[3, 0.25], [1, 0.95]] as const) {
+          this.arcs.lineStyle(w, arc.color ?? 0x9ee8ff, a);
+          this.arcs.beginPath();
+          this.arcs.moveTo(pts[0].x, pts[0].y);
+          for (const q of pts.slice(1)) this.arcs.lineTo(q.x, q.y);
+          this.arcs.strokePath();
+        }
+      }
+    }
     // Embers off the core: a few always, many more when hot.
     if (f.embers && f.core && f.visible && Math.random() < 0.1 + f.heat * 0.4) {
       const p = at(f.core);
@@ -133,6 +160,7 @@ export class BossFx {
     this.core.destroy();
     this.eye.destroy();
     this.flash.destroy();
+    this.arcs.destroy();
     for (const h of this.hot) h.destroy();
     for (const e of this.embers) e.img.destroy();
     this.hot = [];

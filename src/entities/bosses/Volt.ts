@@ -3,6 +3,8 @@ import type { Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import { Boss, Room } from './Boss';
+import { BossFx } from './bossFx';
+import { VOLT_ANCHORS } from './voltAnchors';
 
 type Mode = 'idle' | 'warpOut' | 'warpIn' | 'orbs' | 'strike' | 'grid';
 
@@ -21,8 +23,18 @@ export class Volt extends Boss {
   /** Floor glow marking where the EX grid's lightning will fall. */
   private mark: Phaser.GameObjects.Graphics | null = null;
 
+  private readonly fx: BossFx;
+
   constructor(g: GameScene, at: Point, room: Room) {
     super(g, 'volt', 24, 28, 'saw', at, room);
+    this.fx = new BossFx(g);
+  }
+
+  /** Where his front hand is right now (world px): the orbs come out of it. */
+  private hand(): { x: number; y: number } {
+    const a = VOLT_ANCHORS[`volt_${this.frame()}`] ?? VOLT_ANCHORS.volt_cast2;
+    const h = a.hands[1];
+    return { x: this.cx + h[0] * this.facing, y: this.bottom + h[1] };
   }
 
   protected untouchable(): boolean {
@@ -67,8 +79,9 @@ export class Volt extends Boss {
       case 'orbs':
         this.physics();
         if (this.t === 16 || (this.phase2 && this.t === 36)) {
-          const ox = this.cx + this.facing * 10;
-          const oy = this.y + 8;
+          // Out of his raised front hand.
+          const { x: ox, y: oy } = this.hand();
+          this.g.burst(ox, oy, 'spark', 4);
           const base = Math.atan2(p.cy - oy, p.cx - ox);
           const spreads = this.phase2 ? [-0.5, -0.25, 0, 0.25, 0.5] : [-0.35, 0, 0.35];
           for (const sp of spreads) {
@@ -152,11 +165,58 @@ export class Volt extends Boss {
 
   destroy(): void {
     this.mark?.destroy();
+    this.fx.destroy();
     super.destroy();
   }
 
   protected introPose(): string {
     return 'cast';
+  }
+
+  /**
+   * The frame for right now: four breaths of idle, arms rising as the battery
+   * charges for the orbs (full at the throw), the strike's point, the grid's
+   * cast, and the warp coming apart (and back together) in bands with his fade.
+   */
+  private frame(): string {
+    const m = this.mode;
+    if (this.state === 'fill') return this.t >= Boss.INTRO_POSE_AT ? 'cast2' : 'idle1';
+    if (this.state === 'dying') return 'cast1';
+    if (m === 'warpOut' || m === 'warpIn') {
+      const a = this.alpha;
+      return a > 0.8 ? 'idle1' : a > 0.55 ? 'warp1' : a > 0.3 ? 'warp2' : 'warp3';
+    }
+    if (m === 'orbs') return this.t < 12 ? 'cast1' : 'cast2';
+    if (m === 'strike') return 'point';
+    if (m === 'grid') return 'cast2';
+    return `idle${1 + (Math.floor(this.t / 10) % 4)}`;
+  }
+
+  render(): void {
+    super.render();
+    const key = `volt_${this.frame()}`;
+    this.sprite.setTexture(key);
+    const a = VOLT_ANCHORS[key] ?? VOLT_ANCHORS.volt_idle1;
+    const warping = this.mode === 'warpOut' || this.mode === 'warpIn';
+    // Warping throws sparks off him.
+    if (warping && this.state === 'fight' && this.t % 2 === 0) this.g.burst(this.cx + (Math.random() - 0.5) * 20, this.y + Math.random() * this.h, 'spark', 1);
+    const [n0, n1] = a.antennae;
+    const arcs = [{ a: n0, b: n1, chance: 0.25 + a.charge * 0.6 }];
+    if (a.casting) for (const h of a.hands) arcs.push({ a: a.core, b: h, chance: 0.7 });
+    this.fx.update({
+      x: Math.round(this.cx),
+      bottom: Math.round(this.bottom),
+      facing: this.facing,
+      floor: this.room.floor,
+      core: a.core,
+      coreColor: 0xffe14a,
+      eye: a.eye,
+      eyeColor: 0x9ee8ff,
+      heat: a.charge * 0.6,
+      hot: a.casting ? a.hands : [],
+      arcs,
+      visible: this.sprite.visible && this.alpha > 0.3 && this.state !== 'dying',
+    });
   }
 
   protected pose(): string {
