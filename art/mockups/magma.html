@@ -1,0 +1,412 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>MAGMA design mockups</title>
+<style>
+  body { margin: 0; background: #0b0d1a; color: #fff1e0; font: 14px/1.4 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 18px; color: #f28c28; margin: 16px 20px 4px; }
+  p.lead { margin: 0 20px 12px; color: #8a8fa8; max-width: 980px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 14px; padding: 0 20px 24px; }
+  .card { background: #141626; border: 2px solid #3a3f66; border-radius: 6px; padding: 12px; }
+  .card.current { border-color: #55607a; }
+  .card h2 { margin: 0; font-size: 15px; color: #5ef0c8; }
+  .card .tag { color: #8a8fa8; font-size: 12px; margin: 2px 0 8px; }
+  canvas { image-rendering: pixelated; background: #1c1f36; border-radius: 3px; display: block; }
+  .poses { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .poses div { font-size: 11px; color: #8a8fa8; text-align: center; }
+  .controls { margin: 0 20px 12px; display: flex; gap: 16px; color: #8a8fa8; }
+  .controls label { cursor: pointer; }
+</style>
+</head>
+<body>
+<h1>MAGMA: design mockups</h1>
+<p class="lead">Each card plays Magma's move set in a loop: idle, the flashing wind-up, the charge (trailing fire),
+a leap with flame pillars where he lands, then a volley of lobbed fireballs. The big view is 5x, next to UltraGuy
+for size; the row underneath is each pose at game scale. Glow, embers, drips and fire are effects the game adds
+on top of the sprite (the same layer Anvil now uses). CURRENT is today's three poses.</p>
+<div class="controls">
+  <label><input type="checkbox" id="slow" /> slow motion</label>
+  <label><input type="checkbox" id="fx" checked /> effects (glow, sparks, embers)</label>
+</div>
+<div class="grid" id="grid"></div>
+
+<script>
+// --- palette -------------------------------------------------------------------------
+const PAL = {
+  K: '#1a1428', W: '#fff1e0', d: '#2b2540', x: '#1e1a30',
+  // basalt
+  A: '#8a8098', a: '#6a6078', s: '#4a4258', S: '#2e283c',
+  // obsidian (glassy, bluish highlights)
+  N: '#b8c4f0', n: '#6a70a8', m: '#464a78', M: '#2a2a48',
+  // lava / heat
+  H: '#fff4c0', Y: '#ffe14a', O: '#f28c28', o: '#c85a1a', r: '#8c2030', q: '#4a1018',
+};
+const RAMP = {
+  rock: { shine: 'A', light: 'a', base: 's', dark: 'S' },
+  rockBack: { shine: 'a', light: 's', base: 'S', dark: 'x' },
+  glass: { shine: 'N', light: 'n', base: 'm', dark: 'M' },
+  glassBack: { shine: 'n', light: 'm', base: 'M', dark: 'x' },
+  lava: { shine: 'H', light: 'Y', base: 'O', dark: 'o' },
+  crust: { shine: 'o', light: 'r', base: 'q', dark: 'x' },
+  deep: { shine: 'O', light: 'o', base: 'o', dark: 'r' },
+  core: { shine: 'H', light: 'H', base: 'Y', dark: 'O' },
+};
+
+// --- pixel buffer with shaded, outlined parts (same as the hero mockups) -----------------
+class Buf {
+  constructor(w, h) { this.w = w; this.h = h; this.c = new Array(w * h).fill(''); }
+  part(inside, ramp, { shine = true, edge = true } = {}) {
+    const { w, h } = this;
+    const m = new Uint8Array(w * h);
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (inside(x + 0.5, y + 0.5)) m[y * w + x] = 1;
+    const at = (x, y) => x >= 0 && y >= 0 && x < w && y < h && m[y * w + x];
+    if (edge) for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!at(x, y)) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= w || ny >= h || at(nx, ny)) continue;
+        if (this.c[ny * w + nx]) this.c[ny * w + nx] = 'K';
+      }
+    }
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (!at(x, y)) continue;
+      let c = ramp.base;
+      if (!at(x, y - 1)) c = shine && !at(x - 1, y) ? ramp.shine : ramp.light;
+      else if (!at(x - 1, y) && at(x, y + 1)) c = ramp.light;
+      else if (!at(x, y + 1)) c = ramp.dark;
+      else if (!at(x + 1, y)) c = ramp.dark;
+      this.c[y * w + x] = c;
+    }
+  }
+  px(x, y, c) { x = Math.round(x); y = Math.round(y); if (x >= 0 && y >= 0 && x < this.w && y < this.h) this.c[y * this.w + x] = c; }
+  rect(x0, y0, w, h, c) { for (let y = y0; y < y0 + h; y++) for (let x = x0; x < x0 + w; x++) this.px(x, y, c); }
+  outline() {
+    const { w, h } = this;
+    const out = this.c.slice();
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      if (this.c[y * w + x]) continue;
+      for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < w && ny < h && this.c[ny * w + nx] && this.c[ny * w + nx] !== 'K') { out[y * w + x] = 'K'; break; }
+      }
+    }
+    this.c = out;
+  }
+  draw(ctx, ox, oy, s, flash = false) {
+    for (let y = 0; y < this.h; y++) for (let x = 0; x < this.w; x++) {
+      const c = this.c[y * this.w + x];
+      if (!c) continue;
+      ctx.fillStyle = flash && c !== 'K' ? '#ffffff' : PAL[c];
+      ctx.fillRect(ox + x * s, oy + y * s, s, s);
+    }
+  }
+}
+const capsule = (ax, ay, bx, by, r) => (x, y) => {
+  const dx = bx - ax, dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((x - ax) * dx + (y - ay) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(x - ax - dx * t, y - ay - dy * t) <= r;
+};
+const ellipse = (cx, cy, rx, ry) => (x, y) => ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2 <= 1;
+const rrect = (x0, y0, x1, y1, rad = 1) => (x, y) => {
+  if (x < x0 || x > x1 || y < y0 || y > y1) return false;
+  const cx = Math.max(x0 + rad, Math.min(x1 - rad, x));
+  const cy = Math.max(y0 + rad, Math.min(y1 - rad, y));
+  return Math.hypot(x - cx, y - cy) <= rad + 0.01;
+};
+const poly = (pts) => (x, y) => {
+  let inside = false;
+  for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+    const [xi, yi] = pts[i], [xj, yj] = pts[j];
+    if ((yi > y) !== (yj > y) && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+};
+const lerp = (a, b, k) => a + (b - a) * k;
+const ease = (k) => k * k * (3 - 2 * k);
+
+// --- the move set, as one timeline -------------------------------------------------------
+const MOVES = [
+  { name: 'idle', len: 80 },
+  { name: 'windup', len: 34 },
+  { name: 'charge', len: 34 },
+  { name: 'idle', len: 26 },
+  { name: 'leap', len: 46 },
+  { name: 'land', len: 26 },
+  { name: 'idle', len: 24 },
+  { name: 'lob', len: 60 },
+];
+const LOOP = MOVES.reduce((a, m) => a + m.len, 0);
+function moveAt(f) {
+  let t = f % LOOP;
+  for (const m of MOVES) { if (t < m.len) return { name: m.name, t, k: t / m.len }; t -= m.len; }
+  return { name: 'idle', t: 0, k: 0 };
+}
+function pose(m, f) {
+  const P = { drop: 0, lift: 0, air: false, stretch: 0, lean: 0, fistUp: 0, fistOut: 0, throwing: false, open: 0, breath: 0, shake: 0, heat: 0.3, slam: 0, t: f };
+  P.breath = (Math.sin(f * 0.08) + 1) / 2;
+  if (m.name === 'windup') { P.drop = 3; P.shake = m.t % 4 < 2 ? 1 : -1; P.open = Math.min(1, m.k * 2); P.heat = 0.6 + m.k * 0.4; P.fistOut = -2; }
+  if (m.name === 'charge') { P.drop = 1; P.lean = 4; P.fistOut = 4; P.open = 0.7; P.heat = 1; }
+  if (m.name === 'leap') { P.lift = Math.sin(m.k * Math.PI) * 22; P.air = true; P.stretch = m.k < 0.3 ? 3 : 0; P.fistUp = 8; }
+  if (m.name === 'land') { P.drop = 5 * (1 - ease(m.k)); P.fistOut = 3 * (1 - m.k); P.slam = 1 - m.k; P.open = 1 - m.k; P.heat = 1 - m.k * 0.5; }
+  if (m.name === 'lob') { P.throwing = true; P.fistUp = 14 * Math.min(1, m.t / 8); P.heat = 0.7; P.open = 0.4; }
+  return P;
+}
+
+// --- shared parts --------------------------------------------------------------------------
+const W = 48, H = 44;
+function feet(b, P, ramp, rampB, toes) {
+  const ground = H - 1;
+  const footY = ground - (P.air ? 2 : 0);
+  b.part(ellipse(19 + P.lean * 0.3, footY - 2, 4, 2.5), rampB);
+  b.part(ellipse(29 + P.lean * 0.6, footY - 2, 4.5, 2.5), ramp);
+  if (toes) for (const x of [17, 20, 27, 30]) b.px(x + P.lean * 0.5, footY - 1, 'O');
+}
+/** A floating fist (no arm): bobs, raised to throw, forward to charge. */
+function fistAt(P, back) {
+  const bob = Math.sin(P.t * 0.11 + (back ? 1.5 : 0)) * 1.2;
+  const x = back ? 10 - P.fistOut * 0.4 : 38 + P.fistOut + P.lean * 0.5;
+  const y = 29 + P.drop * 0.5 - (back ? P.fistUp * 0.3 : P.fistUp) + bob - (P.air ? 4 : 0);
+  return [x, y];
+}
+
+// --- A. OBSIDIAN GOLEM+ ------------------------------------------------------------------
+function golem(P) {
+  const b = new Buf(W, H);
+  const top = 14 - P.stretch + P.drop + P.breath * 0.5;
+  const cx = 24 + P.lean;
+  const [bfx, bfy] = fistAt(P, true);
+  b.part(rrect(bfx - 3.5, bfy - 3.5, bfx + 3.5, bfy + 3.5, 1.5), RAMP.rockBack);
+  feet(b, P, RAMP.rock, RAMP.rockBack, true);
+  // The boulder: a big rounded mass with a lump on top.
+  const body = (x, y) => ellipse(cx, top + 14, 12, 10 - P.drop * 0.3)(x, y) || ellipse(cx - 3, top + 7, 7, 5)(x, y) || ellipse(cx + 5, top + 8, 6, 4)(x, y);
+  b.part(body, RAMP.rock);
+  // Lava cracks, glowing (they pulse with its breath and blaze when it's hot).
+  const hot = P.heat > 0.6;
+  const crack = (pts) => { for (let i = 0; i < pts.length - 1; i++) { const [x0, y0] = pts[i], [x1, y1] = pts[i + 1]; const n = Math.ceil(Math.hypot(x1 - x0, y1 - y0)); for (let k = 0; k <= n; k++) b.px(cx + lerp(x0, x1, k / n), top + lerp(y0, y1, k / n), k % 3 === 0 && hot ? 'Y' : 'O'); } };
+  crack([[-8, 6], [-6, 10], [-7, 14], [-4, 18]]);
+  crack([[-1, 11], [2, 14], [1, 18]]);
+  crack([[7, 16], [9, 19], [7, 21]]);
+  if (hot) crack([[-10, 13], [-8, 16]]);
+  // The ember eye, in a crack on its brow.
+  b.rect(cx + 4, top + 8, 5, 3, 'x');
+  for (let i = 0; i < 4; i++) b.px(cx + 4.5 + i, top + 9, hot ? (i % 2 ? 'Y' : 'H') : 'O');
+  const [ffx, ffy] = fistAt(P, false);
+  b.part(rrect(ffx - 4, ffy - 4, ffx + 4, ffy + 4, 1.5), hot && (P.throwing || P.slam > 0.3) ? RAMP.lava : RAMP.rock);
+  b.px(ffx - 1, ffy, 'O'); b.px(ffx + 1, ffy + 2, 'O');
+  b.outline();
+  return { b, glow: { core: [cx - 2, top + 14], eye: [cx + 6, top + 9], fist: [ffx, ffy] } };
+}
+
+// --- B. MAGMA CORE -------------------------------------------------------------------------
+function core(P) {
+  const b = new Buf(W, H);
+  const top = 14 - P.stretch + P.drop + P.breath * 0.5;
+  const cx = 24 + P.lean;
+  const gap = 1 + P.open * 3 + P.breath * 0.5; // the plates pull apart
+  const [bfx, bfy] = fistAt(P, true);
+  b.part(rrect(bfx - 3.5, bfy - 3.5, bfx + 3.5, bfy + 3.5, 1.5), RAMP.glassBack);
+  feet(b, P, RAMP.glass, RAMP.glassBack, true);
+  // The molten core, seen between the plates.
+  b.part(ellipse(cx, top + 13, 9 + P.open * 1.5, 9 + P.open), RAMP.core, { shine: false });
+  // Four obsidian plates around it, each pulled out along its own direction.
+  const plate = (pts, dx, dy) => b.part(poly(pts.map(([x, y]) => [cx + x + dx * gap, top + y + dy * gap])), RAMP.glass);
+  plate([[-1, 2], [-10, 5], [-12, 13], [-1, 12]], -0.8, -0.5); // upper left
+  plate([[1, 3], [10, 5], [12, 13], [1, 12]], 0.8, -0.4); // upper right
+  plate([[-12, 14], [-1, 14], [-1, 24], [-8, 23]], -0.8, 0.5); // lower left
+  plate([[1, 14], [12, 14], [8, 23], [1, 24]], 0.8, 0.5); // lower right
+  // Glints of glass, and the eye: a bright slit on the upper right plate.
+  b.px(cx - 8 - gap, top + 7, 'N'); b.px(cx + 9 + gap, top + 8, 'N');
+  b.rect(cx + 4 + gap * 0.8, top + 7 - gap * 0.4, 5, 2, 'x');
+  for (let i = 0; i < 4; i++) b.px(cx + 4.5 + gap * 0.8 + i, top + 7 - gap * 0.4, P.open > 0.5 ? 'H' : 'Y');
+  const [ffx, ffy] = fistAt(P, false);
+  b.part(rrect(ffx - 4, ffy - 4, ffx + 4, ffy + 4, 1.5), P.throwing ? RAMP.lava : RAMP.glass);
+  b.outline();
+  return { b, glow: { core: [cx, top + 13], eye: [cx + 6, top + 7], fist: [ffx, ffy], coreBig: 0.9 + P.open * 0.6 } };
+}
+
+// --- C. LAVA TITAN -----------------------------------------------------------------------
+function titan(P) {
+  const b = new Buf(W, H);
+  const top = 14 - P.stretch + P.drop + P.breath * 0.5;
+  const cx = 24 + P.lean;
+  const [bfx, bfy] = fistAt(P, true);
+  b.part(ellipse(bfx, bfy, 4, 3.5), RAMP.deep);
+  feet(b, P, RAMP.deep, RAMP.crust, false);
+  // A body of lava with a rolling top (it flows): white-hot on top, deeper and darker below.
+  const t = P.t * 0.15;
+  const inBody = (x, y) => {
+    const dx = (x - cx) / 12;
+    if (Math.abs(dx) > 1) return false;
+    const surf = top + 3 + Math.sin(dx * 5 + t) * 1.3 + dx * dx * 6;
+    return y >= surf && ellipse(cx, top + 14, 12, 11)(x, y);
+  };
+  b.part(inBody, RAMP.lava);
+  b.part((x, y) => inBody(x, y) && y > top + 17, RAMP.deep, { shine: false });
+  // A cooled crust along its shoulders and base (it hardens where it's coolest).
+  b.part((x, y) => inBody(x, y) && y > top + 21, RAMP.crust, { shine: false });
+  b.part(ellipse(cx - 9, top + 9, 3.5, 2), RAMP.crust, { shine: false });
+  b.part(ellipse(cx + 9, top + 10, 3, 1.8), RAMP.crust, { shine: false });
+  // Two white-hot eyes.
+  for (const ex of [cx + 3, cx + 7]) { b.rect(ex, top + 8, 2, 2, 'H'); b.px(ex, top + 10, 'Y'); }
+  const [ffx, ffy] = fistAt(P, false);
+  b.part(ellipse(ffx, ffy, 4.5, 4), P.throwing ? RAMP.core : RAMP.lava);
+  b.part((x, y) => ellipse(ffx, ffy, 4.5, 4)(x, y) && y > ffy + 1.5, RAMP.deep, { shine: false });
+  b.outline();
+  return { b, glow: { core: [cx, top + 12], eye: [cx + 5, top + 9], fist: [ffx, ffy], drips: true, coreBig: 1.2 } };
+}
+
+const DESIGNS = [
+  { id: 'golem', name: 'A. OBSIDIAN GOLEM+', tag: "Today's Magma drawn properly: a shaded basalt boulder whose lava cracks pulse with its breath and blaze when it's hot, an ember eye in a crack on its brow, and floating fists that bob on their own. Closest to now.", draw: golem },
+  { id: 'core', name: 'B. MAGMA CORE', tag: 'A shell of glassy obsidian plates around a molten core. The plates breathe apart a little at rest and pull wide open on the wind-up and the landing, showing the blazing core inside. Very readable tells: when the core shows, something is coming.', draw: core },
+  { id: 'titan', name: 'C. LAVA TITAN', tag: 'Living lava: its top rolls like a wave, cooling crust drifts across it, it drips as it moves and its fists are blobs of molten rock. The most alive of the three, and the most different from Anvil (who is hard steel).', draw: titan },
+];
+
+// --- page ---------------------------------------------------------------------------------
+const sheet = new Image();
+sheet.src = '/assets/sprites.png';
+let frames = null;
+fetch('/assets/sprites.json').then((r) => r.json()).then((j) => (frames = j));
+const heroImg = new Image();
+heroImg.src = '/assets/hero.png';
+let heroMeta = null;
+fetch('/assets/hero.json').then((r) => r.json()).then((j) => (heroMeta = j));
+
+const S = 5;
+const cards = [];
+function addCard(d) {
+  const card = document.createElement('div');
+  card.className = 'card' + (d.current ? ' current' : '');
+  card.innerHTML = `<h2>${d.name}</h2><div class="tag">${d.tag}</div>`;
+  const big = document.createElement('canvas');
+  big.width = 92 * S; big.height = 66 * S;
+  card.appendChild(big);
+  const row = document.createElement('div');
+  row.className = 'poses';
+  const minis = [];
+  for (const name of ['idle', 'windup', 'charge', 'leap', 'land', 'lob']) {
+    const wrap = document.createElement('div');
+    const c = document.createElement('canvas');
+    c.width = 52 * 2; c.height = 48 * 2;
+    wrap.appendChild(c);
+    wrap.appendChild(document.createTextNode(name));
+    row.appendChild(wrap);
+    minis.push({ c, name });
+  }
+  card.appendChild(row);
+  document.getElementById('grid').appendChild(card);
+  cards.push({ d, big, minis, embers: [], sparks: [], drips: [], pillars: [], balls: [], trail: [] });
+}
+addCard({ id: 'current', name: 'CURRENT', tag: "Today's Magma: three flat poses swapped by the move.", current: true });
+for (const d of DESIGNS) addCard(d);
+
+function currentPose(m) {
+  if (m.name === 'leap') return 'magma_jump';
+  if (m.name === 'lob' || m.name === 'windup' || m.name === 'charge') return 'magma_throw';
+  return 'magma_idle';
+}
+function drawCurrent(ctx, m, x, y, s, lift = 0) {
+  if (!frames || !sheet.complete) return;
+  const [fx, fy, fw, fh] = frames[currentPose(m)];
+  ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(sheet, fx, fy, fw, fh, x - (fw / 2) * s, y - fh * s - lift * s, fw * s, fh * s);
+}
+function glowAt(ctx, x, y, r, color, a) {
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, color.replace('A', a));
+  g.addColorStop(1, color.replace('A', 0));
+  ctx.fillStyle = g;
+  ctx.fillRect(x - r, y - r, r * 2, r * 2);
+}
+
+let f = 0;
+function tick() {
+  const slow = document.getElementById('slow').checked;
+  const fx = document.getElementById('fx').checked;
+  f += slow ? 0.25 : 1;
+  const fi = Math.floor(f);
+  const m = moveAt(fi);
+  const P = pose(m, fi);
+  for (const card of cards) {
+    const ctx = card.big.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    ctx.clearRect(0, 0, card.big.width, card.big.height);
+    const groundY = 60 * S;
+    // Floor: volcanic rock, with a lava glow along the bottom.
+    ctx.fillStyle = '#3a2228'; ctx.fillRect(0, groundY, card.big.width, card.big.height - groundY);
+    ctx.fillStyle = '#c87a5a'; ctx.fillRect(0, groundY, card.big.width, S);
+    if (heroMeta && heroImg.complete) {
+      const fw = heroMeta.frameWidth, fh = heroMeta.frameHeight;
+      const idx = heroMeta.frames.idle1 ?? 0;
+      const cols = Math.max(1, Math.floor(heroImg.width / fw));
+      ctx.drawImage(heroImg, (idx % cols) * fw, Math.floor(idx / cols) * fh, fw, fh, 6 * S, groundY - fh * S, fw * S, fh * S);
+    }
+    // Where he is: the charge carries him across and back.
+    const ax = 56 + (m.name === 'charge' ? -m.k * 18 : 0);
+    if (card.d.current) {
+      drawCurrent(ctx, m, ax * S, groundY, S, P.lift);
+    } else {
+      const { b, glow } = card.d.draw(P);
+      const ox = (ax - W / 2 + P.shake * 0.5) * S;
+      const oy = groundY - H * S - P.lift * S;
+      ctx.fillStyle = `rgba(0,0,0,${0.35 - Math.min(0.25, P.lift / 80)})`;
+      ctx.beginPath(); ctx.ellipse(ax * S, groundY + S, (17 - Math.min(8, P.lift / 3)) * S, 2 * S, 0, 0, Math.PI * 2); ctx.fill();
+      b.draw(ctx, ox, oy, S);
+      if (fx) {
+        ctx.globalCompositeOperation = 'lighter';
+        const flick = 0.35 + Math.sin(fi * 0.3) * 0.06 + Math.random() * 0.06 + P.heat * 0.25;
+        glowAt(ctx, ox + glow.core[0] * S, oy + glow.core[1] * S, 15 * S * (glow.coreBig ?? 1), 'rgba(255,120,30,A)', 0.4 * flick);
+        glowAt(ctx, ox + glow.eye[0] * S, oy + glow.eye[1] * S, 6 * S, 'rgba(255,225,74,A)', 0.45);
+        if (P.throwing) glowAt(ctx, ox + glow.fist[0] * S, oy + (glow.fist[1] - 7) * S, 9 * S, 'rgba(255,200,80,A)', 0.7);
+        ctx.globalCompositeOperation = 'source-over';
+        // A fireball forming over the raised fist, then thrown in an arc.
+        if (P.throwing) {
+          const fbx = ox + glow.fist[0] * S, fby = oy + (glow.fist[1] - 7) * S;
+          ctx.fillStyle = '#ffe14a'; ctx.beginPath(); ctx.arc(fbx, fby, (2 + Math.sin(fi * 0.6)) * S, 0, Math.PI * 2); ctx.fill();
+          if (m.t % 14 === 13) card.balls.push({ x: fbx, y: fby, vx: -5 - Math.random() * 3, vy: -9, life: 60 });
+        }
+        for (const ba of card.balls) { ba.x += ba.vx; ba.y += ba.vy; ba.vy += 0.6; ba.life--; ctx.fillStyle = '#f28c28'; ctx.beginPath(); ctx.arc(ba.x, ba.y, 2.5 * S, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#ffe14a'; ctx.beginPath(); ctx.arc(ba.x - S * 0.5, ba.y - S * 0.5, 1.2 * S, 0, Math.PI * 2); ctx.fill(); }
+        card.balls = card.balls.filter((ba) => ba.life > 0 && ba.y < groundY);
+        // Fire trail on the charge.
+        if (m.name === 'charge' && fi % 3 === 0) card.trail.push({ x: ax * S + 8 * S, life: 20 });
+        for (const tr of card.trail) { tr.life--; const h = (8 + Math.random() * 4) * (tr.life / 20) * S; ctx.fillStyle = tr.life > 10 ? '#ffe14a' : '#f28c28'; ctx.fillRect(tr.x - 2 * S, groundY - h, 4 * S, h); }
+        card.trail = card.trail.filter((tr) => tr.life > 0);
+        // Flame pillars where he lands.
+        if (m.name === 'land' && m.t === 0) {
+          card.pillars.push({ x: (ax - 30) * S, life: 28 }, { x: (ax + 30) * S, life: 28 });
+          for (let i = 0; i < 14; i++) card.sparks.push({ x: (ax + (Math.random() - 0.5) * 20) * S, y: groundY, vx: (Math.random() - 0.5) * 10, vy: -4 - Math.random() * 7, life: 22 });
+        }
+        for (const pi of card.pillars) { pi.life--; const h = 30 * S * Math.min(1, (28 - pi.life) / 5); ctx.fillStyle = 'rgba(242,140,40,0.9)'; ctx.fillRect(pi.x - 6 * S, groundY - h, 12 * S, h); ctx.fillStyle = 'rgba(255,225,74,0.9)'; ctx.fillRect(pi.x - 3 * S, groundY - h, 6 * S, h); }
+        card.pillars = card.pillars.filter((pi) => pi.life > 0);
+        // Embers, and lava drips off the titan.
+        if (fi % 4 === 0) card.embers.push({ x: ox + glow.core[0] * S + (Math.random() - 0.5) * 50, y: oy + glow.core[1] * S - 30, vx: (Math.random() - 0.5), vy: -1.5 - Math.random() * 2, life: 40 });
+        if (glow.drips && fi % 9 === 0) card.drips.push({ x: ox + (glow.core[0] + (Math.random() - 0.5) * 22) * S, y: oy + (glow.core[1] + 10) * S, vy: 0, life: 40 });
+        for (const e of card.embers) { e.x += e.vx; e.y += e.vy; e.life--; ctx.fillStyle = e.life > 20 ? '#ffe14a' : '#f28c28'; ctx.fillRect(e.x, e.y, S * 0.8, S * 0.8); }
+        for (const d of card.drips) { d.vy += 0.5; d.y = Math.min(groundY - S, d.y + d.vy); d.life--; ctx.fillStyle = '#f28c28'; ctx.fillRect(d.x, d.y, S, S * 1.6); }
+        for (const s of card.sparks) { s.x += s.vx; s.y += s.vy; s.vy += 0.8; s.life--; ctx.fillStyle = '#fff4c0'; ctx.fillRect(s.x, s.y, S, S); }
+        card.embers = card.embers.filter((e) => e.life > 0);
+        card.drips = card.drips.filter((d) => d.life > 0);
+        card.sparks = card.sparks.filter((s) => s.life > 0);
+      }
+    }
+    for (const mini of card.minis) {
+      const c = mini.c.getContext('2d');
+      c.imageSmoothingEnabled = false;
+      c.clearRect(0, 0, mini.c.width, mini.c.height);
+      c.fillStyle = '#3a2228'; c.fillRect(0, 44 * 2, mini.c.width, 8);
+      const fake = { name: mini.name, t: mini.name === 'lob' ? 20 : 8, k: mini.name === 'leap' ? 0.5 : mini.name === 'land' ? 0.05 : 0.5 };
+      if (card.d.current) drawCurrent(c, fake, 26 * 2, 44 * 2, 2);
+      else {
+        const PP = pose(fake, 0);
+        PP.lift = 0;
+        const { b } = card.d.draw(PP);
+        b.draw(c, (26 - W / 2) * 2, 44 * 2 - H * 2, 2);
+      }
+    }
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+</script>
+</body>
+</html>

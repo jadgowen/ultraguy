@@ -3,6 +3,8 @@ import type { Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import { Boss, Room } from './Boss';
+import { BossFx } from './bossFx';
+import { MAGMA_ANCHORS } from './magmaAnchors';
 
 type Mode = 'idle' | 'leap' | 'lob' | 'windup' | 'charge' | 'erupt';
 
@@ -17,9 +19,26 @@ export class Magma extends Boss {
   private mode: Mode = 'idle';
   private wait = 30;
   private last: Mode | null = null;
+  /** Steps left in the landing squash, and how long it's been airborne. */
+  private landT = 0;
+  private airT = 0;
+  private readonly fx: BossFx;
 
   constructor(g: GameScene, at: Point, room: Room) {
     super(g, 'magma', 26, 28, 'bubble', at, room);
+    this.fx = new BossFx(g);
+  }
+
+  step(): void {
+    super.step();
+    if (this.landT > 0) this.landT--;
+    this.airT = this.grounded ? 0 : this.airT + 1;
+  }
+
+  /** Where a fireball forms: over the raised front fist (world px). */
+  private hand(): { x: number; y: number } {
+    const a = MAGMA_ANCHORS.magma_throw;
+    return { x: this.cx + a.hand[0] * this.facing, y: this.bottom + a.hand[1] };
   }
 
   private setMode(m: Mode, wait = 0): void {
@@ -54,6 +73,10 @@ export class Magma extends Boss {
         if (r.landed && this.t > 2) {
           this.g.shake(5);
           sfx.flame();
+          // The plates burst open on impact: sparks and a squash.
+          this.landT = 10;
+          this.g.burst(this.cx - 10, this.bottom - 2, 'ember', 6);
+          this.g.burst(this.cx + 10, this.bottom - 2, 'ember', 6);
           this.pillar(this.cx - 30);
           this.pillar(this.cx + 30);
           if (this.phase2) {
@@ -70,7 +93,9 @@ export class Magma extends Boss {
         if (this.t % 14 === 0 && this.t <= (this.phase2 ? 56 : 42)) {
           const airtime = 44;
           const vx = Phaser.Math.Clamp((p.cx - this.cx) / airtime + (Math.random() - 0.5), -3, 3);
-          this.g.spawnEnemyShot({ x: this.cx - 4, y: this.y + 4, w: 8, h: 8, vx, vy: -5, tex: 'fireball', dmg: 3, gravity: true });
+          const h = this.hand();
+          this.g.spawnEnemyShot({ x: h.x - 4, y: h.y - 4, w: 8, h: 8, vx, vy: -5, tex: 'fireball', dmg: 3, gravity: true });
+          this.g.burst(h.x, h.y, 'ember', 3);
           sfx.enemyShot();
         }
         if (this.t >= 64) this.setMode('idle', 28);
@@ -129,11 +154,60 @@ export class Magma extends Boss {
   }
 
   protected telegraph(): boolean {
-    return (this.mode === 'windup' || (this.mode === 'erupt' && this.t < 24)) && this.t % 6 < 3;
+    // Brief white blinks: between them you see the real tell, the plates split
+    // wide and the core blazing (and the trembling).
+    return (this.mode === 'windup' || (this.mode === 'erupt' && this.t < 24)) && this.t % 10 < 2;
   }
 
   protected introPose(): string {
     return 'throw';
+  }
+
+  /**
+   * The frame for right now: four breaths of idle (the fists bob on their own),
+   * the wind-up with the plates split wide (trembling), the charge, stretched on
+   * takeoff and tucked in the air, burst open on landing, the throw with a
+   * molten fist overhead, and the eruption.
+   */
+  private frame(): string {
+    const m = this.mode;
+    if (this.state === 'dying') return 'land1';
+    if (!this.grounded && this.state !== 'fill') return this.airT < 8 && this.vy < 0 ? 'jump_up' : 'jump_top';
+    if (this.landT > 0) return this.landT > 5 ? 'land1' : 'land2';
+    if (m === 'windup') return 'windup';
+    if (m === 'charge') return 'charge';
+    if (m === 'lob') return 'throw';
+    if (m === 'erupt') return 'erupt';
+    return `idle${1 + (Math.floor(this.t / 10) % 4)}`;
+  }
+
+  render(): void {
+    super.render();
+    const key = `magma_${this.frame()}`;
+    this.sprite.setTexture(key);
+    const tell = this.mode === 'windup' || (this.mode === 'erupt' && this.t < 24);
+    if (tell) this.sprite.x += this.t % 4 < 2 ? 1 : -1;
+    const a = MAGMA_ANCHORS[key] ?? MAGMA_ANCHORS.magma_idle1;
+    this.fx.update({
+      x: Math.round(this.cx),
+      bottom: Math.round(this.bottom),
+      facing: this.facing,
+      floor: this.room.floor,
+      core: a.core,
+      coreColor: 0xff9a30,
+      eye: a.eye,
+      eyeColor: a.open > 0.5 ? 0xfff4c0 : 0xffe14a,
+      // The core blazes as the plates open; the throwing fist glows.
+      heat: Math.max(0.25, a.open),
+      hot: this.mode === 'lob' ? [a.fist] : [],
+      embers: true,
+      visible: this.sprite.visible && this.state !== 'dying',
+    });
+  }
+
+  destroy(): void {
+    this.fx.destroy();
+    super.destroy();
   }
 
   protected pose(): string {
