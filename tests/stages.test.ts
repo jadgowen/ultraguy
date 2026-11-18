@@ -47,15 +47,22 @@ describe('boss stages', () => {
     it(`${id}: has a boss door, a midpoint (miniboss or set piece), an energy tank and checkpoints`, () => {
       const L = new Level(stage);
       expect(L.doors.length).toBe(1);
-      // A miniboss, or a set piece in its place (Caldera's magma elevator).
-      if (stage.miniboss) expect(L.miniboss).not.toBeNull();
-      else expect(L.elevator).not.toBeNull();
+      // A miniboss, or a set piece in its place.
+      const MIDPOINT: Record<string, () => boolean> = {
+        canopy: () => !!stage.rise, // the great climb
+        powerplant: () => L.generators.length === 3 && L.shutters.length > 0, // blackout
+        caldera: () => L.elevator !== null, // magma elevator
+        scrapyard: () => !!stage.compactor, // compactor escape
+      };
+      if (MIDPOINT[id]) expect(MIDPOINT[id](), 'set piece').toBe(true);
+      else expect(L.miniboss).not.toBeNull();
       expect(L.tanks.length).toBeGreaterThanOrEqual(1);
       expect(L.checkpoints.length).toBeGreaterThanOrEqual(3);
       expect(L.bossTestStart).not.toBeNull();
     });
 
-    it.skipIf(!stage.miniboss)(`${id}: the miniboss sits on a flat, safe floor`, () => {
+    // (The Storm Kite fights over open sky: no floor there on purpose.)
+    it.skipIf(!stage.miniboss || id === 'stratos')(`${id}: the miniboss sits on a flat, safe floor`, () => {
       const L = new Level(stage);
       const m = L.miniboss!;
       const row = m.y / 16; // the floor row under the miniboss
@@ -146,7 +153,7 @@ describe('sky mechanics', () => {
   });
 
   it('wind blows only on the screens that name it', () => {
-    expect(getStage('stratos').wind?.screens).toBe('DEFLMN');
+    expect(getStage('stratos').wind?.screens).toBe('DEFLMN23');
     expect(L.screenIdAt(3 * 256 + 10, 3 * 240 + 10)).toBe('D');
     expect(L.screenIdAt(0, 0)).toBe('');
   });

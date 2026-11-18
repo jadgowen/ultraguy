@@ -8,7 +8,10 @@ import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
 //  2. Drop down a hole into an elevator shaft: ride the lift down past a spike
 //     floor (E), then on through a corridor (e) and down again.
 //  3. The press line: a long wave of crushers over a backward conveyor (G),
-//     then presses between pits (H). Then the miniboss hall and ANVIL.
+//     then presses between pits (H). Then the PRESS TITAN, fought on the line
+//     itself: presses slam over the arena and the floor drags you back. Lure
+//     the Titan under a press and it comes down on him (a big hit).
+//     Then ANVIL.
 // The UltraBlaster is behind the fake right wall of D (into the secret room S).
 //
 // Layout:  row 0:  A B C D S
@@ -19,6 +22,9 @@ const CEIL = '################';
 const FLOOR = '################';
 const room = bossRoom();
 const hall = miniHall('#');
+// The Titan's arena: under a ceiling, with presses over it and a belt floor.
+const lineA = [CEIL, CEIL, '..............!.', ...hall.a.slice(3)];
+const lineB = [CEIL, CEIL, '..!....!........', ...rows(SKY, 9), hall.b[12], '<<<<<<<<<<<<<<<<', FLOOR];
 
 export const FOUNDRY: StageData = {
   id: 'foundry',
@@ -79,8 +85,8 @@ export const FOUNDRY: StageData = {
     // Presses between pits.
     H: [CEIL, CEIL, '...!......!.....', ...rows(SKY, 7), '..............f.', SKY, SKY, '######..####..##', '######..####..##'],
     I: [CEIL, CEIL, ...rows(SKY, 8), '..........t.....', '.........#######', '.....w...#######', FLOOR, FLOOR],
-    '1': hall.a,
-    '2': hall.b,
+    '1': lineA,
+    '2': lineB,
     J: [...rows('...............#', 10), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
     X: room.left,
     Y: room.right,

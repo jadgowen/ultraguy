@@ -8,10 +8,12 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 //  2. The climb (W, G-H, I-J): updrafts lift you up through the stage (you can
 //     jump again while inside one), across crumbling clouds and a moving cloud.
 //  3. High altitude (K-N): gusts again, now over crumbling clouds and movers.
-//     Then the miniboss hall, and GALE.
+//  4. The STORM KITE, out over open sky (1-3): a ledge each side, a gap
+//     between, moving clouds and crumbling ones to fight from, and the gusts
+//     still blowing. Then GALE.
 //
 // Layout (each letter one screen; you climb from W up to K):
-//   row 0:  . . . . . . K L M N 1 2 O | X Y
+//   row 0:  . . . . . . K L M N 1 2 3 O | X Y
 //   row 1:  . . . . . . I J
 //   row 2:  . . . . . . G H
 //   row 3:  A B C D E F W
@@ -28,10 +30,10 @@ export const STRATOS: StageData = {
   bossName: 'GALE',
   bossWeapon: 'cyclone',
   signature: [{ kind: 'gustFan', from: 'bomber', every: 2 }, { kind: 'gustFan', from: 'flyer', every: 3 }],
-  layout: ['......KLMN12O|XY', '......IJ', '......GH', 'ABCDEFW'],
+  layout: ['......KLMN123O|XY', '......IJ', '......GH', 'ABCDEFW'],
   miniboss: 'kite',
   upgrade: 'armor',
-  wind: { screens: 'DEFLMN', dirs: [-1, 1] },
+  wind: { screens: 'DEFLMN23', dirs: [-1, 1] },
   screens: {
     // --- 1. Low altitude --------------------------------------------------------
     // A moving cloud ferries you over the first drop.
@@ -120,7 +122,18 @@ export const STRATOS: StageData = {
       SKY,
     ],
     '1': hall.a,
-    '2': hall.b,
+    // The Kite's sky: a short ledge, then open air with clouds to stand on.
+    '2': [
+      ...rows(SKY, 9),
+      '.......xxx......',
+      SKY,
+      '...=-------.....',
+      SKY,
+      '#####........=--',
+      '#####...........',
+    ],
+    // ...and the far ledge (the Kite hovers over the gap).
+    '3': [...rows(SKY, 10), '...xxx..........', SKY, '.........M......', '----..##########', '......##########'],
     O: [...rows('...............#', 10), '...............D', '...............D', '..B............D', '################', '################'],
     X: room.left,
     Y: room.right,

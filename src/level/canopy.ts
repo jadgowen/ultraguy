@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
+import { bossRoom, rows, SECRET_ROOM, SKY } from './rooms';
 
 // CANOPY (jungle). Built around bounce flowers ('%'): land on one and it
 // throws you high (higher if you hold jump).
@@ -8,17 +8,21 @@ import { bossRoom, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
 //  2. Up the tree: a flower through a gap in the canopy (D: hold jump), then a
 //     climb from flower to flower inside the trunk (E).
 //  3. The treetops: breaking branches, a drifting log and one last flower
-//     over a long drop (F-H). Then the miniboss hall and MANTIS.
+//     over a long drop (F-H).
+//  4. THE GREAT CLIMB (instead of a miniboss): drop down a hollow (J, K) to a
+//     landing with a hidden crawlspace (N), then climb the inside of the great
+//     tree (L, M, T) on flowers, branches and vines while brambles grow up after
+//     you. Out at the top, and on to MANTIS.
 // The Jump Boots are behind D's fake right wall (into the secret room S).
 //
-// Layout:  row 0:  . . . F G H 1 2 I | X Y
-//          row 1:  . . . E
-//          row 2:  A B C D S
+// Layout:  row 0:  . . . F G H J T I | X Y
+//          row 1:  . . . E . . K M
+//          row 2:  A B C D S . N L
 
 const LEAVES = '################';
 const FLOOR = '################';
 const room = bossRoom();
-const hall = miniHall('#');
+const CEIL = '################';
 
 export const CANOPY: StageData = {
   id: 'canopy',
@@ -29,8 +33,8 @@ export const CANOPY: StageData = {
   bossName: 'MANTIS',
   bossWeapon: 'thorn',
   signature: [{ kind: 'snapper', from: 'spitter', every: 2 }, { kind: 'snapper', from: 'lurker', every: 1 }],
-  layout: ['...FGH12I|XY', '...E', 'ABCDS'],
-  miniboss: 'toad',
+  layout: ['...FGHJTI|XY', '...E..KM', 'ABCDS.NL'],
+  rise: { screens: 'LMT', speed: 0.3 },
   upgrade: 'boots',
   decor: [
     // A hint by the flower that needs a high bounce.
@@ -96,8 +100,50 @@ export const CANOPY: StageData = {
     G: [...rows(SKY, 5), '.....f..........', ...rows(SKY, 7), '##.=-------..###', '##...........###'],
     // Bounce up to a branch, then down to the hall.
     H: [...rows(SKY, 7), '........xxx.....', SKY, SKY, SKY, '.....%.......###', '.....#.......###', '###..#.......###', '###..#.......###'],
-    '1': hall.a,
-    '2': hall.b,
+
+    // --- 4. The great climb ---------------------------------------------------------------
+    // Down the hollow to the landing.
+    J: [LEAVES, LEAVES, ...rows('...............#', 9), ...rows('####......######', 4)],
+    K: rows('####......######', 15),
+    // The landing: checkpoint, and the crawlspace (slide in) with the E-tank and bolts.
+    N: [...rows('####......######', 9), '#...............', '#...............', '..#########.....', '......E.$...c...', FLOOR, FLOOR],
+    // Inside the trunk, bottom: a flower (hold jump) up to a branch, then the vine.
+    L: [
+      ...rows('###.........H###', 3),
+      '###..s......H###',
+      '###.CCC.....H###',
+      ...rows('###.........H###', 2),
+      '###.....CCCCC###',
+      ...rows('###..........###', 2),
+      ...rows('.............###', 3),
+      '#####%##########',
+      FLOOR,
+    ],
+    // Middle: off the vine onto breaking branches, a flower, then a branch to the next vine.
+    M: [
+      ...rows('###.....H....###', 3),
+      '###.CCCCH....###',
+      ...rows('###..........###', 2),
+      '###.......f..###',
+      '###..........###',
+      SKY.replace(/^.../, '###').replace(/...$/, '###'),
+      '###%%.CCxx...###',
+      '###..........###',
+      ...rows('###.........H###', 4),
+    ],
+    // Top: up the last vine and out to the right (the brambles stop below the exit).
+    T: [
+      CEIL,
+      CEIL,
+      ...rows('###.............', 2),
+      '###.........c...',
+      '###.....H#######',
+      '###.....H#######',
+      ...rows('###.....H....###', 2),
+      '###.....H....###',
+      '###.CCC.H....###',
+      ...rows('###.....H....###', 4),
+    ],
     I: [...rows('...............#', 10), '...............D', '..........##...D', '...B......##s..D', FLOOR, FLOOR],
     X: room.left,
     Y: room.right,

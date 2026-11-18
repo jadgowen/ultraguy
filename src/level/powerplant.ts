@@ -9,9 +9,14 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 //  2. Lights out: a dark room with a pit (C), switch blocks in the dark (D),
 //     then a switch-block staircase up the dark shaft to a ladder (E).
 //  3. Back in the light upstairs: rollers, then barriers and switch blocks in
-//     the dark again (G), and a barrier run (H). Then the hall and VOLT.
+//     the dark again (G), and a barrier run (H).
+//  4. BLACKOUT (instead of a miniboss): past the crawlspace (1), walk into the
+//     generator room (2, 3) and the power cuts out. Sparkers come out of the
+//     dark. Find the three generators (red lamps blinking) and shoot each one;
+//     with all three running the lights come back and the shutter opens.
+//     Then VOLT.
 //
-// Layout:  row 0:  . . . . F G H 1 2 I | X Y
+// Layout:  row 0:  . . . . F G H 1 2 3 I | X Y
 //          row 1:  A B C D E
 
 const CEIL = '################';
@@ -27,9 +32,9 @@ export const POWERPLANT: StageData = {
   bossName: 'VOLT',
   bossWeapon: 'spark',
   signature: [{ kind: 'teslaCoil', from: 'roller', every: 1 }],
-  layout: ['....FGH12I|XY', 'ABCDE'],
-  miniboss: 'dynamo',
+  layout: ['....FGH123I|XY', 'ABCDE'],
   dark: 'CDEG',
+  blackout: '23',
   screens: {
     // --- 1. Lit -----------------------------------------------------------------------
     // Orange blocks, then teal: stand on one set and step across as they swap.
@@ -66,7 +71,34 @@ export const POWERPLANT: StageData = {
     // A barrier run back in the light, up to the hall.
     H: [CEIL, CEIL, ...rows(SKY, 7), '...........k....', '.....Z....Z.....', '.....Z....Z.....', '.....Z....Z.....', CEIL, CEIL],
     '1': hall.a,
-    '2': hall.b,
+    // The generator room. One generator ('O') on the floor, one up the platforms...
+    '2': [
+      CEIL,
+      CEIL,
+      ...rows(SKY, 4),
+      '.......O........',
+      '......###.......',
+      SKY,
+      '..........###...',
+      SKY,
+      '.....###........',
+      '..O.............',
+      CEIL,
+      CEIL,
+    ],
+    // ...and one past a barrier. The shutter ('Q') is the way out.
+    '3': [
+      CEIL,
+      CEIL,
+      ...rows('...............#', 6),
+      '.........O.....#',
+      '........###....#',
+      '...Z...........Q',
+      '...Z..###......Q',
+      '...Z...........Q',
+      CEIL,
+      CEIL,
+    ],
     I: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', CEIL, CEIL],
     X: room.left,
     Y: room.right,

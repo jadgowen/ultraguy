@@ -362,6 +362,47 @@ export class Miniboss extends Boss {
 
   private slamHang = 0;
 
+  // --- the Angler's lure (Reef's dark trench) -------------------------------------
+  private lureImg: Phaser.GameObjects.Image | null = null;
+
+  private lurePos(): { x: number; y: number } {
+    const bob = Math.sin(this.t * 0.15) * 2;
+    return { x: this.facing > 0 ? this.x + this.w + 5 : this.x - 5, y: this.y - 5 + bob };
+  }
+
+  /** Lights it carries into the dark: the Angler's lure (dims and flickers just before it lunges). */
+  lights(): { x: number; y: number; s: number }[] {
+    if (this.mini !== 'angler' || this.state === 'dying') return [];
+    const windup = this.move === 'dash' && this.t < 30;
+    const s = windup ? (this.t % 6 < 3 ? 0.3 : 0.55) : 0.75;
+    return [{ ...this.lurePos(), s }];
+  }
+
+  render(): void {
+    super.render();
+    if (this.mini !== 'angler') return;
+    if (!this.lureImg) {
+      if (!this.g.textures.exists('lure_glow')) {
+        const gr = this.g.make.graphics({ x: 0, y: 0 }, false);
+        gr.fillStyle(0xfff4a0, 0.35).fillCircle(5, 5, 5);
+        gr.fillStyle(0xfff4a0).fillCircle(5, 5, 3);
+        gr.fillStyle(0xffffff).fillRect(4, 3, 2, 2);
+        gr.generateTexture('lure_glow', 10, 10);
+        gr.destroy();
+      }
+      // Over the darkness: in the trench, it's the one thing you can always see.
+      this.lureImg = this.g.add.image(0, 0, 'lure_glow').setDepth(31);
+    }
+    const l = this.lurePos();
+    const windup = this.move === 'dash' && this.t < 30;
+    this.lureImg.setPosition(Math.round(l.x), Math.round(l.y)).setVisible(this.state !== 'dying' && (!windup || this.t % 6 < 3));
+  }
+
+  destroy(): void {
+    this.lureImg?.destroy();
+    super.destroy();
+  }
+
   private choose(): void {
     const pool = this.def.moves.filter((m) => m !== this.last);
     const pick = pool[Math.floor(Math.random() * pool.length)];

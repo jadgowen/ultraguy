@@ -18,14 +18,16 @@ export interface ReachOptions {
  *
  * Moving clouds count as a platform everywhere along their track (you can
  * wait for them). Updrafts (and the magma elevator's shaft) carry you up, and
- * you can jump from inside one.
+ * you can jump from inside one. You can slide through one-tile-high gaps.
+ * Blackout shutters ('Q') open once the generators are shot, so they don't block.
  */
 export function reach(stage: StageData, opts: ReachOptions = {}): { ok: boolean; visited: number; stuck?: { c: number; r: number } } {
   const L = new Level(stage);
   const T = (c: number, r: number) => L.tileAt(c, r);
   // Switch blocks take turns, so they never block for good (but you can stand on them).
   const switchy = (c: number, r: number) => T(c, r) === Tile.SwitchA || T(c, r) === Tile.SwitchB;
-  const blocks = (c: number, r: number) => L.isSolid(c, r) && !switchy(c, r) && !(opts.flame && T(c, r) === Tile.Melt);
+  const shutter = new Set(L.shutters.map(({ c, r }) => c * 10000 + r));
+  const blocks = (c: number, r: number) => L.isSolid(c, r) && !switchy(c, r) && !(opts.flame && T(c, r) === Tile.Melt) && !shutter.has(c * 10000 + r);
   const deadly = (c: number, r: number) => T(c, r) === Tile.Lava;
   const ride = new Set<number>();
   for (const m of L.movers) {
@@ -97,6 +99,8 @@ export function reach(stage: StageData, opts: ReachOptions = {}): { ok: boolean;
       continue;
     }
     for (const dx of [-1, 1]) {
+      // Slide into (or along) a gap one tile high.
+      if (support(c, r) && !blocks(c + dx, r) && !deadly(c + dx, r) && blocks(c + dx, r - 1) && support(c + dx, r)) push(c + dx, r);
       if (clear(c + dx, r)) {
         if (stand(c + dx, r)) push(c + dx, r);
         else {

@@ -33,6 +33,9 @@ import type { WeaponId } from '../weapons';
  *   E  energy tank (collectible)
  *   U  upgrade capsule holding the stage's armor part (`upgrade`)
  *   T  teleporter capsule (boss rematch room; left to right = REMATCH_ORDER)
+ *   _  thin ice (cracks under a heavy charge)   ; ,  magma elevator start / stop
+ *   O  generator (Power Plant blackout: shoot all of them to bring the lights back)
+ *   Q  shutter (solid until every generator is back on)
  *
  * Enemies:
  *   w  walker    h  hopper     f  flyer      t  turret (shielded)
@@ -104,6 +107,13 @@ export interface StageData {
   tagline?: string;
   /** Lava rises through these screens once you enter them (px per step). */
   rise?: { screens: string; speed: number };
+  /**
+   * A compactor wall grinds in from the left through these screens once you
+   * enter the first of them (px per step), and stops at the end of the last.
+   */
+  compactor?: { screens: string; speed: number };
+  /** These screens go dark when you walk in, until every generator ('O') is shot. */
+  blackout?: string;
   /**
    * The stage's signature enemy: every `every`-th enemy of kind `from`
    * (in reading order) becomes `kind`, so the layouts don't need redrawing.
@@ -283,9 +293,11 @@ const TILE_CHARS: Record<string, Tile> = {
   '}': Tile.CurrentR,
   // Thin ice: ice that a heavy charge can crack and break (Level.thinIce).
   _: Tile.Ice,
+  // Blackout shutter: solid until the lights come back (Level.shutters).
+  Q: Tile.Solid,
 };
 
-const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U', '=', '-', 'v', ':', '!', '@', '+', '$', ';', ',']);
+const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U', '=', '-', 'v', ':', '!', '@', '+', '$', ';', ',', 'O']);
 
 /** Water, including currents. */
 export function isWaterTile(t: Tile): boolean {
@@ -312,6 +324,9 @@ export class Level {
   /** The magma elevator: where its platform starts (';') and where it stops (','). */
   elevator: { start: Point; stop: Point } | null = null;
   private elevatorStop: Point | null = null;
+  /** Blackout generators ('O', bottom-center) and shutter cells ('Q'). */
+  readonly generators: Point[] = [];
+  readonly shutters: { c: number; r: number }[] = [];
   readonly teleporters: Point[] = [];
   upgrade: Point | null = null;
   bossTestStart: Point | null = null;
@@ -445,6 +460,8 @@ export class Level {
           if (this.elevator) this.elevator.stop = this.elevatorStop;
         }
         if (ch === '_') this.thinIce.push({ c: gc, r: gr });
+        if (ch === 'Q') this.shutters.push({ c: gc, r: gr });
+        if (ch === 'O') this.generators.push({ x: cx, y: bottom });
         else if (ch === 'T') this.teleporters.push({ x: cx, y: bottom });
         else if (ch === 'U') this.upgrade = { x: cx, y: bottom };
         else if (ch === '!') this.crushers.push({ x: gc * TILE, y: gr * TILE });

@@ -338,6 +338,19 @@ function upgradeTileset(scene: Phaser.Scene, id: ThemeId, t: Theme, a: EnvArt, r
   px(ctx, cs, 81, 8, 14, 2);
   px(ctx, mix(cs, '#000000', 0.15), 82, 10, 12, 1);
   px(ctx, '#ffffff', 84, 4, 4, 1);
+  if (id === 'jungle') {
+    // In the jungle, one-way platforms are sturdy branches with a tuft of leaves.
+    clear(5);
+    px(ctx, K, 80, 2, 16, 8);
+    px(ctx, '#7a5a3a', 80, 3, 16, 5);
+    px(ctx, '#a07c50', 80, 3, 16, 1);
+    px(ctx, '#4a321e', 80, 7, 16, 2);
+    px(ctx, '#4a321e', 85, 4, 1, 2);
+    px(ctx, '#4a321e', 91, 5, 2, 1);
+    px(ctx, K, 82, 0, 6, 3);
+    px(ctx, '#4ca04a', 83, 0, 4, 2);
+    px(ctx, '#7ad06a', 84, 0, 2, 1);
+  }
 
   // 7: lava: bright crest, glowing bands, a bubble.
   clear(7);

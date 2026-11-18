@@ -10,10 +10,13 @@ import { bossRoom, miniHall, rows, SKY } from './rooms';
 //  2. A long crane ride over the pit (E), presses with barrels under them (F),
 //     then a crane lift up to the ladder (G).
 //  3. The high yard: a press line over a belt that hurries you along, with
-//     barrels coming the other way (I), and one last crane (J). Then the hall
-//     and SCRAP.
+//     barrels coming the other way (I), and one last crane (J).
+//  4. THE COMPACTOR (instead of a miniboss): past the crawlspace (1), a wall
+//     of grinding steel comes in from the left and keeps coming (2-4). Run:
+//     slide under the low pipes, jump the junk, the barrels and the pit. It
+//     stops when it hits the end of the yard. Then SCRAP.
 //
-// Layout:  row 0:  . . . . . . H I J 1 2 K | X Y
+// Layout:  row 0:  . . . . . . H I J 1 2 3 4 K | X Y
 //          row 1:  A B C D E F G
 
 const FLOOR = '################';
@@ -30,8 +33,8 @@ export const SCRAPYARD: StageData = {
   bossName: 'SCRAP',
   bossWeapon: 'saw',
   signature: [{ kind: 'magnetDrone', from: 'flyer', every: 1 }, { kind: 'magnetDrone', from: 'junkbot', every: 2 }],
-  layout: ['......HIJ12K|XY', 'ABCDEFG'],
-  miniboss: 'crusher',
+  layout: ['......HIJ1234K|XY', 'ABCDEFG'],
+  compactor: { screens: '234', speed: 0.7 },
   screens: {
     // --- 1. The lower yard ------------------------------------------------------------
     A: [...rows(SKY, 12), '..P...........@.', FLOOR, FLOOR],
@@ -66,7 +69,12 @@ export const SCRAPYARD: StageData = {
     I: [GIRDER, GIRDER, '.!...!...!...!..', ...rows(SKY, 9), '..............@.', '>>>>>>>>>>>>>>>>', FLOOR],
     J: [GIRDER, GIRDER, ...rows(SKY, 8), '.....j..........', '............####', '............####', '####=-----..####', '####^^^^^^^^####'],
     '1': hall.a,
-    '2': hall.b,
+    // Junk to jump, then a low pipe: slide under it.
+    '2': [GIRDER, GIRDER, ...rows('.........#####..', 9), '....##...#####..', '....##..........', FLOOR, FLOOR],
+    // A belt dragging you back, barrels rolling at you, and a pit.
+    '3': [GIRDER, GIRDER, ...rows(SKY, 10), '..............@.', '<<<<<<<<...#####', '########...#####'],
+    // One more pipe, and a junkbot. The wall stops at the end of the yard.
+    '4': [GIRDER, GIRDER, ...rows('....######......', 10), '..............j.', FLOOR, FLOOR],
     K: [...rows('...............#', 10), '...............D', '...............D', '..B............D', FLOOR, FLOOR],
     X: room.left,
     Y: room.right,

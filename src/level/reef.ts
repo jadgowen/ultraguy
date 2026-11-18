@@ -9,7 +9,10 @@ import { bossRoom, miniHall, rows, SKY, water } from './rooms';
 //  2. Down into the trench (F, G): the current there drags you toward a
 //     spiked wall, so get out of it fast.
 //  3. A bubble column up into a fast current that rides you over a long
-//     urchin bed (H, I). Then the hall and TIDE.
+//     urchin bed (H, I).
+//  4. The ANGLER's trench (1, 2): pitch dark. Its lure is the only light down
+//     there besides your own; the lure flickers and dims just before it
+//     lunges. Its shots glow. Then TIDE.
 //
 // Layout:  row 0:  A B
 //          row 1:  . C D E F
@@ -30,6 +33,7 @@ export const REEF: StageData = {
   signature: [{ kind: 'jelly', from: 'puffer', every: 1 }],
   layout: ['AB', '.CDEF', '....GHI12J|XY'],
   miniboss: 'angler',
+  dark: '12',
   screens: {
     // --- 1. Into the sea ------------------------------------------------------------------
     A: [...rows(SKY, 10), '..........###...', SKY, '..P.............', ROCK, ROCK],

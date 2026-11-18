@@ -19,12 +19,8 @@ type Entry =
 
 const MINIS: { kind: string; name: string; stage: string }[] = [
   { kind: 'press', name: 'PRESS TITAN', stage: 'FOUNDRY' },
-  { kind: 'toad', name: 'BRIAR TOAD', stage: 'CANOPY' },
   { kind: 'mammoth', name: 'TUSK MAMMOTH', stage: 'GLACIER' },
   { kind: 'kite', name: 'STORM KITE', stage: 'STRATOS' },
-  { kind: 'dynamo', name: 'DYNAMO', stage: 'POWER PLANT' },
-  { kind: 'crab', name: 'CINDER CRAB', stage: 'CALDERA' },
-  { kind: 'crusher', name: 'CRUSHER', stage: 'SCRAPYARD' },
   { kind: 'angler', name: 'ANGLER', stage: 'REEF' },
 ];
 

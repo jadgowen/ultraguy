@@ -71,11 +71,20 @@ The first time you reach a stage boss it gets a full intro: letterbox bars, the 
 signature pose (with its own flourish), a name card with its title slides in, it calls out a voice line, and
 then its health bar fills (`src/scenes/bossIntro.ts`). Retries after a death skip straight to the quick version.
 
-Each boss stage has a midpoint challenge halfway through, usually a miniboss. Glacier's Tusk Mammoth fights
-on thin ice (`_` in the level text, drawn pale and see-through): each charge cracks the slabs it crosses, a
-slab cracked twice breaks away into the water, and holes freeze back over after a few seconds. Caldera has
-no miniboss. Instead it has the magma elevator (`;` lift, `,` top stop; `src/scenes/elevator.ts`): step on, and it
-climbs the shaft with the camera following, magma right behind, fire from the walls and falling rocks.
+Each boss stage has its own midpoint challenge halfway through: four minibosses fought in arenas that
+matter, and four set pieces with no boss at all.
+
+| Stage | Midpoint | How it works |
+|---|---|---|
+| Foundry | PRESS TITAN on the line | presses (`!`) slam over the arena and the floor is a belt; a press that comes down on the Titan crushes it for a big hit |
+| Canopy | THE GREAT CLIMB | up the inside of a tree on flowers, branches and vines while brambles rise after you (`rise` with the jungle's `rise_jungle` fill) |
+| Glacier | TUSK MAMMOTH on thin ice | thin ice (`_`, drawn pale) cracks under its charges and breaks away into the water, then freezes back over |
+| Stratos | STORM KITE over open sky | a ledge each side, a gap with moving and crumbling clouds between, and the gusts still blowing |
+| Power Plant | BLACKOUT | the lights cut out as you walk in (`blackout`), Sparkers swarm; shoot the three generators (`O`) to bring the lights back and open the shutter (`Q`); `src/scenes/blackout.ts` |
+| Caldera | MAGMA ELEVATOR | a lift (`;` start, `,` stop) carries you up a shaft with magma right behind; `src/scenes/elevator.ts` |
+| Scrapyard | COMPACTOR ESCAPE | a wall of grinding steel (`compactor`) chases you through junk: slide under the pipes, jump the rest |
+| Reef | the ANGLER's dark trench | pitch dark; its lure is the only other light, and it dims and flickers just before it lunges |
+
 Just before the midpoint, a low block hides a crawlspace (only the
 slide gets in) holding an energy tank (E-tank), and in some stages a 1-UP; it looks like solid wall,
 notched at each end, until you're inside. The armor-part rooms hide a 1-UP too.

@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { nowPlaying, playJingle, playMusic, playVoice, stageMusic, stopMusic } from '../audio';
 import { BOSS_INTROS, INTRO, IntroCard } from './bossIntro';
 import { TileFx } from '../tileFx';
+import { Blackout } from './blackout';
 import { Elevator } from './elevator';
 import { DEV_TOOLS, PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } from '../constants';
 import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
@@ -237,6 +238,8 @@ export class GameScene extends Phaser.Scene {
   /** Thin ice under strain: cracks on it so far, and the countdown to it giving way. */
   /** Caldera's magma elevator (null elsewhere). */
   private elevator: Elevator | null = null;
+  /** Power Plant's blackout (null elsewhere). */
+  private blackout: Blackout | null = null;
   private iceCracks = new Map<number, { c: number; r: number; n: number; breakT: number; img: Phaser.GameObjects.Image }>();
   /** Broken thin ice, freezing back over (frames left). */
   private iceHoles: { c: number; r: number; t: number }[] = [];
@@ -367,10 +370,7 @@ export class GameScene extends Phaser.Scene {
           arrived: () => {
             this.section = this.level.sectionAt(this.player.cx, this.player.cy) ?? this.section;
           },
-          say: (text) => {
-            this.banner.setText(text).setVisible(true);
-            this.time.delayedCall(1000, () => this.banner.setVisible(false));
-          },
+          say: (text) => this.say(text, 60),
         })
       : null;
     this.tileFx = new TileFx(this, this.level, stage.theme, (c, r) => this.layer.removeTileAt(c, r));
@@ -396,7 +396,32 @@ export class GameScene extends Phaser.Scene {
       shake: (n) => this.shake(n),
       burst: (x, y, tex, n) => this.burst(x, y, tex, n),
       spawnShot: (o) => this.spawnEnemyShot(o),
+      lights: () => (this.boss instanceof Miniboss ? this.boss.lights() : []),
+      crushBoss: (box) => this.crushBoss(box),
     });
+    this.blackout =
+      this.level.data.blackout && this.level.generators.length
+        ? new Blackout({
+            scene: this,
+            level: this.level,
+            layer: this.layer,
+            player: () => this.player,
+            view: () => ({ x: this.camX, y: this.camY }),
+            shake: (n) => this.shake(n),
+            burst: (x, y, tex, n) => this.burst(x, y, tex, n),
+            setDark: (screens, on) => {
+              for (const id of screens) {
+                if (on) this.hazards.extraDark.add(id);
+                else this.hazards.extraDark.delete(id);
+              }
+            },
+            spawnEnemy: (kind, x, y) => {
+              this.enemies.push(createEnemy(this, { kind, x, y, alive: true, armed: false }));
+            },
+            enemyCount: () => this.enemies.length,
+            say: (text, frames) => this.say(text, frames),
+          })
+        : null;
     this.electricTiles = this.level.findTiles(Tile.Electric);
     this.electricOn = true;
     this.electricT = 0;
@@ -722,6 +747,7 @@ export class GameScene extends Phaser.Scene {
     p.update();
     this.sky.stepCrumbles();
     this.hazards.step();
+    this.blackout?.step();
     this.revealSecret();
     if (!p.alive && p.deadTimer <= 0) {
       this.loseLife();
@@ -954,6 +980,8 @@ export class GameScene extends Phaser.Scene {
   spawnEnemyShot(o: ShotOptions): Projectile {
     const s = new Projectile(this, o.x, o.y, o.w, o.h, o.vx, o.vy, o.tex);
     s.dmg = o.dmg ?? 2;
+    // In the dark, enemy shots glow (drawn over the darkness) so you can see them coming.
+    if (this.hazards?.isDark(this.level.screenIdAt(o.x, o.y))) s.sprite.setDepth(31);
     if (o.gravity) {
       s.ay = PHYS.gravity;
       s.diesOnSolid = true;
@@ -1040,6 +1068,11 @@ export class GameScene extends Phaser.Scene {
 
     for (const b of this.bullets) {
       if (b.deflected || b.dead) continue;
+      if (this.blackout?.shoot(b)) {
+        this.impact(b);
+        b.dead = true;
+        continue;
+      }
 
       // Shots that hit the boss's cover (Jared's counter) bounce off it.
       const cover = boss?.coverTop() ?? null;
@@ -2129,6 +2162,7 @@ export class GameScene extends Phaser.Scene {
   private respawn(): void {
     this.restoreIce();
     this.elevator?.reset();
+    this.blackout?.reset();
     this.clearActors();
     for (const f of this.effects) f.sprite.destroy();
     this.effects = [];
@@ -2260,6 +2294,28 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Short message under the health bars. */
+  /** Big centered text for a while (HOLD ON!, BLACKOUT!). */
+  private sayT: Phaser.Time.TimerEvent | null = null;
+  private say(text: string, frames = 60): void {
+    this.banner.setText(text).setVisible(true);
+    this.sayT?.remove();
+    this.sayT = this.time.delayedCall((frames * 1000) / 60, () => this.banner.setVisible(false));
+  }
+
+  /** A press came down on the miniboss (Foundry's line): a big hit. */
+  private crushBoss(box: Box): boolean {
+    const b = this.boss;
+    if (!(b instanceof Miniboss) || b.state !== 'fight' || !overlaps(box, b)) return false;
+    b.hit(4, true);
+    this.shake(6);
+    sfx.weakHit();
+    this.hitStop = WEAK_HIT_STOP;
+    this.burst(b.cx, b.y + 4, 'spark', 10);
+    this.flashLabel('CRUSHED!');
+    if (b.hp === 0) this.startBossDeath();
+    return true;
+  }
+
   private flashLabel(text: string): void {
     this.weaponLabel.setText(text).setVisible(true);
     this.weaponLabelT = 70;
