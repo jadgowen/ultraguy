@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_TANKS, addBolts, buy, clearSave, exUnlocked, loadSave, recordClear, recordExClear, recordPart, setSkin, setTanks, slotKey, slotUsed } from '../src/save';
+import { JUKEBOX_PRICE, MAX_TANKS, addBolts, buy, buyJukebox, buyPip, buySkin, clearSave, recordClear as clearStage, recordHeard, setPip, exUnlocked, loadSave, recordClear, recordExClear, recordPart, setSkin, setTanks, slotKey, slotUsed } from '../src/save';
 import { unlockedSkins } from '../src/skins';
 import { updateSettings } from '../src/settings';
 
@@ -10,7 +10,7 @@ const useSlot = (slot: number) =>
 
 describe('save data', () => {
   it('starts fresh: just the Ultra Gun, nothing cleared', () => {
-    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [] });
+    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [], boughtSkins: [], jukebox: false, heard: [], pipOwned: [], pipOff: [], pipShell: 'round', pipPaint: 'teal', pipTrail: 'none', pipMet: false });
   });
 
   it('records cleared stages and weapons once, in weapon order', () => {
@@ -121,5 +121,57 @@ describe('save slots', () => {
     expect(loadSave().spareLives).toBe(3);
     addBolts(5000);
     expect(loadSave().bolts).toBe(999);
+  });
+});
+
+describe("Rivet's paint shop and jukebox", () => {
+  it('sells color schemes for bolts, once each, and you can wear them', () => {
+    clearSave();
+    expect(buySkin('neon')).toBe('broke');
+    addBolts(100);
+    expect(buySkin('neon')).toBe('ok');
+    expect(loadSave().bolts).toBe(40);
+    expect(buySkin('neon')).toBe('owned');
+    expect(buySkin('forge')).toBe('owned'); // earned, not sold
+    const s = loadSave();
+    expect(unlockedSkins(s.exCleared, s.cleared, s.boughtSkins).map((k) => k.id)).toEqual(['classic', 'neon']);
+    setSkin('neon');
+    expect(loadSave().skin).toBe('neon');
+  });
+
+  it('sells one jukebox, which plays the tracks you have heard', () => {
+    clearSave();
+    addBolts(JUKEBOX_PRICE);
+    expect(buyJukebox()).toBe('ok');
+    expect(buyJukebox()).toBe('owned');
+    expect(loadSave().bolts).toBe(0);
+    recordHeard('title');
+    recordHeard('foundry');
+    recordHeard('title');
+    expect(loadSave().heard).toEqual(['title', 'foundry']);
+  });
+});
+
+describe('Pip', () => {
+  it('sells upgrades and looks; owned upgrades switch on and off; looks are worn', () => {
+    clearSave();
+    expect(buyPip('module', 'lamp')).toBe('owned'); // comes with Pip
+    expect(buyPip('module', 'zap')).toBe('broke');
+    addBolts(300);
+    expect(buyPip('module', 'zap')).toBe('ok');
+    expect(buyPip('shell', 'gold')).toBe('earned');
+    expect(buyPip('shell', 'saucer')).toBe('ok');
+    setPip('shell', 'saucer');
+    setPip('module', 'zap');
+    let s = loadSave();
+    expect(s.bolts).toBe(40);
+    expect(s.pipShell).toBe('saucer');
+    expect(s.pipOff).toEqual(['zap']);
+    setPip('module', 'zap');
+    setPip('shell', 'cube'); // not owned: nothing happens
+    s = loadSave();
+    expect(s.pipOff).toEqual([]);
+    expect(s.pipShell).toBe('saucer');
+    clearStage('foundry', 'quake');
   });
 });

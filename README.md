@@ -120,6 +120,20 @@ crawlspaces and armor-part rooms. Press Q (L1) on the stage select to visit RIVE
 1-UPs (added to your lives when you next enter a stage), E-tanks, W-tanks (refill every weapon from the pause
 menu), the Spike Guard (survive one spike or lava fall) and the Bolt Magnet (pickups fly to you). More stock
 comes in as you beat bosses (`src/shop.ts`).
+Rivet also runs a PAINT SHOP (eight color schemes for UltraGuy, 50 to 200 bolts; bought ones join the EX
+colors in the stage select's picker) and sells a JUKEBOX (100 bolts) that plays any track you've heard. The
+game notes each track the first time it plays, and older saves get the ones their progress proves
+(`src/scenes/WardrobeScene.ts`, `src/scenes/JukeboxScene.ts`).
+
+**PIP.** Once you've beaten a stage boss, Rivet sends Pip along with you: a little drone that hangs behind
+UltraGuy's shoulder on a spring (it lags when you move off, overshoots when you stop, bobs, tilts into its
+motion, flaps its fins, and its thruster never stops sparking). Its eye follows whatever it's interested in.
+It jolts and spins when you get hit, and does a lazy loop over your head if you stand still. It comes with a
+LAMP (light around it in the dark). Rivet's PIP workshop sells FETCH (80: flies out and brings back bolts and
+pickups), GUARD (150: once charged, zaps an enemy shot about to hit you) and ZAP (200: pot shots at enemies,
+never bosses); upgrades you own can be switched off. Looks: shells (saucer, cube, birdie, and a golden one for
+winning every EX rematch), paints and trails (sparks, bubbles, music, stars) (`src/pip.ts`,
+`src/entities/Pip.ts`, `src/scenes/PipScene.ts`).
 
 **Signature enemies.** Each stage has one of its own: Foundry's Hammerbot (slams shockwaves), Canopy's
 Snapper (a bud that bites when you're close), Glacier's Snow Roller (grows as it rolls), Stratos's Gust Fan

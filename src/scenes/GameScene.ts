@@ -17,7 +17,9 @@ import { THEMES } from '../level/themes';
 import { Box, moveY, overlaps } from '../physics';
 import { skinForStage } from '../skins';
 import { BOLT_BIG, BOLT_CACHE, BOLT_SMALL } from '../shop';
-import { MAX_TANKS, addBolts, updateSave, recordExClear, loadSave, recordClear, recordPart, setTanks, wearSavedSkin } from '../save';
+import { MAX_TANKS, addBolts, updateSave, recordExClear, loadSave, meetPip, recordClear, recordPart, setTanks, wearSavedSkin } from '../save';
+import { Pip } from '../entities/Pip';
+import { PIP_MODULES, pipOwns, pipUnlocked } from '../pip';
 import { sfx } from '../sfx';
 import { WEAPONS, WeaponId, WEAPON_ORDER } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
@@ -123,6 +125,8 @@ interface DoorSequence {
 }
 
 interface Pickup extends Projectile {
+  /** Pip is carrying it back to you. */
+  carried?: boolean;
   heal: number;
   ammo: number;
   /** Bolts (currency) it's worth. */
@@ -239,6 +243,8 @@ export class GameScene extends Phaser.Scene {
   /** Thin ice under strain: cracks on it so far, and the countdown to it giving way. */
   /** Caldera's magma elevator (null elsewhere). */
   private elevator: Elevator | null = null;
+  /** Pip, the hero's drone (once a boss is down). */
+  private pip: Pip | null = null;
   /** Power Plant's blackout (null elsewhere). */
   private blackout: Blackout | null = null;
   /** What the stage's boss room does by itself (Caldera's lava surge, Glacier's icicles). */
@@ -399,7 +405,7 @@ export class GameScene extends Phaser.Scene {
       shake: (n) => this.shake(n),
       burst: (x, y, tex, n) => this.burst(x, y, tex, n),
       spawnShot: (o) => this.spawnEnemyShot(o),
-      lights: () => (this.boss instanceof Miniboss ? this.boss.lights() : []),
+      lights: () => [...(this.boss instanceof Miniboss ? this.boss.lights() : []), ...(this.pip?.lights() ?? [])],
       crushBoss: (box) => this.crushBoss(box),
     });
     this.blackout =
@@ -507,6 +513,7 @@ export class GameScene extends Phaser.Scene {
       .setAlign('center')
       .setScrollFactor(0)
       .setDepth(60);
+    this.makePip();
     this.pauseLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(70).setVisible(false);
     this.boltIcon = this.add.image(10, 112, 'nut').setOrigin(0, 0).setScrollFactor(0).setDepth(60);
     this.boltText = pixelText(this, 24, 111, '', { fontFamily: 'monospace', fontSize: '8px', color: '#c8ccd8', stroke: '#000000', strokeThickness: 2 })
@@ -758,6 +765,7 @@ export class GameScene extends Phaser.Scene {
     this.sky.stepMovers();
     this.elevator?.step();
     p.update();
+    this.pip?.step();
     this.sky.stepCrumbles();
     this.hazards.step();
     this.blackout?.step();
@@ -796,6 +804,7 @@ export class GameScene extends Phaser.Scene {
 
   private render(): void {
     this.player.render();
+    this.pip?.render();
     for (const e of this.enemies) e.render();
     this.boss?.render();
     for (const b of this.bullets) b.render();
@@ -830,7 +839,7 @@ export class GameScene extends Phaser.Scene {
       sfx.thorn();
       return true;
     }
-    if (this.bullets.filter((b) => b.weapon === def.id).length >= def.maxOnScreen) return false;
+    if (this.bullets.filter((b) => b.weapon === def.id && !b.pip).length >= def.maxOnScreen) return false;
     if (p.ammo[def.id] < def.cost) return false;
     p.ammo[def.id] -= def.cost;
 
@@ -1082,6 +1091,8 @@ export class GameScene extends Phaser.Scene {
 
     for (const b of this.bullets) {
       if (b.deflected || b.dead) continue;
+      // Pip's shots are for enemies only: bosses ignore them.
+      const boss = b.pip ? null : this.boss;
       if (this.blackout?.shoot(b)) {
         this.impact(b);
         b.dead = true;
@@ -1278,6 +1289,7 @@ export class GameScene extends Phaser.Scene {
   private stepPickups(): void {
     const p = this.player;
     for (const k of this.pickups) {
+      if (k.carried) continue; // Pip has it
       k.life++;
       // Bolt Magnet: anything close drifts in to you.
       const dx = p.cx - k.cx;
@@ -2210,6 +2222,7 @@ export class GameScene extends Phaser.Scene {
     playMusic(this, stageMusic(this.level.data)); // back to the stage track after a boss
     // Latest checkpoint the player has passed.
     this.player.reset(this.checkpoint.x, this.checkpoint.y);
+    this.pip?.reset();
     this.teleport = null;
     this.section = this.level.sectionAt(this.player.cx, this.player.cy)!;
     this.camX = this.cameraTargetX(this.section);
@@ -2323,6 +2336,41 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Short message under the health bars. */
+  /** Pip comes along once a stage boss is down, with what you've bought and switched on for it. */
+  private makePip(): void {
+    this.pip?.destroy();
+    this.pip = null;
+    const save = loadSave();
+    if (!pipUnlocked(save)) return;
+    const mods = new Set(PIP_MODULES.filter((m) => pipOwns(save, 'module', m.id) && !save.pipOff.includes(m.id)).map((m) => m.id));
+    const T = TILE;
+    this.pip = new Pip(
+      {
+        scene: this,
+        player: () => this.player,
+        view: () => ({ x: this.camX, y: this.camY, w: VIEW_W, h: VIEW_H }),
+        targets: () =>
+          this.enemies.filter((e) => e.hp > 0 && e.cx > this.camX && e.cx < this.camX + VIEW_W && e.cy > this.camY && e.cy < this.camY + VIEW_H && !this.level.isSolid(Math.floor(e.cx / T), Math.floor(e.cy / T))),
+        pickups: () => this.pickups,
+        shots: () => this.shots,
+        shoot: (x, y, vx, vy) => {
+          const b = new Projectile(this, x, y, 4, 4, vx, vy, 'pip_shot');
+          b.pip = true;
+          b.power = 1;
+          b.maxLife = 50;
+          this.bullets.push(b);
+        },
+        dark: () => this.hazards.isDark(this.level.screenIdAt(this.player.cx, this.player.cy)),
+      },
+      { shell: save.pipShell, paint: save.pipPaint, trail: save.pipTrail },
+      mods,
+    );
+    if (!save.pipMet) {
+      meetPip();
+      this.time.delayedCall(2400, () => this.say('PIP JOINS YOU!', 100));
+    }
+  }
+
   /** Big centered text for a while (HOLD ON!, BLACKOUT!). */
   private sayT: Phaser.Time.TimerEvent | null = null;
   private say(text: string, frames = 60): void {

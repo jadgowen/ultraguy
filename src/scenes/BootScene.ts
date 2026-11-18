@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
-import { loadAudio, preloadAudioManifest } from '../audio';
+import { loadAudio, preloadAudioManifest, setMusicListener } from '../audio';
+import { recordHeard } from '../save';
 import { createHeroTextures, preloadHero } from '../heroSprites';
 import { createSpriteTextures, preloadSprites } from '../sprites';
 import { generateTextures } from '../textures';
@@ -20,6 +21,8 @@ export class BootScene extends Phaser.Scene {
     createHeroTextures(this);
     createSpriteTextures(this);
     // Load generated music/sfx (if any), then go to the title.
+    // Every track heard goes in the save, for Rivet's jukebox.
+    setMusicListener(recordHeard);
     loadAudio(this, () => this.scene.start('title'));
   }
 }

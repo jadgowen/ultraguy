@@ -7,7 +7,10 @@ import { FortressScene } from './scenes/FortressScene';
 import { ControlsScene } from './scenes/ControlsScene';
 import { SettingsScene } from './scenes/SettingsScene';
 import { SlotScene } from './scenes/SlotScene';
+import { JukeboxScene } from './scenes/JukeboxScene';
+import { PipScene } from './scenes/PipScene';
 import { ShopScene } from './scenes/ShopScene';
+import { WardrobeScene } from './scenes/WardrobeScene';
 import { StageSelectScene } from './scenes/StageSelectScene';
 import { TitleScene } from './scenes/TitleScene';
 import { RaceScene } from './scenes/RaceScene';
@@ -35,7 +38,7 @@ const game = new Phaser.Game({
   input: { gamepad: true },
   // Stretch to fill the window (exact on 16:9; letterboxed otherwise).
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
-  scene: [BootScene, TitleScene, SlotScene, SettingsScene, ControlsScene, StageSelectScene, ShopScene, FortressScene, GameScene, RaceScene, BoxingScene, RpgScene, HopScene, BombScene, ShooterScene, BreakerScene, HockeyScene, SkiesScene, PinballScene, DungeonScene, EndingScene],
+  scene: [BootScene, TitleScene, SlotScene, SettingsScene, ControlsScene, StageSelectScene, ShopScene, WardrobeScene, PipScene, JukeboxScene, FortressScene, GameScene, RaceScene, BoxingScene, RpgScene, HopScene, BombScene, ShooterScene, BreakerScene, HockeyScene, SkiesScene, PinballScene, DungeonScene, EndingScene],
 });
 
 // Handy for debugging in the browser console.

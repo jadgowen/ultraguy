@@ -98,6 +98,12 @@ function fade(sound: Track, from: number, to: number, ms: number, done?: () => v
 /** How long tracks take to fade out and in when one replaces another. */
 const CROSSFADE_MS = 420;
 
+/** Told about each track as it starts (the save records it for the jukebox). */
+let onTrack: ((key: string) => void) | null = null;
+export function setMusicListener(fn: (key: string) => void): void {
+  onTrack = fn;
+}
+
 /** Loop a music track (no-op if it's already playing or wasn't generated); the old one fades out as it fades in. */
 export function playMusic(scene: Phaser.Scene, key: string): void {
   if (current?.key === key) return;
@@ -108,6 +114,7 @@ export function playMusic(scene: Phaser.Scene, key: string): void {
   sound.play();
   fade(sound, 0, MUSIC_VOLUME * musicLevel, CROSSFADE_MS);
   current = { key, sound };
+  onTrack?.(key);
 }
 
 /** A one-shot jingle (e.g. after a boss): the music fades out quickly, then it plays once. */
@@ -119,6 +126,7 @@ export function playJingle(scene: Phaser.Scene, key: string): void {
   sound.play();
   sound.once('complete', () => sound.destroy());
   current = { key, sound };
+  onTrack?.(key);
 }
 
 /** Key of what's playing now (music or a jingle), if anything. */

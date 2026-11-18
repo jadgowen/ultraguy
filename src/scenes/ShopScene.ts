@@ -4,8 +4,9 @@ import { VIEW_H, VIEW_W } from '../constants';
 import { Level } from '../level/Level';
 import { ALL_BOSS_STAGES, getStage } from '../level/stages';
 import { PixelText, pixelText } from '../pixelFont';
-import { buy, loadSave, owned } from '../save';
+import { JUKEBOX_PRICE, buy, buyJukebox, loadSave, owned } from '../save';
 import { SHOP_ITEMS } from '../shop';
+import { pipUnlocked } from '../pip';
 import { sfx } from '../sfx';
 import { touch } from '../touch';
 import { FONT, MenuScene } from './menu';
@@ -23,6 +24,12 @@ export function secretProgress(): { found: number; total: number } {
   const have = new Set(loadSave().oneUpsFound);
   return { found: all.filter((k) => have.has(k)).length, total: all.length };
 }
+
+/** Rows after the goods: the paint shop, Pip's workshop, the jukebox, the vault key (then LEAVE). */
+const COLORS_ROW = SHOP_ITEMS.length;
+const PIP_ROW = COLORS_ROW + 1;
+const JUKEBOX_ROW = PIP_ROW + 1;
+const VAULT_ROW = JUKEBOX_ROW + 1;
 
 /**
  * RIVET'S PARTS & PROVISIONS, opened from the stage select. Rivet stands
@@ -65,7 +72,7 @@ export class ShopScene extends MenuScene {
     // The goods.
     this.panel(312, 108, 200, 132);
     const beaten = ALL_BOSS_STAGES.filter((id) => loadSave().cleared.includes(id)).length;
-    const labels = [...SHOP_ITEMS.map((i) => (beaten >= i.unlock ? i.name : '???')), 'VAULT KEY', 'LEAVE'];
+    const labels = [...SHOP_ITEMS.map((i) => (beaten >= i.unlock ? i.name : '???')), 'COLORS', 'PIP', 'JUKEBOX', 'VAULT KEY', 'LEAVE'];
     this.rows = this.list(230, 50, labels);
     this.boltsText = pixelText(this, 230, 196, '', { fontFamily: FONT, fontSize: '12px', color: '#c8ccd8' });
     this.add.image(222, 202, 'nut').setScale(1.5);
@@ -86,14 +93,20 @@ export class ShopScene extends MenuScene {
       const tag = !open ? '' : item.max === 1 ? (have ? ' OWNED' : ` ${item.price}`) : ` ${item.price}  ${have}/${item.max}`;
       row.setText(`${open ? item.name.padEnd(12) : '???'.padEnd(12)}${tag}`);
     });
+    this.rows[COLORS_ROW].setText('PAINT SHOP'.padEnd(12) + ' >');
+    this.rows[PIP_ROW].setText(pipUnlocked(save) ? 'PIP'.padEnd(12) + ' >' : '???');
+    this.rows[JUKEBOX_ROW].setText('JUKEBOX'.padEnd(12) + (save.jukebox ? ' >' : ` ${JUKEBOX_PRICE}`));
     // The secret: Rivet's rival's vault, once every hidden 1-UP is found.
     const secret = secretProgress();
     const vaultOpen = secret.found >= secret.total;
-    this.rows[SHOP_ITEMS.length].setText(vaultOpen ? 'VAULT KEY'.padEnd(12) + ' FREE' : `???`.padEnd(12) + ` ${secret.found}/${secret.total}`);
+    this.rows[VAULT_ROW].setText(vaultOpen ? 'VAULT KEY'.padEnd(12) + ' FREE' : `???`.padEnd(12) + ` ${secret.found}/${secret.total}`);
     this.select(this.selected);
     this.boltsText.setText(String(save.bolts));
     const item = SHOP_ITEMS[this.selected];
-    if (this.selected === SHOP_ITEMS.length) this.blurb.setText(vaultOpen ? "the key to Rivet's rival's megastore" : 'find every hidden 1-UP (one per stage)');
+    if (this.selected === COLORS_ROW) this.blurb.setText('new colors for UltraGuy');
+    else if (this.selected === PIP_ROW) this.blurb.setText(pipUnlocked(save) ? 'upgrades and new looks for your drone' : 'Rivet is building something... beat a boss');
+    else if (this.selected === JUKEBOX_ROW) this.blurb.setText(save.jukebox ? 'play any track you have heard' : 'replay the music: any track you have heard');
+    else if (this.selected === VAULT_ROW) this.blurb.setText(vaultOpen ? "the key to Rivet's rival's megastore" : 'find every hidden 1-UP (one per stage)');
     else if (!item) this.blurb.setText('back to the stage select');
     else if (beaten < item.unlock) this.blurb.setText(`in stock once you've beaten ${item.unlock} bosses`);
     else this.blurb.setText(item.blurb);
@@ -130,7 +143,39 @@ export class ShopScene extends MenuScene {
     }
     if (!this.confirmed()) return false;
     const item = SHOP_ITEMS[this.selected];
-    if (this.selected === SHOP_ITEMS.length) {
+    if (this.selected === COLORS_ROW) {
+      sfx.select();
+      this.scene.start('wardrobe');
+      return true;
+    }
+    if (this.selected === PIP_ROW) {
+      if (!pipUnlocked(loadSave())) {
+        sfx.tick();
+        this.speak("Shh, it's a surprise! Beat a boss and come see me.");
+        return false;
+      }
+      sfx.select();
+      this.scene.start('pipshop');
+      return true;
+    }
+    if (this.selected === JUKEBOX_ROW) {
+      if (loadSave().jukebox) {
+        sfx.select();
+        this.scene.start('jukebox');
+        return true;
+      }
+      const r = buyJukebox();
+      if (r === 'ok') {
+        sfx.pickup();
+        this.speak('One jukebox! Pick a tune, any tune you have heard.', 'shop_thanks');
+      } else {
+        sfx.hurt();
+        this.speak("Ooh, you're a few bolts short. Go bust some bots!", 'shop_broke');
+      }
+      this.refresh();
+      return false;
+    }
+    if (this.selected === VAULT_ROW) {
       const secret = secretProgress();
       if (secret.found < secret.total) {
         sfx.tick();

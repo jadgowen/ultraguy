@@ -860,6 +860,7 @@ export class Projectile {
   /** Weapon-specific state (spark ring: 0 orbiting / 1 thrown; flame: facing). */
   state = 0;
   pierce = false; // keeps going after a hit (hits each target once)
+  pip = false; // one of Pip's shots (hits enemies, not bosses)
   ignoresShield = false;
   hasGravity = false;
   readonly hitTargets = new Set<object>();

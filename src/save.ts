@@ -1,7 +1,8 @@
 import { ALL_STAGE_IDS, StageId } from './level/Level';
 import { PART_ORDER, PartId } from './parts';
+import { PIP_CATALOG, PIP_MODULES, PIP_PAINTS, PIP_SHELLS, PIP_TRAILS, PipKind, PipModule, PipPaint, PipShell, PipTrail, pipOwns } from './pip';
 import { MAX_BOLTS, SHOP_ITEMS, ShopItemId } from './shop';
-import { SKIN_IDS, SkinId, setCurrentSkin, unlockedSkins } from './skins';
+import { SKINS, SKIN_IDS, SkinId, setCurrentSkin, unlockedSkins } from './skins';
 import { SLOT_COUNT, loadSettings } from './settings';
 import { WEAPON_ORDER, WeaponId } from './weapons';
 
@@ -26,6 +27,18 @@ export interface SaveData {
   magnet: boolean;
   /** Hidden 1-UPs ever found ("stage:x:y"); finding them all opens the secret stage. */
   oneUpsFound: string[];
+  /** Color schemes bought at Rivet's. */
+  boughtSkins: SkinId[];
+  /** Rivet's jukebox, and every music track heard so far (what it can play). */
+  jukebox: boolean;
+  heard: string[];
+  /** Pip: upgrades and looks bought ("kind:id"), upgrades switched off, what it's wearing, and whether you've met. */
+  pipOwned: string[];
+  pipOff: PipModule[];
+  pipShell: PipShell;
+  pipPaint: PipPaint;
+  pipTrail: PipTrail;
+  pipMet: boolean;
 }
 
 export const MAX_TANKS = 4;
@@ -44,7 +57,7 @@ export function activeSlot(): number {
 }
 
 function fresh(): SaveData {
-  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [] };
+  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [], boughtSkins: [], jukebox: false, heard: [], pipOwned: [], pipOff: [], pipShell: 'round', pipPaint: 'teal', pipTrail: 'none', pipMet: false };
 }
 
 /** Load the active slot (or `slot`). */
@@ -63,8 +76,9 @@ export function loadSave(slot = activeSlot()): SaveData {
       ? PART_ORDER.filter((x) => (data.parts as string[]).includes(x))
       : cleared.some((id) => id !== 'intro') ? [...PART_ORDER] : [];
     const exCleared = (data.exCleared ?? []).filter((s): s is StageId => ALL_STAGE_IDS.includes(s as StageId));
+    const boughtSkins = (data.boughtSkins ?? []).filter((s): s is SkinId => SKIN_IDS.includes(s as SkinId));
     // A scheme only counts if it's still unlocked.
-    const skin = SKIN_IDS.includes(data.skin as SkinId) && unlockedSkins(exCleared, cleared).some((s) => s.id === data.skin) ? (data.skin as SkinId) : 'classic';
+    const skin = SKIN_IDS.includes(data.skin as SkinId) && unlockedSkins(exCleared, cleared, boughtSkins).some((s) => s.id === data.skin) ? (data.skin as SkinId) : 'classic';
     const count = (v: unknown, max: number) => Math.max(0, Math.min(max, Math.floor(Number(v) || 0)));
     const cap = (id: ShopItemId) => SHOP_ITEMS.find((i) => i.id === id)!.max;
     return {
@@ -80,6 +94,15 @@ export function loadSave(slot = activeSlot()): SaveData {
       guards: count(data.guards, cap('guard')),
       magnet: data.magnet === true,
       oneUpsFound: Array.isArray(data.oneUpsFound) ? data.oneUpsFound.filter((k): k is string => typeof k === 'string') : [],
+      boughtSkins,
+      jukebox: data.jukebox === true,
+      heard: Array.isArray(data.heard) ? data.heard.filter((k): k is string => typeof k === 'string') : [],
+      pipOwned: Array.isArray(data.pipOwned) ? data.pipOwned.filter((k): k is string => typeof k === 'string') : [],
+      pipOff: Array.isArray(data.pipOff) ? data.pipOff.filter((k): k is PipModule => PIP_MODULES.some((m) => m.id === k)) : [],
+      pipShell: PIP_SHELLS.some((k) => k.id === data.pipShell) ? (data.pipShell as PipShell) : 'round',
+      pipPaint: PIP_PAINTS.some((k) => k.id === data.pipPaint) ? (data.pipPaint as PipPaint) : 'teal',
+      pipTrail: PIP_TRAILS.some((k) => k.id === data.pipTrail) ? (data.pipTrail as PipTrail) : 'none',
+      pipMet: data.pipMet === true,
     };
   } catch {
     return fresh(); // corrupt or blocked storage: start fresh
@@ -149,6 +172,74 @@ export function buy(id: ShopItemId): 'ok' | 'broke' | 'full' {
   else data.magnet = true;
   write(data);
   return 'ok';
+}
+
+/** Buy a color scheme at Rivet's: 'ok', 'broke', or 'owned' (already yours). */
+export function buySkin(id: SkinId): 'ok' | 'broke' | 'owned' {
+  const def = SKINS.find((k) => k.id === id);
+  const data = loadSave();
+  if (!def?.price || data.boughtSkins.includes(id)) return 'owned';
+  if (data.bolts < def.price) return 'broke';
+  data.bolts -= def.price;
+  data.boughtSkins.push(id);
+  write(data);
+  return 'ok';
+}
+
+/** Buy something for Pip: 'ok', 'broke', 'owned', or 'earned' (can't be bought). */
+export function buyPip(kind: PipKind, id: string): 'ok' | 'broke' | 'owned' | 'earned' {
+  const data = loadSave();
+  const t = PIP_CATALOG[kind].find((k) => k.id === id);
+  if (!t) return 'owned';
+  if (pipOwns(data, kind, id)) return 'owned';
+  if (t.price === undefined) return 'earned';
+  if (data.bolts < t.price) return 'broke';
+  data.bolts -= t.price;
+  data.pipOwned.push(`${kind}:${id}`);
+  write(data);
+  return 'ok';
+}
+
+/** Put a shell, paint or trail on Pip (one it owns), or switch an upgrade on or off. */
+export function setPip(kind: PipKind, id: string): void {
+  const data = loadSave();
+  if (!pipOwns(data, kind, id)) return;
+  if (kind === 'module') {
+    const m = id as PipModule;
+    data.pipOff = data.pipOff.includes(m) ? data.pipOff.filter((k) => k !== m) : [...data.pipOff, m];
+  } else if (kind === 'shell') data.pipShell = id as PipShell;
+  else if (kind === 'paint') data.pipPaint = id as PipPaint;
+  else data.pipTrail = id as PipTrail;
+  write(data);
+}
+
+/** Pip has said hello (the first time it shows up). */
+export function meetPip(): void {
+  updateSave((d) => {
+    d.pipMet = true;
+  });
+}
+
+/** The price of Rivet's jukebox. */
+export const JUKEBOX_PRICE = 100;
+
+/** Buy the jukebox: 'ok', 'broke', or 'owned'. */
+export function buyJukebox(): 'ok' | 'broke' | 'owned' {
+  const data = loadSave();
+  if (data.jukebox) return 'owned';
+  if (data.bolts < JUKEBOX_PRICE) return 'broke';
+  data.bolts -= JUKEBOX_PRICE;
+  data.jukebox = true;
+  write(data);
+  return 'ok';
+}
+
+/** A music track played for the first time on this save: the jukebox can play it now. */
+export function recordHeard(key: string): void {
+  const data = loadSave();
+  if (data.heard.includes(key)) return;
+  data.heard.push(key);
+  write(data);
 }
 
 /** Record an EX rematch won. */
