@@ -3,6 +3,7 @@ import type { ThemeId } from './level/Level';
 import { THEMES, Theme } from './level/themes';
 import { makeEnvArt } from './envArt';
 import { makeStoreArt } from './storeArt';
+import { makeMegamartArt } from './megamartArt';
 import { makeWeaponFx } from './weaponFx';
 import { makeShopArt } from './shopArt';
 import { makeEnemyArt } from './enemyArt';
@@ -444,6 +445,7 @@ function makeEffects(scene: Phaser.Scene): void {
     rect(g, 0xe8e4f0, 2, 1, 2, 2);
   });
   makeStoreArt(scene);
+  makeMegamartArt(scene);
   makeWeaponFx(scene);
   makeShopArt(scene);
   makeEnemyArt(scene);

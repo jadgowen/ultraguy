@@ -18,6 +18,8 @@ export interface BossFxFrame {
   eyeColor?: number;
   /** Hot spots (fists, a cannon) that glow while `heat` is up. */
   hot?: Spot[];
+  /** Their color (default forge orange). */
+  hotColor?: number;
   /** 0..1: how hot it's running (brighter glows, more embers). */
   heat: number;
   /** A muzzle flash this frame: where, and how strong (0..1). */
@@ -109,7 +111,7 @@ export class BossFx {
         return;
       }
       const p = at(s);
-      img.setPosition(p.x, p.y).setTint(0xffa040).setAlpha(0.32 * f.heat).setScale(0.24).setVisible(true);
+      img.setPosition(p.x, p.y).setTint(f.hotColor ?? 0xffa040).setAlpha(0.32 * f.heat).setScale(0.24).setVisible(true);
     });
     if (f.muzzle && (f.flash ?? 0) > 0) {
       const p = at(f.muzzle);

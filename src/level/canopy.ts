@@ -1,5 +1,8 @@
 import type { StageData } from './Level';
-import { bossArena, rows, SECRET_ROOM, SKY } from './rooms';
+import { bossArena, bossHall, rows, SECRET_ROOM, SKY } from './rooms';
+
+/** The quiet hallway before the boss room (see bossHall). */
+const lobby = bossHall();
 
 // CANOPY (jungle). Built around bounce flowers ('%'): land on one and it
 // throws you high (higher if you hold jump).
@@ -42,7 +45,7 @@ export const CANOPY: StageData = {
   bossName: 'MANTIS',
   bossWeapon: 'thorn',
   signature: [{ kind: 'snapper', from: 'spitter', every: 2 }, { kind: 'snapper', from: 'lurker', every: 1 }],
-  layout: ['...FGHJTI|XY', '...E..KM', 'ABCDS.NL'],
+  layout: ['...FGHJT78I|56|XY', '...E..KM', 'ABCDS.NL'],
   rise: { screens: 'LMT', speed: 0.3 },
   upgrade: 'boots',
   decor: [
@@ -153,7 +156,12 @@ export const CANOPY: StageData = {
       '###.CCC.H....###',
       ...rows('###.....H....###', 4),
     ],
-    I: [...rows('...............#', 10), '...............D', '..........##...D', '...B......##s..D', FLOOR, FLOOR],
+    I: [...rows('...............#', 10), '...............D', '..........##...D', '...c......##s..D', FLOOR, FLOOR],
+    // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    '7': ['................', '................', '................', '................', '................', '........f.......', '................', '................', '................', '................', '................', '.....CCCCC......', '..s.........l...', '#####^^^^^######', '################'],
+    '8': ['................', '................', '................', '................', '................', '................', '..........$.....', '.........CCCC...', '................', '................', '................', '................', '...........l....', '####%###########', '################'],
+    '5': lobby.left,
+    '6': lobby.right,
     X: room.left,
     Y: room.right,
   },

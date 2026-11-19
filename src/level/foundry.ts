@@ -1,5 +1,8 @@
 import type { StageData } from './Level';
-import { bossArena, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
+import { bossArena, bossHall, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
+
+/** The quiet hallway before the boss room (see bossHall). */
+const lobby = bossHall();
 
 // FOUNDRY. Built around crushers ('!'): presses that wait, slam to the floor
 // and slowly rise, in a rolling wave down a line.
@@ -43,7 +46,7 @@ export const FOUNDRY: StageData = {
   bossName: 'ANVIL',
   bossWeapon: 'quake',
   signature: [{ kind: 'hammerbot', from: 'walker', every: 2 }, { kind: 'hammerbot', from: 'hopper', every: 1 }],
-  layout: ['ABCDS', '...Ee', '....FGHI12J|XY'],
+  layout: ['ABCDS', '...Ee', '....FGHI1278J|56|XY'],
   miniboss: 'press',
   upgrade: 'blaster',
   screens: {
@@ -95,7 +98,12 @@ export const FOUNDRY: StageData = {
     I: [CEIL, CEIL, ...rows(SKY, 8), '..........t.....', '.........#######', '.....w...#######', FLOOR, FLOOR],
     '1': lineA,
     '2': lineB,
-    J: [...rows('...............#', 10), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
+    J: [...rows('...............#', 10), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
+    // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    '7': ['################', '################', '................', '................', '................', '........f.......', '................', '................', '..........$.....', '.........####...', '................', '.....###........', '..w.........w...', '################', '################'],
+    '8': ['################', '################', '...!......!.....', '................', '................', '................', '................', '................', '................', '................', '................', '..........t.....', '.....h..........', '################', '################'],
+    '5': lobby.left,
+    '6': lobby.right,
     X: room.left,
     Y: room.right,
   },

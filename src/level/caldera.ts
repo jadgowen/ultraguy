@@ -1,5 +1,8 @@
 import type { StageData } from './Level';
-import { bossArena, rows, SKY } from './rooms';
+import { bossArena, bossHall, rows, SKY } from './rooms';
+
+/** The quiet hallway before the boss room (see bossHall). */
+const lobby = bossHall();
 
 // CALDERA. Built around lava: lifts over it, rock that crumbles into it, and
 // a climb with the lava rising behind you.
@@ -37,7 +40,7 @@ export const CALDERA: StageData = {
   bossName: 'MAGMA',
   bossWeapon: 'flame',
   signature: [{ kind: 'lavaLeaper', from: 'slug', every: 1 }, { kind: 'lavaLeaper', from: 'ember', every: 3 }],
-  layout: ['...FGHJTI|XY', '...E..KM', 'ABCD..NL'],
+  layout: ['...FGHJT78I|56|XY', '...E..KM', 'ABCD..NL'],
   rise: { screens: 'DE', speed: 0.35 },
   screens: {
     // --- 1. Across the lava -------------------------------------------------------------
@@ -95,7 +98,12 @@ export const CALDERA: StageData = {
     L: [...rows('###..........###', 10), '.............###', '.............###', '.......;.....###', FLOOR, FLOOR],
     M: rows('###..........###', 15),
     T: [CEIL, CEIL, ...rows('###..........###', 8), '###.............', '###.............', '###....,........', '###.......######', '###.......######'],
-    I: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
+    I: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
+    // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    '7': ['################', '################', '................', '................', '................', '................', '................', '................', '................', '................', '................', '................', '.......e....m...', '######LLL#######', '######LLL#######'],
+    '8': ['################', '################', '................', '................', '................', '................', '..........f.....', '................', '................', '................', '....$...........', '...###..........', '.............m..', '################', '################'],
+    '5': lobby.left,
+    '6': lobby.right,
     X: room.left,
     Y: room.right,
   },

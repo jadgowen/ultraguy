@@ -46,6 +46,15 @@ export class Buf {
   rect(x0, y0, w, h, c) {
     for (let y = Math.round(y0); y < Math.round(y0) + h; y++) for (let x = Math.round(x0); x < Math.round(x0) + w; x++) this.px(x, y, c);
   }
+  /** A 1px line through the points. */
+  line(pts, c) {
+    for (let i = 0; i < pts.length - 1; i++) {
+      const [x0, y0] = pts[i];
+      const [x1, y1] = pts[i + 1];
+      const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, y1 - y0)));
+      for (let k = 0; k <= n; k++) this.px(x0 + ((x1 - x0) * k) / n, y0 + ((y1 - y0) * k) / n, c);
+    }
+  }
   outline() {
     const { w, h } = this;
     const out = this.c.slice();
@@ -97,3 +106,9 @@ export const poly = (pts) => (x, y) => {
   return inside;
 };
 
+
+/** A color ramp from four palette characters. */
+export const ramp = (shine, light, base, dark) => ({ shine, light, base, dark });
+
+/** Offsets from a frame's bottom-center (for the game's glow anchors). */
+export const relTo = (W, H) => (p) => [Math.round((p[0] - W / 2) * 10) / 10, Math.round((p[1] - H) * 10) / 10];

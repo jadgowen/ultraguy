@@ -76,22 +76,20 @@ matter, and four set pieces with no boss at all.
 
 | Stage | Midpoint | How it works |
 |---|---|---|
-| Foundry | PRESS TITAN on the line | presses (`!`) slam over the arena and the floor is a belt; a press that comes down on the Titan crushes it for a big hit |
+| Foundry | PRESS TITAN on the line | presses (`!`) slam over the arena and the floor is a belt; your shots bounce off him: lure him under a press (three crushes beat him) |
 | Canopy | THE GREAT CLIMB | up the inside of a tree on flowers, branches and vines while brambles rise after you (`rise` with the jungle's `rise_jungle` fill) |
-| Glacier | TUSK MAMMOTH on thin ice | thin ice (`_`, drawn pale) cracks under its charges and breaks away into the water, then freezes back over |
+| Glacier | TUSK MAMMOTH on thin ice | your shots bounce off him and he only charges; his charges break the thin ice (`_`, drawn pale) behind him, and charging back over a hole drops him in the water (three falls beat him); holes freeze back over |
 | Stratos | STORM KITE over open sky | a ledge each side, a gap with moving and crumbling clouds between, and the gusts still blowing |
 | Power Plant | BLACKOUT | the lights cut out as you walk in (`blackout`), Sparkers swarm; shoot the three generators (`O`) to bring the lights back and open the shutter (`Q`); `src/scenes/blackout.ts` |
 | Caldera | MAGMA ELEVATOR | a lift (`;` start, `,` stop) carries you up a shaft with magma right behind; `src/scenes/elevator.ts` |
 | Scrapyard | COMPACTOR ESCAPE | a wall of grinding steel (`compactor`) chases you through junk: slide under the pipes, jump the rest |
 | Reef | the ANGLER's dark trench | pitch dark; its lure is the only other light, and it dims and flickers just before it lunges |
 
-The minibosses fight back differently as the fight goes on (`src/entities/bosses/Miniboss.ts`):
-- **Breakable parts.** The Press Titan's hammer arms and the Tusk Mammoth's tusks soak up the shots that hit
-  them (jump to shoot over them and hit the body instead). Break them off for a big hit, and the attack is gone:
-  no arms, no shockwaves from its stomps; no tusks, no charge (so no more cracked ice).
-- **Half health.** Each one's fight changes: the Titan's presses speed up, the Mammoth is enraged, the Kite's
-  storm builds (harder, more frequent gusts, and lightning strikes where you stand), and the Angler's trench
-  stops flashing while its lure dims.
+The minibosses fight back differently as the fight goes on (`src/entities/bosses/Miniboss.ts`). The Press
+Titan and the Tusk Mammoth can only be beaten by their arenas (`ARENA_ONLY`; a hint says how at the start).
+At half health each one's fight changes: the Titan's presses speed up, the Mammoth is enraged, the Kite's
+storm builds (harder, more frequent gusts, and lightning strikes where you stand), and the Angler's trench
+stops flashing while its lure dims.
 
 **Boss art.** Anvil is the first boss redrawn on the same shaded-parts approach as the hero (the "Molten"
 design, picked from `art/mockups/anvil.html`): a 3/4 view with the far arm and leg in shadow, four breaths of
@@ -107,8 +105,15 @@ the core blazes through: that's the tell. The fireballs form over his raised, mo
 drawn by `art/voltArt.mjs`): navy armor, lightning-bolt antennae and coil hands, with a battery in his chest whose
 bar fills as he charges up to cast. Current crackles between his antennae (more as he charges) and from his
 battery to his hands when he casts (the effects layer's arcs), his orbs come out of his raised hand, and his warp
-comes apart in bands, throwing sparks. All three share the drawing tools in `art/shadedParts.mjs`, and the other
-bosses can move over one at a time.
+comes apart in bands, throwing sparks. Mantis (the "Orchid Assassin"), Frostline (the "Crystal Bird"), Gale (the "Storm Harpy") and Tide (the
+"Leviathan") followed, picked from the mockups in `art/mockups/` and drawn by `art/mantisArt.mjs`,
+`frostlineArt.mjs`, `galeArt.mjs` and `tideArt.mjs` (their glow spots are in
+`src/entities/bosses/bossAnchors.ts`): each has a four-beat idle, takeoff and landing frames, and attack poses,
+with the effects layer on top (Mantis bursts petals as she vanishes, Tide's lights glow sea-green). They all
+share the drawing tools in `art/shadedParts.mjs`. Scrap is the last (the "Junk Golem" from `art/mockups/scrap.html`,
+drawn by `art/scrapArt.mjs`): a floating giant made of the junk in his magnet's field, with car-block fists. His
+stomp is gone; instead he raises his fist, a horseshoe opens in his palm and he pulls the ceiling down: dust
+trickles and shadows darken where the junk will fall, then it rains in one piece after another (stand in the gaps).
 
 Each stage's boss room is its own too (`bossArena` in `src/level/rooms.ts`; the room's own behavior is in
 `src/scenes/arenaFx.ts`). Bosses fall through one-way ledges, so the ledges are only for you:
@@ -120,13 +125,16 @@ Each stage's boss room is its own too (`bossArena` in `src/level/rooms.ts`; the 
 | FROSTLINE | ice ledges over his slides; slamming a wall shakes icicles loose from the ceiling |
 | GALE | an updraft up the middle carries you to her height, with a cloud either side |
 | VOLT | switch-block ledges that take turns, and live floor plates that switch with the barriers |
-| MAGMA | the lava surges over the floor every so often (it burns, it doesn't kill); wait it out on a basalt ledge |
+| MAGMA | the lava surges over the floor every so often (it burns, it doesn't kill; drawn with the stage's animated lava); wait it out on a basalt ledge |
 | SCRAP | two junk humps stop his rolling saws, and a crane platform rides back and forth overhead |
 | TIDE | underwater |
 
 Just before the midpoint, a low block hides a crawlspace (only the
 slide gets in) holding an energy tank (E-tank), and in some stages a 1-UP; it looks like solid wall,
 notched at each end, until you're inside. The armor-part rooms hide a 1-UP too.
+
+**Energy bars.** Life, the equipped weapon's ammo and the boss each get a shaded metal bar with a badge under it
+(helmet, weapon gem, boss skull); units you just lost flash and then drain away, and low life pulses red.
 
 **Lives.** You start each stage with 2 extra lives (shown under the health bars); 1-UPs add one (up to 9).
 Dying with lives left sends you to the last checkpoint; with none left it's GAME OVER and back to the stage
@@ -137,6 +145,14 @@ crawlspaces and armor-part rooms. Press Q (L1) on the stage select to visit RIVE
 1-UPs (added to your lives when you next enter a stage), E-tanks, W-tanks (refill every weapon from the pause
 menu), the Spike Guard (survive one spike or lava fall) and the Bolt Magnet (pickups fly to you). More stock
 comes in as you beat bosses (`src/shop.ts`).
+Every boss stage ends with an extra stretch before the boss door (screens `7` and `8`: more of the stage's
+enemies, a stage hazard and a bolt cache). Enemies drop bolts often (small 2, big 8) and caches hold 25.
+
+**Boss hallways.** Past the stage's last door there's a quiet hallway (like the X games): two screens with a low,
+beamed ceiling and no enemies, then the boss door. It has the checkpoint (and the boss-test start), so you can
+pick your weapon calmly, and a retry after a boss death starts there. `bossHall()` in `src/level/rooms.ts`
+(screens `5` and `6`, layout `...|56|XY`); in all eight boss stages, the three fortress stages and MEGAMART.
+
 Rivet also runs a PAINT SHOP (eight color schemes for UltraGuy, 50 to 200 bolts; bought ones join the EX
 colors in the stage select's picker) and sells a JUKEBOX (100 bolts) that plays any track you've heard. The
 game notes each track the first time it plays, and older saves get the ones their progress proves
@@ -167,6 +183,7 @@ enemies (`signature` in each stage file).
 
 **The secret.** One 1-UP hides in every boss stage. Find all eight (they're remembered) and Rivet hands you the
 key to MEGAMART, the megastore of Rivet's rival, the BARGAIN BARON: a rooftop run past every signature enemy
+(billboards, water towers and stock left out on the roofs, then the store's front; art in `src/megamartArt.ts`)
 and a boss fight (coin tosses, a SALE-sign dash, a coin vacuum, falling stock). Beating him pays 250 bolts and
 unlocks the GOLD color scheme.
 

@@ -1,0 +1,145 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>TIDE design mockups</title>
+<style>
+  body { margin: 0; background: #0b0d1a; color: #fff1e0; font: 14px/1.4 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 18px; color: #f28c28; margin: 16px 20px 4px; }
+  p.lead { margin: 0 20px 12px; color: #8a8fa8; max-width: 980px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 14px; padding: 0 20px 24px; }
+  .card { background: #141626; border: 2px solid #3a3f66; border-radius: 6px; padding: 12px; }
+  .card.current { border-color: #55607a; }
+  .card h2 { margin: 0; font-size: 15px; color: #5ef0c8; }
+  .card .tag { color: #8a8fa8; font-size: 12px; margin: 2px 0 8px; }
+  canvas { image-rendering: pixelated; background: #1c1f36; border-radius: 3px; display: block; }
+  .poses { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .poses div { font-size: 11px; color: #8a8fa8; text-align: center; }
+  .controls { margin: 0 20px 12px; display: flex; gap: 16px; color: #8a8fa8; }
+  .controls label { cursor: pointer; }
+</style>
+</head>
+<body>
+<script src="kit.js"></script>
+<script>
+const PAL = {
+  K: '#1a1428', W: '#ffffff', w: '#e6f0ff', G: '#8a8fa8', g: '#55607a', d: '#2b2540', x: '#141226',
+  // ocean blues
+  C: '#c8f0ff', B: '#6ab8e8', b: '#3a78b8', n: '#1e4a88', m: '#14305a',
+  // belly, mouth, lights
+  Z: '#f4f8ff', R: '#e8484e', r: '#8c2030', Y: '#ffe14a', V: '#5ef0c8', v: '#2aa088',
+  // eel greens
+  E: '#8ae8c8', e: '#3aa888', f: '#1e6a5a',
+};
+const R = (shine, light, base, dark) => ({ shine, light, base, dark });
+const BLUE = R('C', 'B', 'b', 'n'), BLUEB = R('B', 'b', 'n', 'm'), BELLY = R('W', 'Z', 'w', 'C');
+const W = 48, H = 44;
+const MOVES = [
+  { name: 'cruise', len: 70 }, { name: 'aim', len: 24 }, { name: 'dash', len: 26 }, { name: 'cruise', len: 20 },
+  { name: 'bubbles', len: 50 }, { name: 'dive', len: 26 }, { name: 'geyser', len: 40 },
+];
+function pose(m, f) {
+  const P = { t: f, sway: Math.sin(f * 0.18), open: 0, dash: 0 };
+  if (m.name === 'bubbles') P.open = Math.abs(Math.sin(m.t * 0.25));
+  if (m.name === 'dash') { P.dash = 1; P.open = 1; P.sway = Math.sin(f * 0.6) * 0.5; }
+  if (m.name === 'aim') P.sway *= 0.4;
+  return P;
+}
+function shark(P, s) {
+  const b = new Buf(W, H, PAL);
+  const cx = 24, cy = 28;
+  const stretch = P.dash ? 3 : 0;
+  // Tail fin (sways), back fin, body, belly, head (hammer for B), dorsal fin, pectoral fin, eye, jaw.
+  const tx = cx - 15 - stretch, ty = cy + P.sway * 2;
+  b.part(poly([[tx + 4, ty - 1], [tx - 4, ty - 8 + P.sway * 2], [tx - 1, ty], [tx - 4, ty + 7 + P.sway * 2], [tx + 4, ty + 2]]), BLUEB);
+  b.part(ellipse(cx - 1, cy, 16 + stretch, 6.5), s.body ?? BLUE);
+  b.part((x, y) => ellipse(cx - 1, cy, 16 + stretch, 6.5)(x, y) && y > cy + 1.5, BELLY, { shine: false });
+  b.part(poly([[cx - 4, cy - 5], [cx + 1, cy - 13], [cx + 4, cy - 5]]), s.body ?? BLUE);
+  if (s.hammer) {
+    b.part(rrect(cx + 11, cy - 9, cx + 16, cy + 5, 2), s.body ?? BLUE);
+    b.part(ellipse(cx + 13.5, cy - 7, 1.6, 1.6), R('W', 'Y', 'Y', 'Y'));
+    b.part(ellipse(cx + 13.5, cy + 3, 1.6, 1.6), R('W', 'Y', 'Y', 'Y'));
+  } else {
+    b.rect(cx + 9, cy - 3, 2, 2, 'K');
+    b.px(cx + 9, cy - 3, 'W');
+  }
+  // Gill vents.
+  for (let i = 0; i < 3; i++) b.line([[cx + 4 - i * 2, cy - 2], [cx + 3 - i * 2, cy + 2]], 'n');
+  // The jaw: opens for bubbles and the dash, with teeth.
+  const jo = P.open * 3;
+  b.part(poly([[cx + 8, cy + 2], [cx + 16 + stretch, cy + 1 - jo * 0.3], [cx + 15 + stretch, cy + 3 + jo], [cx + 8, cy + 4 + jo * 0.5]]), jo > 0.5 ? R('R', 'R', 'r', 'r') : BELLY, { shine: false });
+  if (jo > 0.5) for (let i = 0; i < 3; i++) { b.px(cx + 10 + i * 2, cy + 2, 'W'); b.px(cx + 11 + i * 2, cy + 3 + jo, 'W'); }
+  b.part(poly([[cx - 2, cy + 3], [cx - 9, cy + 11], [cx + 2, cy + 6]]), BLUEB);
+  // Mech plating: rivets along the back, a lamp.
+  for (let i = -10; i <= 6; i += 4) b.px(cx + i, cy - 5, 'C');
+  if (s.lamp) b.part(ellipse(cx + 6, cy - 6, 1.4, 1.4), R('W', 'V', 'V', 'v'));
+  b.outline();
+  return { b, glow: { eye: s.hammer ? [cx + 13.5, cy - 2] : [cx + 10, cy - 2], mouth: [cx + 16, cy + 3] } };
+}
+function eel(P) {
+  const b = new Buf(W, H, PAL);
+  const cy = 28;
+  // A long segmented eel: segments follow a travelling wave from head to tail.
+  const n = 9;
+  const seg = (i) => {
+    const k = i / (n - 1);
+    const x = 40 - k * (34 + (P.dash ? 4 : 0));
+    const y = cy + Math.sin(P.t * 0.2 - k * 4) * (P.dash ? 1 : 3.5) * k;
+    return [x, y, 5.5 - k * 3];
+  };
+  for (let i = n - 1; i >= 1; i--) {
+    const [x, y, r] = seg(i);
+    b.part(ellipse(x, y, r + 1, r), i % 2 ? R('E', 'e', 'e', 'f') : R('E', 'E', 'e', 'f'));
+    b.px(x, y - r + 1, 'V');
+  }
+  // Fin along the back, the head with a lantern lure and a wide jaw.
+  const [hx, hy] = seg(0);
+  b.part(ellipse(hx, hy, 7, 5.5), R('E', 'E', 'e', 'f'));
+  b.part(poly([[hx - 3, hy - 4], [hx - 8, hy - 10], [hx - 6, hy - 4]]), R('V', 'V', 'v', 'v'));
+  b.part(ellipse(hx + 2, hy - 2, 1.8, 1.8), R('W', 'Y', 'Y', 'Y'));
+  const jo = P.open * 3;
+  b.part(poly([[hx + 2, hy + 1], [hx + 8, hy + 0.5 - jo * 0.3], [hx + 7, hy + 3 + jo], [hx + 1, hy + 4]]), jo > 0.5 ? R('R', 'R', 'r', 'r') : R('E', 'e', 'e', 'f'), { shine: false });
+  b.outline();
+  return { b, glow: { eye: [hx + 2, hy - 2], mouth: [hx + 8, hy + 2], lights: [1, 3, 5, 7].map((i) => seg(i)) } };
+}
+Kit.start({
+  name: 'TIDE',
+  lead: "Each card plays Tide's move set (all underwater): cruising, taking aim, a dash at you, a stream of bubbles from the open jaw, then a dive to the floor and geysers up under you. Big view 5x next to UltraGuy; game-scale poses below. Bubbles, the wake and the geysers are effects added on top. CURRENT is today's poses.",
+  currentTag: "Today's Tide: four poses (idle, swim, dash, open).",
+  currentFrame: (m) => (m.name === 'dash' ? 'tide_dash' : m.name === 'bubbles' ? 'tide_open' : m.name === 'cruise' ? 'tide_swim' : 'tide_idle'),
+  floor: ['#1a3a4a', '#c8b078'],
+  backdrop: (ctx, w, h) => { const g = ctx.createLinearGradient(0, 0, 0, h); g.addColorStop(0, '#1e5a8a'); g.addColorStop(1, '#0e2a48'); ctx.fillStyle = g; ctx.fillRect(0, 0, w, h); },
+  moves: MOVES, pose,
+  minis: [['cruise', { name: 'cruise', t: 0, k: 0 }], ['dash', { name: 'dash', t: 10, k: 0.4 }], ['bubbles', { name: 'bubbles', t: 6, k: 0.2 }], ['geyser', { name: 'geyser', t: 10, k: 0.3 }]],
+  place: (m, P) => {
+    const bob = Math.sin(P.t * 0.06) * 2;
+    if (m.name === 'dash') return { x: lerp(66, 36, ease(m.k)), lift: 10, flip: false };
+    if (m.name === 'dive') return { x: 60, lift: lerp(14, -4, m.k) };
+    if (m.name === 'geyser') return { x: 60, lift: -4 };
+    return { x: 66, lift: 14 + bob };
+  },
+  effects: (env) => {
+    const { ctx, m, card, S, fi, ox, oy, glow, groundY } = env;
+    if (env.current) return;
+    if (m.name === 'bubbles' && fi % 4 === 0) Kit.push(card, { x: ox + glow.mouth[0] * S, y: oy + glow.mouth[1] * S, vx: -3 - Math.random() * 2, vy: -0.5, life: 60, bubble: true });
+    if (fi % 9 === 0) Kit.push(card, { x: ox + 10 * S, y: oy + 26 * S, vx: 0, vy: -1.5, life: 50, bubble: true, small: true });
+    if (m.name === 'dash' && fi % 2 === 0) Kit.push(card, { x: ox + 8 * S, y: oy + 28 * S, vx: 2, vy: -0.3, life: 16, wake: true });
+    if (m.name === 'geyser' && (m.t === 6 || m.t === 26)) Kit.push(card, { x: (18 + m.t) * S, y: groundY, vx: 0, vy: 0, life: 24, geyser: true });
+    Kit.run(env, (p) => {
+      if (p.bubble) { ctx.strokeStyle = 'rgba(200,240,255,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(p.x, p.y, (p.small ? 1 : 2.4) * S, 0, Math.PI * 2); ctx.stroke(); }
+      if (p.wake) { ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.fillRect(p.x, p.y, 6 * S, S * 0.6); }
+      if (p.geyser) { const h = 30 * S * Math.min(1, (24 - p.life) / 4); ctx.fillStyle = 'rgba(200,240,255,0.75)'; ctx.fillRect(p.x - 5 * S, groundY - h, 10 * S, h); ctx.fillStyle = 'rgba(255,255,255,0.9)'; ctx.fillRect(p.x - 2 * S, groundY - h, 4 * S, h); }
+    });
+    glowAt(ctx, ox + glow.eye[0] * S, oy + glow.eye[1] * S, 5 * S, '255,225,74', 0.35);
+    if (glow.lights) for (const [x, y] of glow.lights) glowAt(ctx, ox + x * S, oy + (y - 4) * S, 4 * S, '94,240,200', 0.4);
+  },
+  designs: [
+    { id: 'shark', name: 'A. STEEL SHARK+', tag: "Today's Tide drawn properly: a blue mech shark with a white belly, riveted back plating, gill vents trailing bubbles, a tail that sways as it swims, and a jaw that opens on the bubble stream and the dash. Closest to now.", draw: (P) => shark(P, {}) },
+    { id: 'hammer', name: 'B. HAMMERHEAD', tag: 'A hammerhead mech: the wide hammer head carries two glowing yellow eyes like headlamps, with a teal sonar lamp on its back. Instantly recognizable, and a different shape from every other boss.', draw: (P) => shark(P, { hammer: true, lamp: true }) },
+    { id: 'eel', name: 'C. LEVIATHAN', tag: "A great sea eel: a long segmented body that ripples in a travelling wave, glowing teal lights down its back, a fin crest and a wide jaw. The most dramatic in the water; it would need its dash and dive retimed to its length.", draw: eel },
+  ],
+});
+
+</script>
+</body>
+</html>

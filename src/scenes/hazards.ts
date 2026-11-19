@@ -293,10 +293,32 @@ export class Hazards {
       k.lamp.setY(Math.round(k.y) + 5).setVisible(blink);
       k.rod.setSize(8, Math.max(1, Math.round(k.y - k.top)));
       const box: Box = { x: k.x + 1, y: k.y, w: CRUSH_W - 2, h: CRUSH_HEAD };
-      if (p.alive && overlaps(p, box)) p.hurt(PHYS.crusherDamage, k.x + CRUSH_W / 2);
+      if (p.alive && overlaps(p, box)) this.touchCrusher(p, k);
       if (k.state === 'wait') k.hitBoss = false;
       else if ((k.state === 'fall' || k.state === 'hold') && !k.hitBoss && this.host.crushBoss?.(box)) k.hitBoss = true;
     }
+  }
+
+  /**
+   * Touching a press. Coming down on you, it hurts. Anything else is just a
+   * solid block of steel: walking into its side pushes you back, and jumping
+   * into its underside bonks your head. No damage either way.
+   */
+  private touchCrusher(p: Player, k: Crusher): void {
+    const bottom = k.y + CRUSH_HEAD;
+    // Where its underside was a step ago: if that was above your head, it came down on you.
+    const wasAbove = bottom - Math.max(0, k.vy) <= p.y + 4;
+    if (k.state === 'fall' && wasAbove) {
+      p.hurt(PHYS.crusherDamage, k.x + CRUSH_W / 2);
+      return;
+    }
+    if (p.vy < 0 && p.y > bottom - 6) {
+      p.y = bottom;
+      p.vy = 0;
+      return;
+    }
+    if (p.cx < k.x + CRUSH_W / 2) p.x = k.x - p.w;
+    else p.x = k.x + CRUSH_W;
   }
 
   private stepSwitches(): void {

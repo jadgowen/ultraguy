@@ -33,10 +33,18 @@ interface PartDef {
 }
 
 export const MINI_PARTS: Partial<Record<MiniKind, PartDef>> = {
-  // The hammer arms: without them its stomps are only hops (no shockwaves).
-  press: { label: 'HAMMER ARMS', hp: 6, boxes: [[-22, -26, 8, 21], [14, -26, 8, 21]] },
-  // The tusks: without them it can't charge.
-  mammoth: { label: 'TUSKS', hp: 6, boxes: [[12, -20, 12, 11]] },
+  // (The Press Titan's hammer arms and the Mammoth's tusks used to break off;
+  // both are now beaten by their arenas instead, so neither has a part.)
+};
+
+/**
+ * Minibosses your weapons can't hurt: only their arena can.
+ *  - Press Titan: the presses (three crushes).
+ *  - Tusk Mammoth: the water under the thin ice (three falls through it).
+ */
+export const ARENA_ONLY: Partial<Record<MiniKind, { hint: string; hit: number }>> = {
+  press: { hint: 'LURE IT UNDER THE PRESSES!', hit: 6 },
+  mammoth: { hint: 'MAKE IT CHARGE ONTO THIN ICE!', hit: 6 },
 };
 
 /**
@@ -46,7 +54,7 @@ export const MINI_PARTS: Partial<Record<MiniKind, PartDef>> = {
 export const MINIBOSSES: Record<MiniKind, MiniDef> = {
   press: { name: 'PRESS TITAN', w: 38, h: 36, hp: 18, weakness: 'thorn', moves: ['stomp', 'volley', 'stomp'], shot: { tex: 'bshot', w: 6, h: 6 } },
   toad: { name: 'BRIAR TOAD', w: 38, h: 28, hp: 18, weakness: 'cyclone', moves: ['hop', 'lob', 'hop'], shot: { tex: 'seed', w: 6, h: 6 } },
-  mammoth: { name: 'TUSK MAMMOTH', w: 42, h: 32, hp: 18, weakness: 'quake', moves: ['charge', 'rain', 'volley'], shot: { tex: 'iceshard', w: 6, h: 6 } },
+  mammoth: { name: 'TUSK MAMMOTH', w: 42, h: 32, hp: 18, weakness: 'quake', moves: ['charge'], shot: { tex: 'iceshard', w: 6, h: 6 } },
   kite: { name: 'STORM KITE', w: 40, h: 20, hp: 16, weakness: 'frost', moves: ['rain', 'swoop', 'volley'], flies: true, shot: { tex: 'bolt', w: 6, h: 12 } },
   dynamo: { name: 'DYNAMO', w: 34, h: 36, hp: 18, weakness: 'saw', moves: ['ring', 'volley', 'hop'], shot: { tex: 'vorb', w: 8, h: 8 } },
   crab: { name: 'CINDER CRAB', w: 40, h: 26, hp: 18, weakness: 'bubble', moves: ['lob', 'charge', 'lob'], shot: { tex: 'fireball', w: 8, h: 8 } },
@@ -124,6 +132,19 @@ export class Miniboss extends Boss {
     return this.def.name;
   }
 
+  /** Beaten only by its arena (shots bounce off). */
+  get arenaOnly(): boolean {
+    return !this.guardian && !!ARENA_ONLY[this.mini as MiniKind];
+  }
+
+  blocksShots(): boolean {
+    return this.arenaOnly && this.sinkT === 0;
+  }
+
+  /** Steps into a fall through the ice (0 = not falling). */
+  private sinkT = 0;
+  private hinted = false;
+
   /** A fortress guardian is the stage's boss, not a mid-stage fight. */
   get guardian(): boolean {
     return this.mini in GUARDIANS;
@@ -175,9 +196,19 @@ export class Miniboss extends Boss {
       }
       return;
     }
+    if (this.sinkT > 0) {
+      this.stepSink();
+      return;
+    }
     super.step();
     if (this.partInvuln > 0) this.partInvuln--;
     if (this.state !== 'fight') return;
+    if (this.arenaOnly && !this.hinted) {
+      this.hinted = true;
+      this.g.hint(ARENA_ONLY[this.mini as MiniKind]!.hint);
+    }
+    // Over a hole in the ice (nothing under its middle): it falls in.
+    if (this.mini === 'mammoth' && this.grounded === false && this.vy > 0 && this.bottom > this.room.floor + 2) this.sinkT = 1;
     // Half health: the fight changes (the room joins in; see GameScene.miniPhase).
     if (!this.enraged && this.phase2 && !this.guardian) {
       this.enraged = true;
@@ -187,6 +218,36 @@ export class Miniboss extends Boss {
     // A cracked part smokes and sparks.
     const box = this.partBoxes()[0];
     if (box && this.part && this.partHp <= this.part.hp / 2 && this.t % 14 === 0) this.g.burst(box.x + box.w / 2, box.y + 4, 'spark', 1);
+  }
+
+  /**
+   * Through the ice and into the freezing water: it sinks, it's hurt, and it
+   * scrambles back out onto the nearest solid ice.
+   */
+  private stepSink(): void {
+    this.sinkT++;
+    this.vx = 0;
+    if (this.sinkT < 26) {
+      this.y += 1.5;
+      if (this.sinkT === 2) this.g.miniFell(this);
+      return;
+    }
+    // Out: onto the nearest standing spot, with a leap.
+    const T = 16;
+    const row = Math.floor(this.room.floor / T);
+    const c0 = Math.floor(this.cx / T);
+    const ok = (c: number) => this.g.level.isSolid(c, row) && this.g.level.isSolid(c + 1, row) && this.g.level.isSolid(c - 1, row);
+    let best = c0;
+    for (let d = 0; d < 20; d++) {
+      if (ok(c0 + d) && (c0 + d) * T + this.w / 2 < this.room.right) { best = c0 + d; break; }
+      if (ok(c0 - d) && (c0 - d) * T - this.w / 2 > this.room.left) { best = c0 - d; break; }
+    }
+    this.x = best * T + T / 2 - this.w / 2;
+    this.y = this.room.floor - this.h - 18;
+    this.vy = -3;
+    this.grounded = false;
+    this.sinkT = 0;
+    this.setMove('idle', 50);
   }
 
   /**
@@ -288,7 +349,8 @@ export class Miniboss extends Boss {
           const T = 16;
           const row = Math.floor((this.bottom + 1) / T);
           const front = this.vx > 0 ? this.x + this.w + this.vx + 2 : this.x + this.vx - 2;
-          const gapAhead = thin && !this.g.level.isSolid(Math.floor(front / T), row);
+          // (The Mammoth charges straight on now: running out over a hole is how it falls in.)
+          const gapAhead = thin && this.mini !== 'mammoth' && !this.g.level.isSolid(Math.floor(front / T), row);
           if (thin) {
             for (let c = Math.floor((this.x + 4) / T); c <= Math.floor((this.x + this.w - 4) / T); c++) {
               if (this.cracked.has(c)) continue;
@@ -490,7 +552,7 @@ export class Miniboss extends Boss {
   private choose(): void {
     // No tusks, no charge.
     const moves = this.broken && this.mini === 'mammoth' ? this.def.moves.filter((m) => m !== 'charge') : this.def.moves;
-    const pool = moves.filter((m) => m !== this.last);
+    const pool = moves.length > 1 ? moves.filter((m) => m !== this.last) : moves;
     const pick = pool[Math.floor(Math.random() * pool.length)];
     this.last = pick;
     this.setMove(pick);

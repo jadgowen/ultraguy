@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import type { Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
+import { BOSS_ANCHORS } from './bossAnchors';
 import { Boss, Room } from './Boss';
+import { BossFx } from './bossFx';
 
 type Mode = 'rise' | 'hover' | 'blow' | 'tornado' | 'aim' | 'dive' | 'recover' | 'twin';
 
@@ -22,8 +24,15 @@ export class Gale extends Boss {
   private diveVy = 0;
   private divesLeft = 0;
 
+  private readonly fx: BossFx;
+  /** Steps airborne, and left in the landing squash. */
+  private airT = 0;
+  private landT = 0;
+  private wasGrounded = true;
+
   constructor(g: GameScene, at: Point, room: Room) {
     super(g, 'gale', 26, 26, 'frost', at, room);
+    this.fx = new BossFx(g);
     // Low enough that a jumping shot reaches it, high enough to walk under.
     this.hoverY = room.floor - 60;
   }
@@ -165,6 +174,47 @@ export class Gale extends Boss {
 
   protected introPose(): string {
     return 'blow';
+  }
+
+  step(): void {
+    super.step();
+    if (this.grounded && !this.wasGrounded) this.landT = 8;
+    this.wasGrounded = this.grounded;
+    if (this.landT > 0) this.landT--;
+    this.airT = this.grounded ? 0 : this.airT + 1;
+  }
+
+  /** The frame for right now (see art/galeArt.mjs for what each looks like). */
+  private frame(): string {
+    const m = this.mode;
+    if (m === 'dive' || m === 'twin') return 'dive';
+    if (m === 'aim') return 'aim';
+    if (m === 'blow') return this.t % 6 < 3 ? 'blow1' : 'blow2';
+    if (m === 'tornado') return this.t % 10 < 5 ? 'blow1' : 'blow2';
+    // Flapping: the wings beat through four frames.
+    return `idle${1 + (Math.floor(this.t / 5) % 4)}`;
+  }
+
+  render(): void {
+    super.render();
+    const key = `gale_${this.frame()}`;
+    this.sprite.setTexture(key);
+    const a = BOSS_ANCHORS[key] ?? BOSS_ANCHORS.gale_idle;
+    this.fx.update({
+      x: Math.round(this.cx),
+      bottom: Math.round(this.bottom),
+      facing: this.facing,
+      floor: this.room.floor,
+      eye: a.eye,
+      eyeColor: 0xffe14a,
+      heat: 0,
+      visible: this.sprite.visible && this.state !== 'dying',
+    });
+  }
+
+  destroy(): void {
+    this.fx.destroy();
+    super.destroy();
   }
 
   protected pose(): string {

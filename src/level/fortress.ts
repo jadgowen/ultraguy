@@ -1,5 +1,8 @@
 import type { StageData } from './Level';
-import { SKY, bossRoom, rows, water } from './rooms';
+import { bossHall, bossRoom, rows, SKY, water } from './rooms';
+
+/** The quiet hallway before the boss room (see bossHall). */
+const lobby = bossHall();
 
 // The FORTRESS: three stages played in order once all eight bosses are
 // beaten, each mixing hazards from the boss stages and ending with a guardian
@@ -28,7 +31,7 @@ export const FORTRESS_1: StageData = {
   theme: 'fortress',
   boss: 'gatekeeper',
   bossName: 'GATEKEEPER',
-  layout: ['ABCDE', '....FGHJ|XY'],
+  layout: ['ABCDE', '....FGHJ|56|XY'],
   screens: {
     A: [CEIL, CEIL, ...rows(SKY, 10), '..P.......w.....', FLOOR, FLOOR],
     // Presses slam onto switch blocks over spikes.
@@ -56,7 +59,9 @@ export const FORTRESS_1: StageData = {
     G: [CEIL, CEIL, ...rows(SKY, 9), '..............@.', '............####', '###[[[]]][[[####', '###^^^^^^^^^####'],
     // A press line on a belt that rushes you along.
     H: [CEIL, CEIL, '..!...!...!.....', ...rows(SKY, 9), SKY, '>>>>>>>>>>>>>>>>', FLOOR],
-    J: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
+    J: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
+    '5': lobby.left,
+    '6': lobby.right,
     X: guardRoom.left,
     Y: guardRoom.right,
   },
@@ -79,7 +84,7 @@ export const FORTRESS_2: StageData = {
   theme: 'fortress',
   boss: 'abyss',
   bossName: 'ABYSS EYE',
-  layout: ['AB...HIJ|XY', '.CDEFG'],
+  layout: ['AB...HIJ|56|XY', '.CDEFG'],
   dark: 'DE',
   rise: { screens: 'GH', speed: 0.35 },
   screens: {
@@ -137,9 +142,13 @@ export const FORTRESS_2: StageData = {
       '###########H####',
       '###########H####',
     ],
-    // Snowballs across cracking bridges over lava, then down to the door.
-    I: [CEIL, CEIL, SKY, '..............@.', '###xxx.xxx.xxx##', ...rows(SKY, 9), 'LLLLLLLLLLLLLLLL'],
-    J: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
+    // Snowballs across cracking bridges over lava, then down to the door. (The
+    // bridges sit a row below the ledge you come in on, so there's headroom to hop
+    // the gaps without the Jump Boots.)
+    I: [CEIL, CEIL, SKY, SKY, '..............@.', '###xxx.xxx.xxx##', ...rows(SKY, 8), 'LLLLLLLLLLLLLLLL'],
+    J: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
+    '5': lobby.left,
+    '6': lobby.right,
     X: guardRoom.left,
     Y: guardRoom.right,
   },
@@ -164,7 +173,7 @@ export const FORTRESS_3: StageData = {
   theme: 'fortress',
   boss: 'warden',
   bossName: 'SPIRE WARDEN',
-  layout: ['...JKLM|XY', '..GH', '..EF', 'ABCD'],
+  layout: ['...JKLM|56|XY', '..GH', '..EF', 'ABCD'],
   wind: { screens: 'CGHJKL', dirs: [1, -1] },
   screens: {
     A: [CEIL, CEIL, ...rows(SKY, 10), '..P.............', FLOOR, FLOOR],
@@ -195,7 +204,9 @@ export const FORTRESS_3: StageData = {
     K: [SKY, SKY, SKY, '......z.........', ...rows(SKY, 5), '##..xxx...=----.', ...rows(SKY, 5)],
     // Springs under presses.
     L: [CEIL, '..!.......!.....', ...rows(SKY, 7), '..%...%...%...##', ...rows('..#...#...#...##', 5)],
-    M: [...rows('...............#', 10), '...............D', '...............D', '...B...........D', FLOOR, FLOOR],
+    M: [...rows('...............#', 10), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
+    '5': lobby.left,
+    '6': lobby.right,
     X: guardRoom.left,
     Y: guardRoom.right,
   },

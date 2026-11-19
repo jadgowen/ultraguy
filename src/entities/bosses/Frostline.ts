@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import type { Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
+import { BOSS_ANCHORS } from './bossAnchors';
 import { Boss, Room } from './Boss';
+import { BossFx } from './bossFx';
 
 type Mode = 'idle' | 'windup' | 'slide' | 'volley' | 'hail' | 'blizzard';
 
@@ -20,8 +22,15 @@ export class Frostline extends Boss {
   private last: Mode | null = null;
   private gap = 0;
 
+  private readonly fx: BossFx;
+  /** Steps airborne, and left in the landing squash. */
+  private airT = 0;
+  private landT = 0;
+  private wasGrounded = true;
+
   constructor(g: GameScene, at: Point, room: Room) {
     super(g, 'frostline', 28, 26, 'quake', at, room);
+    this.fx = new BossFx(g);
   }
 
   private setMode(m: Mode, wait = 0): void {
@@ -129,6 +138,49 @@ export class Frostline extends Boss {
 
   protected introPose(): string {
     return 'shoot';
+  }
+
+  step(): void {
+    super.step();
+    if (this.grounded && !this.wasGrounded) this.landT = 8;
+    this.wasGrounded = this.grounded;
+    if (this.landT > 0) this.landT--;
+    this.airT = this.grounded ? 0 : this.airT + 1;
+  }
+
+  /** The frame for right now (see art/frostlineArt.mjs for what each looks like). */
+  private frame(): string {
+    const m = this.mode;
+    if (this.state === 'dying') return 'windup';
+    if (m === 'windup') return 'windup';
+    if (m === 'slide') return 'slide';
+    if (m === 'hail') return 'hail';
+    if (m === 'volley' || m === 'blizzard') return this.t % 16 < 8 ? 'shoot1' : 'shoot2';
+    return `idle${1 + (Math.floor(this.t / 10) % 4)}`;
+  }
+
+  render(): void {
+    super.render();
+    const key = `frostline_${this.frame()}`;
+    this.sprite.setTexture(key);
+    const a = BOSS_ANCHORS[key] ?? BOSS_ANCHORS.frostline_idle;
+    this.fx.update({
+      x: Math.round(this.cx),
+      bottom: Math.round(this.bottom),
+      facing: this.facing,
+      floor: this.room.floor,
+      core: a.core,
+      coreColor: 0x9ee8ff,
+      eye: a.eye,
+      eyeColor: 0xe6fbff,
+      heat: 0.15,
+      visible: this.sprite.visible && this.state !== 'dying',
+    });
+  }
+
+  destroy(): void {
+    this.fx.destroy();
+    super.destroy();
   }
 
   protected pose(): string {

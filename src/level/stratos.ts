@@ -1,5 +1,8 @@
 import type { StageData } from './Level';
-import { bossArena, miniHall, rows, SKY } from './rooms';
+import { bossArena, bossHall, miniHall, rows, SKY } from './rooms';
+
+/** The quiet hallway before the boss room (see bossHall). */
+const lobby = bossHall();
 
 // STRATOS (sky). Built around moving air:
 //  1. Low altitude (A-F): ride moving clouds, then learn the gusts. The WIND
@@ -52,7 +55,7 @@ export const STRATOS: StageData = {
   bossName: 'GALE',
   bossWeapon: 'cyclone',
   signature: [{ kind: 'gustFan', from: 'bomber', every: 2 }, { kind: 'gustFan', from: 'flyer', every: 3 }],
-  layout: ['......KLMN123O|XY', '......IJ', '......GH', 'ABCDEFW'],
+  layout: ['......KLMN12378O|56|XY', '......IJ', '......GH', 'ABCDEFW'],
   miniboss: 'kite',
   upgrade: 'armor',
   wind: { screens: 'DEFLMN23', dirs: [-1, 1] },
@@ -156,7 +159,12 @@ export const STRATOS: StageData = {
     ],
     // ...and the far ledge (the Kite hovers over the gap).
     '3': [...rows(SKY, 10), '...xxx..........', SKY, '.........M......', '----..##########', '......##########'],
-    O: [...rows('...............#', 10), '...............D', '...............D', '..B............D', '################', '################'],
+    O: [...rows('...............#', 10), '...............D', '...............D', '..c............D', '################', '################'],
+    // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    '7': ['................', '................', '................', '...b............', '................', '.........z......', '................', '................', '................', '................', '................', '.....CCC........', '................', '#####....#######', '#####....#######'],
+    '8': ['................', '................', '................', '....b...........', '................', '................', '............f...', '................', '................', '.......$........', '......CCC.......', '................', '................', '################', '################'],
+    '5': lobby.left,
+    '6': lobby.right,
     X: room.left,
     Y: room.right,
   },

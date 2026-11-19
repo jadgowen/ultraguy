@@ -1,5 +1,8 @@
 import type { StageData } from './Level';
-import { bossArena, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
+import { bossArena, bossHall, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
+
+/** The quiet hallway before the boss room (see bossHall). */
+const lobby = bossHall();
 
 // GLACIER (ice). Built around cracking ice ('x': it holds for a moment, then
 // breaks) and snowball chutes ('@').
@@ -35,7 +38,7 @@ export const GLACIER: StageData = {
   bossName: 'FROSTLINE',
   bossWeapon: 'frost',
   signature: [{ kind: 'snowRoller', from: 'slider', every: 1 }],
-  layout: ['ABCS', '..D', '..EFG12H|XY'],
+  layout: ['ABCS', '..D', '..EFG1278H|56|XY'],
   miniboss: 'mammoth',
   upgrade: 'helmet',
   screens: {
@@ -78,7 +81,12 @@ export const GLACIER: StageData = {
     G: [ROCK, ROCK, '....i....i....i.', ...rows(SKY, 6), '###xxx..xxx..xxx', ...rows(SKY, 5)],
     '1': hall.a,
     '2': hall.b,
-    H: [...rows(ROCK, 6), ...rows('...............#', 4), '...............D', '...............D', '...B.....p.....D', 'IIIIIIIIIIIIII##', ROCK],
+    H: [...rows(ROCK, 6), ...rows('...............#', 4), '...............D', '...............D', '...c.....p.....D', 'IIIIIIIIIIIIII##', ROCK],
+    // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    '7': ['################', '################', '......i....i....', '................', '................', '................', '................', '................', '................', '................', '.......III......', '................', '..p.......p.....', 'IIIIIIIIIIIIIIII', '################'],
+    '8': ['################', '################', '................', '................', '................', '................', '................', '................', '.....$..........', '....IIII........', '................', '................', '..............@.', 'IIIIIIIIIIIIIIII', '################'],
+    '5': lobby.left,
+    '6': lobby.right,
     X: room.left,
     Y: room.right,
   },

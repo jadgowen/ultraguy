@@ -1,5 +1,8 @@
 import type { StageData } from './Level';
-import { bossRoom, miniHall, rows, SKY, water } from './rooms';
+import { bossHall, bossRoom, miniHall, rows, SKY, water } from './rooms';
+
+/** The quiet hallway before the boss room (see bossHall). */
+const lobby = bossHall();
 
 // REEF. Built around the water itself: currents ('{' pushes left, '}' right)
 // and bubble columns ('y') that lift you.
@@ -31,7 +34,7 @@ export const REEF: StageData = {
   bossName: 'TIDE',
   bossWeapon: 'bubble',
   signature: [{ kind: 'jelly', from: 'puffer', every: 1 }],
-  layout: ['AB', '.CDEF', '....GHI12J|XY'],
+  layout: ['AB', '.CDEF', '....GHI1278J|56|XY'],
   miniboss: 'angler',
   dark: '12',
   screens: {
@@ -74,7 +77,12 @@ export const REEF: StageData = {
     I: water([ROCK, ROCK, SKY, ...rows('}}}}}}}}}.......', 5), ...rows(SKY, 3), '..........######', '..........######', '^^^^^^^^########', ROCK]),
     '1': hall.a,
     '2': hall.b,
-    J: water([...rows(ROCK, 6), ...rows('...............#', 4), '...............D', '...............D', '...B...........D', ROCK, ROCK]),
+    J: water([...rows(ROCK, 6), ...rows('...............#', 4), '...............D', '...............D', '...c...........D', ROCK, ROCK]),
+    // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    '7': water(['################', '################', '................', '................', '................', '................', '......u.........', '................', '................', '................', '................', '................', '......##....q...', '################', '################']),
+    '8': water(['################', '################', '................', '.........u......', '................', '................', '}}}}}}}}}}}}}}}}', '}}}}}}}}}}}}}}}}', '................', '................', '................', '................', '...$......q.....', '################', '################']),
+    '5': water(lobby.left),
+    '6': water(lobby.right),
     X: water(room.left),
     Y: water(room.right),
   },

@@ -10,6 +10,7 @@ import { DEV_TOOLS, PHYS, SCREEN_H, SCREEN_W, STEP_MS, TILE, VIEW_H, VIEW_W } fr
 import { Enemy, Projectile, createEnemy } from '../entities/Enemies';
 import { Player } from '../entities/Player';
 import { Boss, Miniboss, Room, createBoss } from '../entities/bosses';
+import { ARENA_ONLY } from '../entities/bosses/Miniboss';
 import { Controls } from '../input';
 import { BossKind, Door, ELECTRIC_OFF_INDEX, Level, MiniKind, Point, Section, StageId, Tile } from '../level/Level';
 import { PART_ORDER, PARTS } from '../parts';
@@ -260,6 +261,8 @@ export class GameScene extends Phaser.Scene {
   private bgLayers: { sprite: Phaser.GameObjects.TileSprite; factor: number }[] = [];
   private hud!: Phaser.GameObjects.Graphics;
   private hudKey = '';
+  /** Per bar: the value it showed last, and the drain of the units just lost (they flash, then fall away). */
+  private barTrail: Record<string, { last: number; lost: number; t: number }> = {};
   private goalSprite: Phaser.GameObjects.Image | null = null;
   private banner!: PixelText;
   private pauseLayer!: Phaser.GameObjects.Container;
@@ -323,6 +326,7 @@ export class GameScene extends Phaser.Scene {
     this.clearTimer = 0;
     this.exMode = !!data?.ex;
     this.hudKey = '';
+    this.barTrail = {};
     this.goalSprite = null;
     this.story = null;
     this.partGuardianBeaten = false;
@@ -843,7 +847,7 @@ export class GameScene extends Phaser.Scene {
       sfx.thorn();
       return true;
     }
-    if (this.bullets.filter((b) => b.weapon === def.id && !b.pip).length >= def.maxOnScreen) return false;
+    if (this.bullets.filter((b) => b.weapon === def.id && !b.pip && !b.rear).length >= def.maxOnScreen) return false;
     if (p.ammo[def.id] < def.cost) return false;
     p.ammo[def.id] -= def.cost;
 
@@ -915,6 +919,7 @@ export class GameScene extends Phaser.Scene {
           b.pierce = true;
           b.power = 3;
           sfx.chargeShot();
+          this.backblast(p, f);
         } else if (charge === 1) {
           b = new Projectile(this, muzzleX - 5, muzzleY - 4, 10, 8, f * 4.5, 0, 'charge1');
           b.power = 2;
@@ -933,6 +938,26 @@ export class GameScene extends Phaser.Scene {
     this.addEffect(muzzleX + f * 2, muzzleY, 0, 0, 0, charge ? 8 : 5, true);
     if (charge === 2) this.shake(2);
     return true;
+  }
+
+  /**
+   * A full charge also kicks out a short blast behind you (like Mega Man X's),
+   * so an enemy crowding your back gets hit too. It lives a few frames, pierces,
+   * and doesn't count toward the shots-on-screen limit.
+   */
+  private backblast(p: Player, f: number): void {
+    const w = 20;
+    const bb = new Projectile(this, f > 0 ? p.x - w + 2 : p.x + p.w - 2, p.y, w, p.h, -f * 1.2, 0, 'charge2');
+    bb.pierce = true;
+    bb.power = 3;
+    bb.charge = 2;
+    bb.rear = true;
+    bb.maxLife = 7;
+    bb.weapon = 'buster';
+    bb.sprite.setFlipX(f > 0).setAlpha(0.55);
+    this.bullets.push(bb);
+    this.addEffect(p.cx - f * 12, p.cy, 0, 0, 0, 8, true);
+    this.burst(p.cx - f * 12, p.cy, 'spark', 4);
   }
 
   private stepBullets(): void {
@@ -1267,8 +1292,8 @@ export class GameScene extends Phaser.Scene {
     // Bolts, on their own roll (not in the dojo).
     if (this.stageId !== 'dojo') {
       const b = Math.random();
-      if (b < 0.08) this.dropBolts(e.cx, e.cy, BOLT_BIG);
-      else if (b < 0.5) this.dropBolts(e.cx, e.cy, BOLT_SMALL);
+      if (b < 0.12) this.dropBolts(e.cx, e.cy, BOLT_BIG);
+      else if (b < 0.65) this.dropBolts(e.cx, e.cy, BOLT_SMALL);
     }
   }
 
@@ -1375,7 +1400,8 @@ export class GameScene extends Phaser.Scene {
       }
       crack.n++;
       sfx.crumble();
-      if (crack.n >= 2 && crack.breakT === 0) {
+      // One crack is enough: the slab wobbles, then goes (the Mammoth charges back over it).
+      if (crack.n >= 1 && crack.breakT === 0) {
         crack.img.setTexture('ice_crack2');
         crack.breakT = 40;
       }
@@ -1387,12 +1413,6 @@ export class GameScene extends Phaser.Scene {
       if (crack.breakT === 0) continue;
       crack.img.x = crack.c * TILE + (crack.breakT % 4 < 2 ? 1 : -1); // wobble
       if (--crack.breakT > 0) continue;
-      // Never out from under the miniboss (it would fall in): wait for it to move.
-      const b = this.boss;
-      if (b && b.x < (crack.c + 1) * TILE && b.x + b.w > crack.c * TILE && Math.abs(b.bottom - crack.r * TILE) < 4) {
-        crack.breakT = 10;
-        continue;
-      }
       this.level.setTile(crack.c, crack.r, Tile.Empty);
       this.layer.removeTileAt(crack.c, crack.r);
       crack.img.destroy();
@@ -2307,25 +2327,95 @@ export class GameScene extends Phaser.Scene {
     const lives = this.stageId === 'dojo' ? -1 : visit.lives;
     this.livesIcon.setVisible(lives >= 0);
     this.livesText.setText(lives >= 0 ? `x${lives}` : '');
-    const key = `${hp}|${bossHp}|${bossMax}|${p.weapon}|${ammo}`;
+    const trails = [this.stepTrail('hp', hp), this.stepTrail(`ammo_${p.weapon}`, ammo), this.stepTrail('boss', bossHp)];
+    // Low life pulses (so the bar needs redrawing as it beats).
+    const low = hp > 0 && hp <= p.maxHp / 4 ? Math.floor(this.fxFrame / 8) % 2 : 0;
+    const key = `${hp}|${bossHp}|${bossMax}|${p.weapon}|${ammo}|${trails.map((t) => `${t.lost}:${t.t % 4 < 2}`).join(',')}|${low}`;
     if (key === this.hudKey) return;
     this.hudKey = key;
     const g = this.hud;
     g.clear();
     // Bars left to right: life, equipped weapon's ammo (if any), boss.
     let x = 12;
-    this.drawBar(g, x, hp, p.maxHp, 0xfff1a8);
-    if (ammo >= 0) this.drawBar(g, (x += 12), ammo, p.maxAmmo, WEAPONS[p.weapon].colors.main);
-    if (bossHp >= 0) this.drawBar(g, (x += 12), bossHp, bossMax, 0xff7050);
+    const life = low ? { light: 0xffd0c8, main: 0xff7a6a, dark: 0xc83a3a } : { light: 0xffffff, main: 0xfff1a8, dark: 0xd8b048 };
+    this.drawBar(g, x, hp, p.maxHp, life, 'life', trails[0]);
+    if (ammo >= 0) this.drawBar(g, (x += 12), ammo, p.maxAmmo, WEAPONS[p.weapon].colors, 'weapon', trails[1]);
+    if (bossHp >= 0) this.drawBar(g, (x += 12), bossHp, bossMax, { light: 0xffc0b0, main: 0xff7050, dark: 0xc03828 }, 'boss', trails[2]);
   }
 
-  private drawBar(g: Phaser.GameObjects.Graphics, x: number, value: number, max: number, color: number): void {
+  /** Track a bar's drain: units just lost hold for a moment, then slide down to the new value. */
+  private stepTrail(id: string, value: number): { lost: number; t: number } {
+    const tr = (this.barTrail[id] ??= { last: value, lost: value, t: 0 });
+    if (value < tr.last && value >= 0) {
+      tr.lost = Math.max(tr.lost, tr.last);
+      tr.t = 0;
+    }
+    tr.last = value;
+    tr.t++;
+    if (tr.lost > value && tr.t > 14 && tr.t % 2 === 0) tr.lost--;
+    if (tr.lost < value) tr.lost = value;
+    return tr;
+  }
+
+  /**
+   * One energy bar: a shaded metal frame with a capped top, three-tone units
+   * (bright edge, body, shadow) in a dark well, units just lost flashing, and a
+   * badge under it saying whose bar it is (helmet, weapon gem, boss skull).
+   */
+  private drawBar(
+    g: Phaser.GameObjects.Graphics,
+    x: number,
+    value: number,
+    max: number,
+    c: { light: number; main: number; dark: number },
+    kind: 'life' | 'weapon' | 'boss',
+    trail: { lost: number; t: number },
+  ): void {
+    const K = 0x1a1428;
+    const px = (col: number, px0: number, py: number, w = 1, h = 1) => g.fillStyle(col, 1).fillRect(px0, py, w, h);
     const y = 16;
-    g.fillStyle(0x000000, 1).fillRect(x, y, 8, max * 2 + 2);
+    const top = y - 3;
+    const bot = y + max * 2 + 3;
+    // Frame: outline, gunmetal with a lit left/top edge and a shaded right edge, a cap with two rivets.
+    px(K, x - 1, top, 10, bot - top);
+    px(K, x, top - 1, 8, 1);
+    px(0x55607a, x, top, 8, bot - top - 1);
+    px(0xc8ccd8, x, top, 1, bot - top - 1);
+    px(0x8a8fa8, x + 1, top, 6, 1);
+    px(0x2b2540, x + 7, top + 1, 1, bot - top - 2);
+    px(0xfff1e0, x + 2, top + 1);
+    px(0xfff1e0, x + 5, top + 1);
+    // The well and its units.
+    px(0x0e0c18, x + 1, y + 1, 6, max * 2 + 1);
     for (let i = 0; i < max; i++) {
       const uy = y + max * 2 - i * 2;
-      g.fillStyle(i < value ? color : 0x3a3550, 1).fillRect(x + 1, uy, 6, 1);
+      if (i < value) {
+        px(c.main, x + 1, uy, 6);
+        px(c.light, x + 1, uy);
+        px(c.dark, x + 6, uy);
+      } else if (i < trail.lost) {
+        px(trail.t % 4 < 2 ? 0xffffff : 0xff9080, x + 1, uy, 6);
+      } else {
+        px(0x2b2540, x + 1, uy, 6);
+        px(0x3a3550, x + 2, uy, 4);
+      }
     }
+    // The top lit unit gets a glint.
+    if (value > 0) px(0xffffff, x + 2, y + max * 2 - (value - 1) * 2, 2);
+    // Badge.
+    const by = bot - 1;
+    px(K, x - 2, by, 12, 10);
+    px(0x55607a, x - 1, by + 1, 10, 8);
+    px(0xc8ccd8, x - 1, by + 1, 10, 1);
+    px(0x2b2540, x - 1, by + 8, 10, 1);
+    px(0x0e0c18, x + 1, by + 2, 6, 6);
+    const ix = x + 1;
+    const iy = by + 2;
+    const icon = (rows: string[], pal: Record<string, number>) =>
+      rows.forEach((row, r) => [...row].forEach((ch, k) => ch !== '.' && px(pal[ch], ix + k, iy + r)));
+    if (kind === 'life') icon(['.oooo.', 'oOOOOo', 'oVVVOo', 'oVVVOo', 'oOOOOo', '.o..o.'], { o: 0xc85a1a, O: 0xf28c28, V: 0x5ef0c8 });
+    else if (kind === 'weapon') icon(['..ll..', '.lmmd.', 'lmmmmd', 'lmmmmd', '.mmdd.', '..dd..'], { l: c.light, m: c.main, d: c.dark });
+    else icon(['.wwww.', 'wwwwww', 'wKwwKw', 'wwwwww', '.wKKw.', '.w..w.'], { w: 0xff7050, K: 0x1a1428 });
   }
 
   /** Q / E (L1 / R1): switch weapons without pausing. */
@@ -2450,11 +2540,31 @@ export class GameScene extends Phaser.Scene {
     if (kind === 'angler') this.hazards.noFlash = true;
   }
 
+  /** A line of advice for a fight (how to beat an arena-only miniboss). */
+  hint(text: string): void {
+    this.say(text, 150);
+  }
+
+  /** The Mammoth went through the ice: the freezing water does the damage. */
+  miniFell(b: Miniboss): void {
+    if (b.state !== 'fight') return;
+    b.hit(ARENA_ONLY.mammoth!.hit, true);
+    sfx.splash();
+    this.shake(5);
+    for (let i = 0; i < 10; i++) this.addEffect(b.cx + (Math.random() - 0.5) * 30, this.bossRoomFloor(b) - 2, (Math.random() - 0.5) * 3, -2 - Math.random() * 3, 0.2, 30, false, 'spark');
+    this.flashLabel('INTO THE DRINK!');
+    if (b.hp === 0) this.startBossDeath();
+  }
+
+  private bossRoomFloor(b: Miniboss): number {
+    return b.bottom;
+  }
+
   /** A press came down on the miniboss (Foundry's line): a big hit. */
   private crushBoss(box: Box): boolean {
     const b = this.boss;
     if (!(b instanceof Miniboss) || b.state !== 'fight' || !overlaps(box, b)) return false;
-    b.hit(4, true);
+    b.hit(ARENA_ONLY.press!.hit, true);
     this.shake(6);
     sfx.titanCrush();
     this.hitStop = WEAK_HIT_STOP;

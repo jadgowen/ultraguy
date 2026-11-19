@@ -44,9 +44,11 @@ describe('boss stages', () => {
 
   for (const id of ALL_BOSS_STAGES) {
     const stage = BOSS_STAGES[id];
-    it(`${id}: has a boss door, a midpoint (miniboss or set piece), an energy tank and checkpoints`, () => {
+    it(`${id}: has a hallway and a boss door, a midpoint (miniboss or set piece), an energy tank and checkpoints`, () => {
       const L = new Level(stage);
-      expect(L.doors.length).toBe(1);
+      // Two doors: into the hallway before the boss, and the boss door at its end.
+      expect(L.doors.length).toBe(2);
+      expect(stage.layout.some((row) => row.includes('|56|XY')), 'hallway before the boss room').toBe(true);
       // A miniboss, or a set piece in its place.
       const MIDPOINT: Record<string, () => boolean> = {
         canopy: () => !!stage.rise, // the great climb

@@ -26,6 +26,23 @@ export function bossRoom(floor = '#'): { left: string[]; right: string[] } {
 }
 
 /**
+ * The hallway before a boss room (like the ones in the X games): two quiet
+ * screens with no enemies, a low ceiling with beams hanging from it, the
+ * checkpoint that is also the boss-test start ('B'), and the boss door at the
+ * far end. Two screens because the camera needs a section at least as wide as
+ * the view. Goes between the stage's own door screen and the boss room, each
+ * side split off with '|': `...J|56|XY` (screens '5' and '6').
+ */
+export function bossHall(): { left: string[]; right: string[] } {
+  const ceil = '################';
+  const floor = '################';
+  return {
+    left: [...rows(ceil, 5), '....##......##..', ...rows(SKY, 6), '...B............', floor, floor],
+    right: [...rows(ceil, 5), '....##......####', ...rows('...............#', 4), ...rows('...............D', 3), floor, floor],
+  };
+}
+
+/**
  * A stage's own boss room: the standard room with some rows redrawn, by row
  * number, on the left and right screens. Keep the right screen's wall
  * (column 15) and its 'X' (row 12, column 8). Bosses walk on the floor and
@@ -59,10 +76,12 @@ export function water(screen: string[]): string[] {
 export function miniHall(top = '#', underwater = false, oneUp = false, thinIce = false): { a: string[]; b: string[] } {
   const floor = [top.repeat(16), '################'];
   const crawl = oneUp ? '....+.E.$...c...' : '......E.$...c...';
-  // Thin ice ('_') over freezing water: the miniboss's charges crack and break it.
-  // Solid footholds stay (one under the miniboss), so there's always somewhere to stand.
-  const floorA = thinIce ? ['IIIIIIIIIIII__I_', '############~~#~'] : floor;
-  const floorB = thinIce ? ['__II___II__III__', '~~##~~~##~~###~~'] : floor;
+  // Thin ice ('_') over freezing water: the Mammoth's charges crack and break it,
+  // and it falls through where it's gone. Solid islands stay to stand on.
+  // Thin stretches are five slabs wide (wider than the Mammoth, so it can fall
+  // through), between two-slab islands of solid ice for you to stand on.
+  const floorA = thinIce ? ['IIIIIIIII_____II', '#########~~~~~##'] : floor;
+  const floorB = thinIce ? ['_____II_____II__', '~~~~~##~~~~~##~~'] : floor;
   const a = [...rows(SKY, 11), '..#########.....', crawl, ...floorA];
   const b = [...rows(SKY, 12), '............M...', ...floorB];
   return underwater ? { a: water(a), b: water(b) } : { a, b };

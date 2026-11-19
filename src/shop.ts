@@ -25,6 +25,6 @@ export const SHOP_ITEMS: ShopItem[] = [
 
 export const MAX_BOLTS = 999;
 /** Bolts per small / big drop, and in a hidden cache. */
-export const BOLT_SMALL = 1;
-export const BOLT_BIG = 5;
-export const BOLT_CACHE = 15;
+export const BOLT_SMALL = 2;
+export const BOLT_BIG = 8;
+export const BOLT_CACHE = 25;

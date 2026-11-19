@@ -1,0 +1,360 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>SCRAP design mockups</title>
+<style>
+  body { margin: 0; background: #0b0d1a; color: #fff1e0; font: 14px/1.4 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 18px; color: #f28c28; margin: 16px 20px 4px; }
+  p.lead { margin: 0 20px 12px; color: #8a8fa8; max-width: 980px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 14px; padding: 0 20px 24px; }
+  .card { background: #141626; border: 2px solid #3a3f66; border-radius: 6px; padding: 12px; }
+  .card.current { border-color: #55607a; }
+  .card h2 { margin: 0; font-size: 15px; color: #5ef0c8; }
+  .card .tag { color: #8a8fa8; font-size: 12px; margin: 2px 0 8px; }
+  canvas { image-rendering: pixelated; background: #1c1f36; border-radius: 3px; display: block; }
+  .poses { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .poses div { font-size: 11px; color: #8a8fa8; text-align: center; }
+  .controls { margin: 0 20px 12px; display: flex; gap: 16px; color: #8a8fa8; }
+  .controls label { cursor: pointer; }
+</style>
+</head>
+<body>
+<script src="kit.js"></script>
+<script>
+const PAL = {
+  K: '#1a1428', W: '#fff1e0', w: '#c8ccd8', G: '#8a8fa8', g: '#55607a', d: '#2b2540', x: '#141226',
+  // rust and brass
+  T: '#e8b07a', M: '#b8703a', m: '#7a4220', u: '#4a2814', B: '#e8c060', b: '#a87a30',
+  // paint
+  R: '#e8484e', r: '#8c2030', Y: '#ffe14a', O: '#f28c28', E: '#7ad04a', e: '#3a9a34', f: '#1e5a24',
+  // glass
+  C: '#c8f0ff', c: '#6ab8e8', n: '#2a6aa8',
+  // south pole blue
+  S: '#8ac8ff', s: '#3a78d8', z: '#1e3a8a',
+};
+const R = (shine, light, base, dark) => ({ shine, light, base, dark });
+const RUST = R('T', 'M', 'M', 'm'), RUSTB = R('M', 'm', 'm', 'u'), STEEL = R('W', 'w', 'G', 'g'), STEELB = R('w', 'G', 'g', 'd'), MAG = R('W', 'R', 'R', 'r'), BRASS = R('W', 'B', 'B', 'b');
+const W = 48, H = 44;
+const MOVES = [
+  { name: 'idle', len: 70 }, { name: 'toss', len: 44 }, { name: 'idle', len: 20 }, { name: 'magnet', len: 70 },
+  { name: 'idle', len: 16 }, { name: 'pull', len: 96 }, { name: 'idle', len: 14 },
+];
+function pose(m, f) {
+  const P = { t: f, breath: (Math.sin(f * 0.09) + 1) / 2, armUp: 0, magnet: 0, air: 0, crouch: 0, walk: 0 };
+  if (m.name === 'toss') P.armUp = m.t < 16 ? m.t / 16 : m.t < 24 ? 1 : 1 - (m.t - 24) / 20;
+  if (m.name === 'magnet') P.magnet = 1;
+  if (m.name === 'pull') {
+    const t = m.t;
+    P.up = t < 18 ? t / 18 : t < 78 ? 1 : 1 - (t - 78) / 18;
+    P.pulling = t >= 18 && t < 78;
+    // He sinks into it as the pull bites, and strains (shakes) while it holds.
+    P.crouch = P.pulling ? 0.6 : P.up * 0.4;
+    P.strain = P.pulling ? Math.sin(t * 1.7) * 0.5 : 0;
+  }
+  if (m.name === 'idle') P.walk = 0;
+  return P;
+}
+
+
+// A. MECH PILOT: a little bot in a glass dome, driving a junk walker.
+function pilot(P) {
+  const b = new Buf(W, H, PAL);
+  const ground = H - 1;
+  const cx = 24;
+  const drop = P.crouch * 3;
+  const top = 12 + drop + P.breath * 0.4 - (P.air ? 3 : 0);
+  // Two hydraulic legs (bent back like a bird's), big flat feet.
+  for (const [x, bk] of [[17, true], [31, false]]) {
+    const knee = [x - 3, top + 20];
+    const foot = [x, ground - 1 - (P.air ? 3 : 0)];
+    b.part(capsule(x, top + 14, knee[0], knee[1], 2), bk ? STEELB : STEEL);
+    b.part(capsule(knee[0], knee[1], foot[0], foot[1], 1.6), bk ? STEELB : STEEL);
+    b.part(rrect(foot[0] - 5, foot[1] - 2, foot[0] + 4, foot[1] + 1, 1), bk ? RUSTB : RUST);
+  }
+  // The saw launcher on the back arm (raised to toss).
+  const lb = [cx - 10, top + 10];
+  const lh = [lb[0] - 5, lb[1] + 2 - P.armUp * 12];
+  b.part(capsule(lb[0], lb[1], lh[0], lh[1], 2.2), RUSTB);
+  b.part(rrect(lh[0] - 4, lh[1] - 3, lh[0] + 2, lh[1] + 3, 1), STEELB);
+  b.part(ellipse(lh[0] - 4, lh[1], 2.5, 2.5), STEEL);
+  // The cab: a patched-together hull with hazard paint, the dome on top with the pilot in it.
+  b.part(rrect(cx - 11, top + 4, cx + 11, top + 16, 3), RUST);
+  for (let x = cx - 9; x < cx + 9; x += 4) b.rect(x, top + 13, 2, 2, 'Y');
+  b.part(rrect(cx - 6, top + 7, cx - 1, top + 11, 1), STEEL); // a patch
+  b.px(cx + 7, top + 6, 'T'); b.px(cx - 9, top + 11, 'T');
+  b.part(ellipse(cx + 1, top + 3, 7, 5.5), R('W', 'w', 'G', 'g'));
+  b.part(ellipse(cx + 1, top + 3, 5.5, 4.2), R('W', 'C', 'c', 'n'), { shine: false });
+  // The pilot: a round head with two glowing eyes and a tiny antenna.
+  b.part(ellipse(cx + 2, top + 4, 3, 2.6), R('W', 'G', 'g', 'd'));
+  b.px(cx + 1, top + 4, 'Y'); b.px(cx + 3, top + 4, 'Y');
+  b.line([[cx + 2, top + 1.5], [cx + 3, top - 2]], 'g');
+  b.px(cx + 3, top - 3, 'R');
+  b.px(cx - 3, top + 1, 'W'); // glare on the glass
+  // The magnet claw on the front arm.
+  const mb = [cx + 10, top + 10];
+  const mh = [mb[0] + 4 + P.magnet * 4, mb[1] + 3 - P.magnet * 3];
+  b.part(capsule(mb[0], mb[1], mh[0], mh[1], 2.2), RUST);
+  b.part((x, y) => ellipse(mh[0] + 3, mh[1], 4.5, 4.5)(x, y) && !ellipse(mh[0] + 3, mh[1], 2, 2)(x, y) && x < mh[0] + 4.5, MAG);
+  b.rect(mh[0] + 3, mh[1] - 4, 2, 2, 'w'); b.rect(mh[0] + 3, mh[1] + 3, 2, 2, 'w');
+  b.outline();
+  return { b, glow: { eye: [cx + 2, top + 4], magnet: [mh[0] + 7, mh[1]], hand: [lh[0] - 4, lh[1]] } };
+}
+
+// B. MAGNET COLOSSUS: a floating electromagnet, its body the junk it holds.
+function colossus(P) {
+  const b = new Buf(W, H, PAL);
+  const cx = 24;
+  const cy = 20 - (P.air ? 4 : 0) + P.crouch * 2 + Math.sin(P.t * 0.06) * 1.2;
+  const spin = P.t * 0.05;
+  // Junk orbiting behind (darker), the core, junk in front.
+  const junk = (front) => {
+    const pieces = [[0, 14, 6, 4, RUST], [0.8, 15, 5, 4, STEEL], [1.6, 13, 6, 3, BRASS], [2.4, 15, 4, 5, RUST], [3.2, 14, 6, 4, STEEL], [4.0, 13, 5, 4, BRASS], [4.8, 15, 5, 5, RUST], [5.6, 14, 6, 3, STEEL]];
+    for (const [a0, r, w, h, ramp] of pieces) {
+      const a = a0 + spin;
+      const z = Math.sin(a);
+      if ((z > 0) !== front) continue;
+      const x = cx + Math.cos(a) * r, y = cy + z * 6 + (Math.cos(a * 2) * 2);
+      b.part(rrect(x - w / 2, y - h / 2, x + w / 2, y + h / 2, 0.5), front ? ramp : RUSTB);
+    }
+  };
+  junk(false);
+  // Arms of junk: a column of pieces either side, pulled out toward you on the magnet.
+  for (const side of [-1, 1]) {
+    for (let i = 0; i < 4; i++) {
+      const reach = side > 0 ? P.magnet * 6 : 0;
+      const x = cx + side * (9 + i * 3 + (i * reach) / 3);
+      const y = cy + 4 + i * 3 - P.armUp * (side < 0 ? i * 3 : 0);
+      b.part(rrect(x - 2, y - 2, x + 2, y + 2, 0.5), i % 2 ? STEEL : RUST);
+    }
+  }
+  // The core: a great horseshoe electromagnet around a glowing eye.
+  b.part((x, y) => ellipse(cx, cy, 10, 10)(x, y) && !ellipse(cx, cy, 5, 5)(x, y) && y < cy + 6, MAG);
+  b.rect(cx - 10, cy + 4, 4, 3, 'w'); b.rect(cx + 6, cy + 4, 4, 3, 'w');
+  b.part(ellipse(cx, cy, 3.8, 3.8), R('W', 'Y', 'Y', 'O'), { shine: false });
+  b.px(cx, cy, 'W');
+  junk(true);
+  b.outline();
+  return { b, glow: { eye: [cx, cy], magnet: [cx + 22 + P.magnet * 6, cy + 10], hand: [cx - 18, cy - 2] } };
+}
+
+// C. DUMPSTER KNIGHT: a knight made from a dumpster, trash-can-lid shield, rebar lance.
+function knight(P) {
+  const b = new Buf(W, H, PAL);
+  const ground = H - 1;
+  const cx = 24;
+  const drop = P.crouch * 3;
+  const top = 12 + drop + P.breath * 0.4 - (P.air ? 3 : 0);
+  // Legs: two dented cans.
+  for (const [x, bk] of [[19, true], [29, false]]) b.part(rrect(x - 3.5, top + 20, x + 3.5, ground - (P.air ? 3 : 0), 1), bk ? STEELB : STEEL);
+  // Back arm: the rebar lance (raised to fling a saw off its tip).
+  const lb = [cx - 9, top + 10];
+  const lh = [lb[0] - 2, lb[1] + 4 - P.armUp * 10];
+  b.part(capsule(lb[0], lb[1], lh[0], lh[1], 1.8), RUSTB);
+  b.line([[lh[0] + 4, lh[1] + 6], [lh[0] - 6, lh[1] - 12]], 'm');
+  b.line([[lh[0] + 5, lh[1] + 6], [lh[0] - 5, lh[1] - 12]], 'u');
+  // The dumpster body: green-painted steel, ribs, a dent, the lid as a helm with a visor slit.
+  const GREEN = R('E', 'E', 'e', 'f');
+  b.part(rrect(cx - 10, top + 6, cx + 10, top + 21, 1), GREEN);
+  for (let x = cx - 8; x <= cx + 8; x += 4) b.part(rrect(x, top + 8, x + 1, top + 19, 0.5), R('e', 'e', 'f', 'f'), { shine: false });
+  b.part(rrect(cx - 11, top + 1, cx + 11, top + 6, 1), GREEN); // the lid
+  b.rect(cx - 2, top + 3, 8, 2, 'x');
+  for (let i = 0; i < 6; i++) b.px(cx - 1.5 + i, top + 3, 'Y');
+  b.part(rrect(cx - 11, top + 19, cx + 11, top + 22, 0.5), STEEL); // the rim
+  // Front arm: the shield (a trash-can lid) with the magnet bolted to the middle.
+  const sx = cx + 12 + P.magnet * 3, sy = top + 13 - P.magnet * 2;
+  b.part(ellipse(sx, sy, 4, 7), STEEL);
+  b.part(ellipse(sx, sy, 2.6, 5.4), R('w', 'G', 'G', 'g'), { shine: false });
+  b.part((x, y) => ellipse(sx + 2, sy, 3, 3)(x, y) && !ellipse(sx + 2, sy, 1.3, 1.3)(x, y) && x < sx + 3, MAG);
+  b.outline();
+  return { b, glow: { eye: [cx + 2, top + 3], magnet: [sx + 6, sy], hand: [lh[0] - 6, lh[1] - 12] } };
+}
+
+// --- round 2: the Magnet Colossus, three ways -----------------------------------
+/** Shared: the core (a horseshoe electromagnet around a glowing eye). */
+function core(b, cx, cy, r, ramp = MAG, eye = R('W', 'Y', 'Y', 'O'), flip = false) {
+  b.part((x, y) => ellipse(cx, cy, r, r)(x, y) && !ellipse(cx, cy, r / 2, r / 2)(x, y) && (flip ? y > cy - r * 0.6 : y < cy + r * 0.6), ramp);
+  const py = flip ? cy - r * 0.4 - 3 : cy + r * 0.4;
+  b.rect(cx - r, py, Math.max(2, r * 0.4), 3, 'w');
+  b.rect(cx + r * 0.6, py, Math.max(2, r * 0.4), 3, 'w');
+  b.part(ellipse(cx, cy, r * 0.38, r * 0.38), eye, { shine: false });
+  b.px(cx - 0.5, cy - 0.5, 'W');
+}
+
+// B. JUNK GOLEM: the junk packs into a body: shoulders, chest plates, two huge fists.
+// The Junk Golem. P.up (0..1) raises the magnet at the ceiling; style says how:
+// 'fist' lifts the front fist overhead with a horseshoe in its palm, 'core' turns
+// the magnet in his chest over (poles up) and throws both fists up.
+function golemColossus(P, style = 'fist') {
+  const b = new Buf(W, H, PAL);
+  const cx = 24;
+  const up = P.up ?? 0;
+  const cy = 17 - (P.air ? 4 : 0) + P.crouch * 3 + up * 4 + Math.sin(P.t * 0.06) * 1;
+  const shake = P.pulling ? 1 : 0.5;
+  const jit = (i) => Math.round(Math.sin(P.t * (P.pulling ? 0.9 : 0.3) + i * 1.7) * shake);
+  const lerp = (a, c, k) => [a[0] + (c[0] - a[0]) * k, a[1] + (c[1] - a[1]) * k];
+  const coreUp = style === 'core' && up > 0.5;
+  // Back arm: a column of junk to a fist (in 'core' it goes up too).
+  let bf = [cx - 17, cy + 12 - P.armUp * 16];
+  if (style === 'core') bf = lerp(bf, [cx - 16, cy - 12], up);
+  for (let i = 0; i < 3; i++) { const k = (i + 1) / 4; const x = cx - 12 + (bf[0] - cx + 12) * k, y = cy - 3 + (bf[1] - cy + 3) * k; b.part(rrect(x - 2, y - 2, x + 2, y + 2, 0.5), RUSTB); }
+  b.part(rrect(bf[0] - 4, bf[1] - 4, bf[0] + 4, bf[1] + 4, 1), RUSTB);
+  // Pelvis (floats under the chest, no legs).
+  b.part(rrect(cx - 7, cy + 11 + jit(3), cx + 7, cy + 15 + jit(3), 1), BRASS);
+  b.part(rrect(cx - 4, cy + 16 + jit(4), cx + 4, cy + 18 + jit(4), 0.5), STEELB);
+  // Chest: one big mass, then plates bolted over it (they lift apart while the core is turned up).
+  const spread = coreUp ? 2 : 0;
+  b.part(rrect(cx - 11, cy - 9, cx + 11, cy + 10, 3), RUST);
+  for (const [dx, dy, w, h, ramp, i, sx, sy] of [[-11, -9, 9, 6, STEEL, 1, -1, -1], [3, -10, 8, 6, RUST, 2, 1, -1], [-11, 4, 7, 6, STEELB, 3, -1, 1], [5, 3, 6, 7, STEEL, 4, 1, 1]]) {
+    const ox = jit(i) + sx * spread, oy = jit(i + 5) + sy * spread;
+    b.part(rrect(cx + dx + ox, cy + dy + oy, cx + dx + w + ox, cy + dy + h + oy, 0.8), ramp);
+  }
+  // Shoulders: stacked blocks.
+  b.part(rrect(cx - 16, cy - 11 + jit(6), cx - 8, cy - 4 + jit(6), 1), RUSTB);
+  b.part(rrect(cx + 8, cy - 12 + jit(7), cx + 16, cy - 4 + jit(7), 1), STEEL);
+  b.rect(cx + 9, cy - 9 + jit(7), 6, 1, 'R');
+  core(b, cx, cy + 1, 7, MAG, R('W', 'Y', 'Y', 'O'), coreUp);
+  // Front arm: junk column to a car-block fist (out on the pull, overhead on the ceiling pull).
+  let ff = [cx + 17 + P.magnet * 4, cy + 9 - P.magnet * 5];
+  ff = lerp(ff, style === 'core' ? [cx + 16, cy - 13] : [cx + 9, cy - 13], up);
+  for (let i = 0; i < 3; i++) { const k = (i + 1) / 4; const x = cx + 12 + (ff[0] - cx - 12) * k * (1 - P.magnet * 0.3), y = cy - 3 + (ff[1] - cy + 3) * k; b.part(rrect(x - 2, y - 2, x + 2, y + 2, 0.5), RUST); }
+  b.part(rrect(ff[0] - 5, ff[1] - 5, ff[0] + 5, ff[1] + 5, 1.2), STEEL);
+  b.rect(ff[0] - 4, ff[1] - 1, 8, 1, 'R');
+  b.rect(ff[0] - 3, ff[1] + 2, 2, 2, 'Y');
+  b.rect(ff[0] + 1, ff[1] + 2, 2, 2, 'Y');
+  let upAt = [cx, cy - 6];
+  if (style === 'fist' && up > 0.4) {
+    // A horseshoe opens in his palm, poles to the sky.
+    const hx = ff[0], hy = ff[1] - 7.5;
+    b.part((x, y) => ellipse(hx, hy, 4.5, 4.5)(x, y) && !ellipse(hx, hy, 2, 2)(x, y) && y > hy - 1.5, MAG);
+    b.rect(hx - 4.5, hy - 3, 2, 2, 'w'); b.rect(hx + 2.5, hy - 3, 2, 2, 'w');
+    upAt = [hx, hy - 3];
+  }
+  b.outline();
+  return { b, glow: { eye: [cx, cy + 1], magnet: [ff[0] + 6, ff[1]], hand: bf, up: upAt } };
+}
+
+// C. POLARITY: two magnets, north (red) and south (blue), joined by chains of bolts.
+function polarity(P) {
+  const b = new Buf(W, H, PAL);
+  const cx = 22;
+  const cy = 18 - (P.air ? 4 : 0) + P.crouch * 2 + Math.sin(P.t * 0.06) * 1.2;
+  const SOUTH = R('W', 'S', 's', 'z');
+  const hand = [cx + 16 + P.magnet * 5, cy + 8 - P.magnet * 4 - P.armUp * 4];
+  const chain = (x0, y0, x1, y1, n, ph) => { for (let i = 1; i < n; i++) { const k = i / n; const x = x0 + (x1 - x0) * k, y = y0 + (y1 - y0) * k + Math.sin(P.t * 0.2 + ph + k * 6) * 1.2; b.part(ellipse(x, y, 1.4, 1.4), i % 2 ? STEEL : BRASS); } };
+  chain(cx, cy + 6, hand[0], hand[1], 7, 0);
+  chain(cx - 4, cy + 6, cx - 12, cy + 18, 5, 1);
+  chain(cx + 2, cy + 7, cx + 6, cy + 19, 5, 2);
+  for (const [x, y, ramp] of [[cx - 12, cy + 18, RUST], [cx + 6, cy + 19, RUSTB], [cx - 8, cy - 9, STEEL]]) b.part(rrect(x - 2.5, y - 2, x + 2.5, y + 2, 0.5), ramp);
+  core(b, cx, cy, 8);
+  b.part((x, y) => ellipse(hand[0], hand[1], 5, 5)(x, y) && !ellipse(hand[0], hand[1], 2.2, 2.2)(x, y) && x < hand[0] + 2, SOUTH);
+  b.rect(hand[0] + 1, hand[1] - 5, 2, 2, 'w'); b.rect(hand[0] + 1, hand[1] + 3, 2, 2, 'w');
+  b.outline();
+  return { b, glow: { eye: [cx, cy], magnet: [hand[0] + 5, hand[1]], hand: [cx - 8, cy - 9] } };
+}
+
+// D. CROWNED: a crown of bent bolts over the core, a cape of scrap streaming behind.
+function crowned(P) {
+  const b = new Buf(W, H, PAL);
+  const cx = 26;
+  const cy = 18 - (P.air ? 4 : 0) + P.crouch * 2 + Math.sin(P.t * 0.06) * 1.2;
+  // The cape: a wide sheet of scrap from the shoulders, streaming back and rippling.
+  const wave = (k) => Math.sin(P.t * 0.15 - k * 5) * 2 * k;
+  const cape = (x, y) => {
+    const k = (y - (cy - 5)) / 22;
+    if (k < 0 || k > 1) return false;
+    const l = cx - 9 - k * 12 + wave(k), r = cx + 4 - k * 3 + wave(k) * 0.6;
+    return x >= l && x <= r;
+  };
+  b.part(cape, RUSTB);
+  for (let i = 0; i < 4; i++) for (let j = 0; j < 3; j++) {
+    const k = (i + 0.6) / 4.4, y = cy - 4 + k * 22, x = cx - 9 - k * 12 + wave(k) + 2 + j * (4 + k * 1.5);
+    b.rect(x, y, 1, 2, 'u');
+  }
+  b.part((x, y) => cape(x, y) && y > cy + 15 && (Math.floor(x) + Math.floor(y)) % 5 === 0, BRASS);
+  const bh = [cx - 12, cy + 9 - P.armUp * 15];
+  b.part(rrect(bh[0] - 3.5, bh[1] - 3.5, bh[0] + 3.5, bh[1] + 3.5, 1), STEELB);
+  // Shoulders (a mantle of brass) and the core.
+  b.part(rrect(cx - 11, cy - 6, cx + 11, cy - 2, 2), BRASS);
+  core(b, cx, cy + 2, 9);
+  const crownY = cy - 15 + Math.sin(P.t * 0.09) * 0.8;
+  b.part(rrect(cx - 7, crownY + 2, cx + 7, crownY + 5, 1), BRASS);
+  for (const [x, h2] of [[-6, 3], [-2, 5], [2, 5], [6, 3]]) b.part(poly([[cx + x - 1.5, crownY + 2], [cx + x, crownY + 2 - h2], [cx + x + 1.5, crownY + 2]]), BRASS);
+  b.px(cx - 3, crownY + 3, 'R'); b.px(cx + 2, crownY + 3, 'E');
+  const fh = [cx + 14 + P.magnet * 5, cy + 7 - P.magnet * 3];
+  b.part(rrect(fh[0] - 3.5, fh[1] - 3.5, fh[0] + 3.5, fh[1] + 3.5, 1), STEEL);
+  b.part((x, y) => ellipse(fh[0] + 3, fh[1], 3.5, 3.5)(x, y) && !ellipse(fh[0] + 3, fh[1], 1.6, 1.6)(x, y) && x < fh[0] + 4, MAG);
+  b.outline();
+  return { b, glow: { eye: [cx, cy + 2], magnet: [fh[0] + 7, fh[1]], hand: bh } };
+}
+
+Kit.start({
+  name: 'SCRAP',
+  lead: "Each card plays Scrap's move set: idle, tossing a saw blade (it lands and rolls along the floor), the magnet (pulling you in while junk flies at you), then the new move: he aims his magnet at the ceiling and pulls it down (shadows warn where the junk will land, then it rains in). Big view 5x next to UltraGuy; game-scale poses below. Saws, junk, sparks and the magnet's pull are effects added on top. CURRENT is today's three poses.",
+  currentTag: "Today's Scrap: three poses (idle, toss, magnet).",
+  currentFrame: (m) => (m.name === 'toss' ? 'scrap_toss' : m.name === 'magnet' ? 'scrap_magnet' : 'scrap_idle'),
+  floor: ['#4a3a2a', '#e8c08a'],
+  moves: MOVES, pose,
+  minis: [['idle', { name: 'idle', t: 0, k: 0 }], ['toss', { name: 'toss', t: 18, k: 0.4 }], ['magnet', { name: 'magnet', t: 20, k: 0.3 }], ['pull', { name: 'pull', t: 40, k: 0.4 }]],
+  place: (m, P) => ({ x: 64 + (P.strain ?? 0) }),
+  effects: (env) => {
+    const { ctx, m, card, S, fi, ox, oy, glow, groundY, P } = env;
+    // The ceiling: a band of girders and hanging junk. It sags toward his magnet while he pulls.
+    const Wd = card.big.width;
+    const pull = !env.current && m.name === 'pull' && P.pulling;
+    const sagX = glow?.up ? env.flipX(ox + glow.up[0] * S) : 64 * S;
+    const sag = (x) => (pull ? Math.min(1, (m.t - 18) / 20) * 4 * S * Math.max(0, 1 - Math.abs(x - sagX) / (40 * S)) + (Math.random() - 0.5) * S * 0.6 : 0);
+    for (let x = 0; x < Wd; x += S) {
+      const d = sag(x);
+      ctx.fillStyle = '#3a2e26'; ctx.fillRect(x, 0, S, 5 * S + d);
+      ctx.fillStyle = (Math.floor(x / (8 * S)) % 2) ? '#6a5a4a' : '#5a4a3a'; ctx.fillRect(x, 3 * S + d, S, 2 * S);
+      ctx.fillStyle = '#1a1428'; ctx.fillRect(x, 5 * S + d, S, S * 0.6);
+    }
+    for (let x = 4 * S; x < Wd; x += 13 * S) { const d = sag(x); ctx.fillStyle = (x / S) % 2 ? '#b8703a' : '#8a8fa8'; ctx.fillRect(x, 5 * S + d, 3 * S, 2 * S); }
+    if (env.current) return;
+    if (m.name === 'pull') {
+      // Where the junk will land: picked when the pull bites, warned with falling dust and floor shadows.
+      if (m.t === 18) card.state.drops = Array.from({ length: 5 }, (_, i) => (14 + i * 14 + Math.random() * 6) * S);
+      const drops = card.state.drops ?? [];
+      if (m.t >= 18 && m.t < 50) for (const x of drops) {
+        if (Math.random() < 0.35) Kit.push(card, { x: x + (Math.random() - 0.5) * 5 * S, y: 6 * S, vx: 0, vy: 3, life: 30, dust: true });
+        const k = (m.t - 18) / 32;
+        ctx.fillStyle = `rgba(0,0,0,${0.25 + k * 0.4})`; ctx.beginPath(); ctx.ellipse(x, groundY + S, (3 + k * 3) * S, 1.2 * S, 0, 0, Math.PI * 2); ctx.fill();
+      }
+      drops.forEach((x, i) => { if (m.t === 50 + i * 5) Kit.push(card, { x, y: 6 * S, vx: 0, vy: 4, g: 0.9, life: 80, chunk: true, a: 0, spin: (Math.random() - 0.5) * 0.2, sz: 7 + Math.random() * 3, col: ['#b8703a', '#8a8fa8', '#e8c060', '#7a4220'][i % 4] }); });
+      if (P.pulling) {
+        // The field: arcs rising from the magnet to the ceiling, and a faint column.
+        const ux = env.flipX(ox + glow.up[0] * S), uy = oy + glow.up[1] * S;
+        ctx.fillStyle = 'rgba(255,90,90,0.08)'; ctx.fillRect(ux - 5 * S, 5 * S, 10 * S, uy - 5 * S);
+        for (let i = 0; i < 4; i++) {
+          const k = ((fi * 2 + i * 18) % 72) / 72; const y = uy - k * (uy - 6 * S); const r = (3 + k * 6) * S;
+          ctx.strokeStyle = `rgba(255,110,110,${0.75 * (1 - k * 0.6)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.ellipse(ux, y, r, r * 0.35, 0, Math.PI, Math.PI * 2); ctx.stroke();
+        }
+        glowAt(ctx, ux, uy, 5 * S, '255,110,110', 0.4);
+      }
+    }
+
+    if (m.name === 'toss' && m.t === 22) Kit.push(card, { x: ox + glow.hand[0] * S, y: oy + glow.hand[1] * S, vx: -6, vy: -6, g: 0.5, life: 90, saw: true, a: 0 });
+    if (m.name === 'magnet' && m.t % 14 === 0) Kit.push(card, { x: 0, y: oy + (10 + Math.random() * 25) * S, vx: 9, vy: 0, life: 40, junk: true, a: 0 });
+    Kit.run(env, (p) => {
+      if (p.saw) { if (p.y > groundY - 4 * S) { p.y = groundY - 4 * S; p.vy = 0; p.g = 0; p.vx = -7; } p.a += 0.6; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = '#c8ccd8'; ctx.fillRect(-4 * S, -S, 8 * S, 2 * S); ctx.fillRect(-S, -4 * S, 2 * S, 8 * S); ctx.restore(); }
+      if (p.chunk) { p.a += p.spin; if (p.y > groundY - p.sz * S / 2) { p.y = groundY - p.sz * S / 2; p.vy = 0; p.g = 0; p.spin = 0; p.life = Math.min(p.life, 24); } ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.globalAlpha = Math.min(1, p.life / 12); ctx.fillStyle = p.col; ctx.fillRect(-p.sz * S / 2, -p.sz * S / 2, p.sz * S, p.sz * S); ctx.fillStyle = 'rgba(255,255,255,0.25)'; ctx.fillRect(-p.sz * S / 2, -p.sz * S / 2, p.sz * S, S); ctx.strokeStyle = '#1a1428'; ctx.lineWidth = 2; ctx.strokeRect(-p.sz * S / 2, -p.sz * S / 2, p.sz * S, p.sz * S); ctx.restore(); ctx.globalAlpha = 1; }
+      if (p.dust) { ctx.fillStyle = `rgba(200,180,150,${p.life / 30})`; ctx.fillRect(p.x, p.y, S * 0.8, S * 0.8); }
+      if (p.junk) { if (p.y > groundY) p.life = 0; p.a += 0.3; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = '#b8703a'; ctx.fillRect(-1.5 * S, -1.5 * S, 3 * S, 3 * S); ctx.restore(); }
+    });
+    if (m.name === 'magnet') {
+      const mx = ox + glow.magnet[0] * S, my = oy + glow.magnet[1] * S;
+      for (let i = 0; i < 3; i++) { const r = ((fi * 3 + i * 20) % 60) * S * 0.5; ctx.strokeStyle = `rgba(255,90,90,${0.6 - r / (S * 60)})`; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(mx, my, r, Math.PI * 0.6, Math.PI * 1.4); ctx.stroke(); }
+    }
+    glowAt(ctx, ox + glow.eye[0] * S, oy + glow.eye[1] * S, 4 * S, '255,225,74', 0.35);
+  },
+  designs: [
+    { id: 'fist', name: 'A. FIST UP', tag: "The Junk Golem you picked. For the ceiling pull he raises his front fist overhead and a red horseshoe opens in its palm, poles up. Rings of field climb to the roof, the girders sag and shake, dust trickles where junk is about to come loose (shadows on the floor), and then it rains in. The fist overhead is the tell.", draw: (P) => golemColossus(P, 'fist') },
+    { id: 'core', name: 'B. CORE FLIP', tag: "Same Golem, a bigger tell: the horseshoe in his chest turns over so its poles point at the ceiling, his chest plates lift apart, and both fists go up. The field rises from his chest. Reads from across the room that the roof is about to come down.", draw: (P) => golemColossus(P, 'core') },
+  ],
+});
+
+
+</script>
+</body>
+</html>

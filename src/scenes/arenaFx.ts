@@ -32,7 +32,8 @@ const SURGE_H = 18;
  */
 export class ArenaFx {
   private t = 0;
-  private lava: Phaser.GameObjects.TileSprite | null = null;
+  /** The surge, drawn with the stage's animated lava (see tileFx): a rolling crest, a churning body, a heat glow. */
+  private lava: { top: Phaser.GameObjects.TileSprite; body: Phaser.GameObjects.TileSprite; glow: Phaser.GameObjects.TileSprite; theme: string } | null = null;
   private level = 0;
   private icicles: { x: number; y: number; t: number; img: Phaser.GameObjects.Image }[] = [];
 
@@ -78,12 +79,20 @@ export class ArenaFx {
     if (!fighting || !room) {
       this.t = 0;
       this.level = 0;
-      this.lava?.setVisible(false);
+      this.showLava(false);
       return;
     }
     if (!this.lava) {
-      const tex = this.h.scene.textures.exists('lava_volcano') ? 'lava_volcano' : 'lava_foundry';
-      this.lava = this.h.scene.add.tileSprite(room.left - 8, room.floor, room.right - room.left + 16, TILE * 2, tex).setOrigin(0).setDepth(14).setAlpha(0.92);
+      const sc = this.h.scene;
+      const theme = sc.textures.exists('lava_top_volcano_0') ? 'volcano' : 'foundry';
+      const w = room.right - room.left + 16;
+      const ts = (key: string, depth: number) => sc.add.tileSprite(room.left - 8, room.floor, w, TILE, key).setOrigin(0).setDepth(depth).setVisible(false);
+      this.lava = {
+        top: ts(`lava_top_${theme}_0`, 14),
+        body: ts(`lava_body_${theme}_0`, 14),
+        glow: ts(`lava_glow_${theme}`, 14.1).setBlendMode(Phaser.BlendModes.ADD).setOrigin(0, 1),
+        theme,
+      };
     }
     const S = SURGE;
     const cycle = S.calm + S.warn + S.rise + S.high + S.drain;
@@ -104,17 +113,43 @@ export class ArenaFx {
     else if (u >= drainAt) this.level = (1 - (u - drainAt) / S.drain) * SURGE_H;
     else this.level = 0;
     const surface = room.floor - this.level;
-    this.lava.setVisible(this.level > 0.5).setY(Math.round(surface));
-    this.lava.setSize(this.lava.width, Math.max(1, Math.round(this.level) + 2));
-    this.lava.tilePositionX = (this.t * 0.4) % TILE;
+    this.drawLava(surface);
+    if (this.level > 4 && this.t % 6 === 0) this.h.burst(room.left + Math.random() * (room.right - room.left), surface + 2, 'ember', 1);
     // It burns: a hit (with the usual knockback and invincibility), not a death.
     if (this.level > 4 && p.alive && p.bottom > surface + 2 && p.cx > room.left - 8 && p.cx < room.right + 8) p.hurt(4, p.cx + (p.facing > 0 ? 1 : -1));
+  }
+
+  /** Place the surge: the crest (whose top rows are see-through) a little above the surface, the body under it down into the floor. */
+  private drawLava(surface: number): void {
+    const L = this.lava;
+    if (!L) return;
+    const on = this.level > 0.5;
+    this.showLava(on);
+    if (!on) return;
+    const deep = Math.round(this.level) + 2; // down to just inside the floor
+    const topY = Math.round(surface) - 2;
+    const topH = Math.min(TILE, deep + 2);
+    const f = Math.floor(this.t / 5) % 8;
+    const drift = (this.t * 0.4) % TILE;
+    L.top.setTexture(`lava_top_${L.theme}_${f}`).setY(topY).setSize(L.top.width, topH);
+    L.top.tilePositionX = drift;
+    const bodyH = deep + 2 - topH;
+    L.body.setVisible(bodyH > 0).setTexture(`lava_body_${L.theme}_${f}`).setY(topY + topH).setSize(L.body.width, Math.max(1, bodyH));
+    L.body.tilePositionX = drift;
+    L.glow.setY(topY + 2).setAlpha(0.6 + Math.sin(this.t * 0.1) * 0.25);
+  }
+
+  private showLava(on: boolean): void {
+    if (!this.lava) return;
+    this.lava.top.setVisible(on);
+    this.lava.body.setVisible(on);
+    this.lava.glow.setVisible(on);
   }
 
   reset(): void {
     this.t = 0;
     this.level = 0;
-    this.lava?.setVisible(false);
+    this.showLava(false);
     for (const ic of this.icicles) ic.img.destroy();
     this.icicles = [];
   }

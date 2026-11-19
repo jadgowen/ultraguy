@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import type { Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
+import { BOSS_ANCHORS } from './bossAnchors';
 import { Boss, Room } from './Boss';
+import { BossFx } from './bossFx';
 
 type Mode = 'idle' | 'leap' | 'throw' | 'vanish' | 'pounce' | 'rain';
 
@@ -18,8 +20,25 @@ export class Mantis extends Boss {
   private wait = 30;
   private last: Mode | null = null;
 
+  private readonly fx: BossFx;
+  /** Steps airborne, and left in the landing squash. */
+  private airT = 0;
+  private landT = 0;
+  private wasGrounded = true;
+
   constructor(g: GameScene, at: Point, room: Room) {
     super(g, 'mantis', 22, 30, 'cyclone', at, room);
+    this.fx = new BossFx(g);
+    // An orchid petal (he vanishes in a scatter of them).
+    if (!g.textures.exists('petal')) {
+      const t = g.textures.createCanvas('petal', 3, 2)!;
+      const ctx = t.getContext();
+      ctx.fillStyle = '#ffc0dc';
+      ctx.fillRect(0, 0, 3, 2);
+      ctx.fillStyle = '#fff0f8';
+      ctx.fillRect(0, 0, 1, 1);
+      t.refresh();
+    }
   }
 
   protected untouchable(): boolean {
@@ -146,6 +165,48 @@ export class Mantis extends Boss {
 
   protected introPose(): string {
     return 'throw';
+  }
+
+  step(): void {
+    super.step();
+    if (this.grounded && !this.wasGrounded) this.landT = 8;
+    this.wasGrounded = this.grounded;
+    if (this.landT > 0) this.landT--;
+    this.airT = this.grounded ? 0 : this.airT + 1;
+  }
+
+  /** The frame for right now (see art/mantisArt.mjs for what each looks like). */
+  private frame(): string {
+    const m = this.mode;
+    if (this.state === 'dying') return 'land';
+    if (!this.grounded && this.state !== 'fill') return this.airT < 10 && this.vy < 0 ? 'jump_up' : 'jump_top';
+    if (this.landT > 0) return 'land';
+    if (m === 'throw') return this.t < 8 ? 'throw1' : this.t < 34 ? 'throw2' : 'throw1';
+    return `idle${1 + (Math.floor(this.t / 10) % 4)}`;
+  }
+
+  render(): void {
+    super.render();
+    const key = `mantis_${this.frame()}`;
+    this.sprite.setTexture(key);
+    const a = BOSS_ANCHORS[key] ?? BOSS_ANCHORS.mantis_idle;
+    // Vanishing (or coming back): a scatter of orchid petals.
+    if ((this.mode === 'vanish' || this.mode === 'pounce') && this.alpha < 0.95 && this.t % 3 === 0) this.g.burst(this.cx + (Math.random() - 0.5) * 20, this.y + Math.random() * this.h, 'petal', 1);
+    this.fx.update({
+      x: Math.round(this.cx),
+      bottom: Math.round(this.bottom),
+      facing: this.facing,
+      floor: this.room.floor,
+      eye: a.eye,
+      eyeColor: 0x7ad04a,
+      heat: 0,
+      visible: this.sprite.visible && this.state !== 'dying',
+    });
+  }
+
+  destroy(): void {
+    this.fx.destroy();
+    super.destroy();
   }
 
   protected pose(): string {

@@ -2,7 +2,9 @@ import Phaser from 'phaser';
 import type { Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
+import { BOSS_ANCHORS } from './bossAnchors';
 import { Boss, Room } from './Boss';
+import { BossFx } from './bossFx';
 
 type Mode = 'rise' | 'cruise' | 'aim' | 'dash' | 'bubbles' | 'dive' | 'geyser' | 'ring';
 
@@ -19,8 +21,15 @@ export class Tide extends Boss {
   private last: Mode | null = null;
   private geyserX = 0;
 
+  private readonly fx: BossFx;
+  /** Steps airborne, and left in the landing squash. */
+  private airT = 0;
+  private landT = 0;
+  private wasGrounded = true;
+
   constructor(g: GameScene, at: Point, room: Room) {
     super(g, 'tide', 30, 20, 'spark', at, room);
+    this.fx = new BossFx(g);
   }
 
   private setMode(m: Mode): void {
@@ -152,6 +161,49 @@ export class Tide extends Boss {
 
   protected introPose(): string {
     return 'open';
+  }
+
+  step(): void {
+    super.step();
+    if (this.grounded && !this.wasGrounded) this.landT = 8;
+    this.wasGrounded = this.grounded;
+    if (this.landT > 0) this.landT--;
+    this.airT = this.grounded ? 0 : this.airT + 1;
+  }
+
+  /** The frame for right now (see art/tideArt.mjs for what each looks like). */
+  private frame(): string {
+    const m = this.mode;
+    if (m === 'dash') return this.t % 8 < 4 ? 'dash1' : 'dash2';
+    if (m === 'aim') return 'open1';
+    if (m === 'bubbles' || m === 'geyser' || m === 'ring') return this.t % 16 < 8 ? 'open1' : 'open2';
+    // Swimming: the wave runs down his body.
+    return `swim${1 + (Math.floor(this.t / 7) % 4)}`;
+  }
+
+  render(): void {
+    super.render();
+    const key = `tide_${this.frame()}`;
+    this.sprite.setTexture(key);
+    const a = BOSS_ANCHORS[key] ?? BOSS_ANCHORS.tide_idle;
+    this.fx.update({
+      x: Math.round(this.cx),
+      bottom: Math.round(this.bottom),
+      facing: this.facing,
+      floor: this.room.floor,
+      eye: a.eye,
+      eyeColor: 0xffe14a,
+      // The glowing lights down his back.
+      hot: a.lights ?? [],
+      hotColor: 0x5ef0c8,
+      heat: 0.7,
+      visible: this.sprite.visible && this.state !== 'dying',
+    });
+  }
+
+  destroy(): void {
+    this.fx.destroy();
+    super.destroy();
   }
 
   protected pose(): string {

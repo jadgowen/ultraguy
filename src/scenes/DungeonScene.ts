@@ -151,7 +151,7 @@ export class DungeonScene extends ModeScene {
     this.mantis = null;
     this.g = this.add.graphics();
     this.heroImg = this.add.image(0, 0, 'hop_hero').setDepth(6);
-    this.mantisImg = this.add.image(0, 0, 'scrap_idle').setDepth(5).setVisible(false);
+    this.mantisImg = this.add.image(0, 0, 'scrap_idle').setDepth(5).setScale(0.7).setVisible(false); // the Junk Golem art is 48x44; keep him maze-sized
     this.p = { x: 0, y: 0, fx: 0, fy: 1, hp: MAX_HP, invuln: 0, entry: { x: 0, y: 0 } };
     this.enter('A', null);
     this.help('ARROWS MOVE   FIRE SHOOT   JUMP HOOKSHOT');

@@ -861,6 +861,7 @@ export class Projectile {
   state = 0;
   pierce = false; // keeps going after a hit (hits each target once)
   pip = false; // one of Pip's shots (hits enemies, not bosses)
+  rear = false; // the backblast of a full charge (short-lived, behind you)
   ignoresShield = false;
   hasGravity = false;
   readonly hitTargets = new Set<object>();

@@ -1,0 +1,160 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>MANTIS design mockups</title>
+<style>
+  body { margin: 0; background: #0b0d1a; color: #fff1e0; font: 14px/1.4 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 18px; color: #f28c28; margin: 16px 20px 4px; }
+  p.lead { margin: 0 20px 12px; color: #8a8fa8; max-width: 980px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(460px, 1fr)); gap: 14px; padding: 0 20px 24px; }
+  .card { background: #141626; border: 2px solid #3a3f66; border-radius: 6px; padding: 12px; }
+  .card.current { border-color: #55607a; }
+  .card h2 { margin: 0; font-size: 15px; color: #5ef0c8; }
+  .card .tag { color: #8a8fa8; font-size: 12px; margin: 2px 0 8px; }
+  canvas { image-rendering: pixelated; background: #1c1f36; border-radius: 3px; display: block; }
+  .poses { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+  .poses div { font-size: 11px; color: #8a8fa8; text-align: center; }
+  .controls { margin: 0 20px 12px; display: flex; gap: 16px; color: #8a8fa8; }
+  .controls label { cursor: pointer; }
+</style>
+</head>
+<body>
+<script src="kit.js"></script>
+<script>
+const PAL = {
+  K: '#1a1428', W: '#fff1e0', w: '#c8ccd8', G: '#8a8fa8', g: '#55607a', d: '#2b2540', x: '#141226',
+  // mantis greens
+  N: '#c8f08a', E: '#7ad04a', e: '#3a9a34', f: '#1e5a24',
+  // orchid pinks
+  P: '#fff0f8', p: '#ffc0dc', Q: '#e080b0', q: '#9a4a78',
+  // eyes, blades
+  Y: '#ffe14a', y: '#d8a020', R: '#e8484e', r: '#8c2030',
+  // samurai: lacquer, straw, cloth
+  L: '#c83a3a', l: '#7a1a24', T: '#e8c878', t: '#a8884a', u: '#6a5428', C: '#3a4a8a', c: '#24306a',
+};
+const R = (shine, light, base, dark) => ({ shine, light, base, dark });
+const RAMPS = {
+  green: R('N', 'E', 'e', 'f'), greenBack: R('E', 'e', 'f', 'x'),
+  pink: R('P', 'p', 'Q', 'q'), pinkBack: R('p', 'Q', 'q', 'x'),
+  blade: R('W', 'W', 'w', 'G'),
+  lacquer: R('R', 'L', 'L', 'l'), straw: R('W', 'T', 't', 'u'), cloth: R('C', 'C', 'c', 'x'),
+};
+const W = 48, H = 44;
+
+// Move set: idle, a leap over you, boomerang throws, vanish and drop from above.
+const MOVES = [
+  { name: 'idle', len: 70 }, { name: 'leap', len: 44 }, { name: 'land', len: 14 }, { name: 'idle', len: 20 },
+  { name: 'throw', len: 50 }, { name: 'idle', len: 16 }, { name: 'vanish', len: 30 }, { name: 'drop', len: 30 }, { name: 'land', len: 14 },
+];
+function pose(m, f) {
+  const P = { breath: (Math.sin(f * 0.09) + 1) / 2, t: f, air: 0, crouch: 0, armUp: 0, armOut: 0, wing: 0, fade: 1 };
+  if (m.name === 'leap') { P.air = 1; P.wing = 1; P.armUp = 0.4; }
+  if (m.name === 'land') { P.crouch = 1 - m.k; }
+  if (m.name === 'throw') { P.armOut = m.t < 12 ? m.t / 12 : m.t < 30 ? 1 : 1 - (m.t - 30) / 20; }
+  if (m.name === 'vanish') { P.fade = 1 - m.k; P.crouch = 0.4; }
+  if (m.name === 'drop') { P.air = 1; P.armUp = 1; P.fade = Math.min(1, m.k * 2); }
+  return P;
+}
+
+/** One mantis skeleton (upright, like the real thing), styled three ways. */
+function mantis(P, s) {
+  const b = new Buf(W, H, PAL);
+  const ground = H - 1;
+  const cx = 22;
+  const drop = P.crouch * 3;
+  const lift = P.air * 3;
+  const hip = [cx, ground - 14 + drop - lift];
+  const body = s.body, back = s.back;
+  // Four thin walking legs with high knees (back pair darker); tucked up in the air.
+  const leg = (fx, kx, bk) => {
+    const foot = [hip[0] + fx * (P.air ? 0.6 : 1), ground - (P.air ? 5 : 0)];
+    const knee = [hip[0] + kx, hip[1] - 4 + (P.air ? 3 : 0)];
+    b.part(capsule(hip[0], hip[1], knee[0], knee[1], 0.7), bk ? back : body);
+    b.part(capsule(knee[0], knee[1], foot[0], foot[1], 0.6), bk ? back : body);
+  };
+  leg(-12, -6, true); leg(9, 5, true);
+  // Abdomen: low and long behind; wings folded over it (fanned open in the air).
+  b.part(ellipse(hip[0] - 7, hip[1] + 1, 8, 3.5 + P.breath * 0.3), body);
+  if (s.abdomenBands) for (let i = -12; i <= -3; i += 3) b.px(hip[0] + i, hip[1] + 1, s.abdomenBands);
+  if (P.wing > 0.5) {
+    b.part(poly([[hip[0] - 1, hip[1] - 4], [hip[0] - 18, hip[1] - 14], [hip[0] - 20, hip[1] - 6], [hip[0] - 4, hip[1]]]), s.wing);
+    b.part(poly([[hip[0] - 1, hip[1] - 2], [hip[0] - 14, hip[1] - 6], [hip[0] - 16, hip[1] + 1], [hip[0] - 4, hip[1] + 1]]), s.wing);
+  } else b.part(ellipse(hip[0] - 6, hip[1] - 1.5, 7, 1.8), s.wing);
+  leg(-8, -3, false); leg(12, 7, false);
+  // Cape (the samurai), from the shoulders down the back.
+  const sh = [hip[0] + 4, hip[1] - 12 - P.breath * 0.6 + drop * 0.5];
+  if (s.cape) b.part(poly([[sh[0] - 2, sh[1]], [sh[0] - 11, hip[1] + 2 + Math.sin(P.t * 0.15)], [hip[0] - 1, hip[1] + 1]]), s.cape);
+  // Thorax: a long slanted neck up from the hips.
+  b.part(capsule(hip[0], hip[1], sh[0], sh[1], 1.8), body);
+  // Head: a wide triangle with big eyes on its corners, antennae.
+  const hx = sh[0] + 2, hy = sh[1] - 4;
+  b.part(poly([[hx - 4.5, hy - 1.5], [hx + 5.5, hy - 1.5], [hx + 1, hy + 4]]), body);
+  b.part(ellipse(hx - 3.5, hy - 1.5, 2.2, 2.2), s.eye);
+  b.part(ellipse(hx + 4.5, hy - 1.5, 2.2, 2.2), s.eye);
+  b.px(hx - 3.5, hy - 2.5, 'W'); b.px(hx + 4.5, hy - 2.5, 'W');
+  b.line([[hx - 1, hy - 3], [hx - 4, hy - 9]], s.antenna); b.line([[hx + 2, hy - 3], [hx + 6, hy - 9]], s.antenna);
+  if (s.hat) b.part(poly([[hx - 9, hy - 3], [hx + 10, hy - 3], [hx + 1, hy - 9]]), s.hat);
+  // Raptorial arms: folded in front of the chest (a scythe hanging down), swung out to throw, raised to drop.
+  const arm = (bk) => {
+    const base = [sh[0] + (bk ? 0 : 1), sh[1] + 2];
+    const up = P.armUp, out = P.armOut;
+    const el = [base[0] + 4 + out * 6, base[1] + 4 - up * 9 - out * 3];
+    const wrist = [el[0] + 1 + out * 5, el[1] - 6 - up * 4 + out * 3];
+    const tip = [wrist[0] + 3 + out * 3, wrist[1] + 5 - up * 7 - out * 3];
+    b.part(capsule(base[0], base[1], el[0], el[1], 1.1), bk ? back : body);
+    b.part(capsule(el[0], el[1], wrist[0], wrist[1], 1.3), bk ? back : body);
+    b.part(poly([[wrist[0] - 0.5, wrist[1] - 0.5], [tip[0] + 0.5, tip[1]], [wrist[0] + 1.5, wrist[1] + 1]]), s.blade);
+    return tip;
+  };
+  arm(true);
+  const tip = arm(false);
+  b.outline();
+  return { b, glow: { eye: [hx, hy - 1.5], tip } };
+}
+
+const STYLES = {
+  blade: { body: RAMPS.green, back: RAMPS.greenBack, wing: R('N', 'N', 'E', 'e'), eye: R('W', 'Y', 'Y', 'y'), blade: RAMPS.blade, antenna: 'e', abdomenBands: 'f' },
+  orchid: { body: RAMPS.pink, back: RAMPS.pinkBack, wing: R('P', 'P', 'p', 'Q'), eye: R('W', 'E', 'e', 'f'), blade: R('P', 'P', 'p', 'Q'), antenna: 'q', abdomenBands: 'p' },
+  samurai: { body: RAMPS.green, back: RAMPS.greenBack, wing: R('N', 'N', 'E', 'e'), eye: R('W', 'R', 'R', 'r'), blade: RAMPS.blade, antenna: 'e', hat: RAMPS.straw, cape: RAMPS.lacquer, abdomenBands: 'L' },
+};
+
+Kit.start({
+  name: 'MANTIS',
+  lead: "Each card plays Mantis's move set: idle, a leap over you, a landing crouch, two thorn boomerangs thrown out (they curve back), then he fades out and drops on you from above. Big view 5x next to UltraGuy; game-scale poses below. Leaves, trails and glints are effects added on top. CURRENT is today's three poses.",
+  currentTag: "Today's Mantis: three poses (idle, jump, throw), a plain fade for the vanish.",
+  currentFrame: (m) => (m.name === 'leap' || m.name === 'drop' ? 'mantis_jump' : m.name === 'throw' ? 'mantis_throw' : 'mantis_idle'),
+  floor: ['#1e3a20', '#4ca04a'],
+  moves: MOVES,
+  pose,
+  minis: [['idle', { name: 'idle', t: 0, k: 0 }], ['leap', { name: 'leap', t: 20, k: 0.5 }], ['throw', { name: 'throw', t: 20, k: 0.4 }], ['drop', { name: 'drop', t: 20, k: 0.7 }]],
+  place: (m, P) => {
+    if (m.name === 'leap') return { x: lerp(60, 34, m.k), lift: Math.sin(m.k * Math.PI) * 26, flip: false };
+    if (m.name === 'drop') return { x: 30, lift: (1 - ease(m.k)) * 40, alpha: P.fade };
+    if (m.name === 'vanish') return { x: 34, lift: 0, alpha: P.fade };
+    const atLeft = ['land', 'throw', 'idle'].includes(m.name) && m.t >= 0;
+    return { x: 60, lift: 0, alpha: P.fade };
+  },
+  effects: (env) => {
+    const { ctx, m, card, S, fi, ox, oy, glow, groundY } = env;
+    if (env.current) return;
+    // Leaves on the vanish, boomerangs on the throw, a glint on the blade.
+    if (m.name === 'vanish' && fi % 2 === 0) for (let i = 0; i < 2; i++) Kit.push(card, { x: ox + (24 + (Math.random() - 0.5) * 30) * S, y: oy + (20 + Math.random() * 20) * S, vx: (Math.random() - 0.5) * 3, vy: -1 - Math.random() * 2, life: 30, leaf: true });
+    if (m.name === 'throw' && (m.t === 14 || m.t === 22)) Kit.push(card, { x: ox + glow.tip[0] * S, y: oy + glow.tip[1] * S, vx: -10, vy: m.t === 14 ? -2 : 2, life: 44, boom: true, a: 0 });
+    Kit.run(env, (p) => {
+      if (p.leaf) { ctx.fillStyle = card.d.id === 'orchid' ? '#ffc0dc' : '#7ad04a'; ctx.fillRect(p.x, p.y, 2 * S, S); }
+      if (p.boom) { p.vx += 0.45; p.a += 0.5; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = card.d.id === 'orchid' ? '#ffc0dc' : '#c8f08a'; ctx.fillRect(-3 * S, -S, 6 * S, 2 * S); ctx.fillRect(-S, -3 * S, 2 * S, 6 * S); ctx.restore(); }
+    });
+    if (fi % 40 < 3) glowAt(ctx, ox + glow.tip[0] * S, oy + glow.tip[1] * S, 5 * S, '255,255,255', 0.8);
+    glowAt(ctx, ox + glow.eye[0] * S, oy + glow.eye[1] * S, 5 * S, card.d.id === 'samurai' ? '255,80,80' : '255,225,74', 0.25);
+  },
+  designs: [
+    { id: 'blade', name: 'A. BLADE MANTIS+', tag: "Today's Mantis drawn properly: a shaded green mantis with a long banded abdomen, two pairs of thin legs, folded wings that fan open in the air, big yellow eyes and steel scythe arms. Closest to now.", draw: (P) => mantis(P, STYLES.blade) },
+    { id: 'orchid', name: 'B. ORCHID ASSASSIN', tag: 'An orchid mantis: soft pink and white like a flower, petal wings, green eyes, blades like petals. Pretty and unsettling; he vanishes in a burst of petals instead of leaves. A different color from everything else in the jungle.', draw: (P) => mantis(P, STYLES.orchid) },
+    { id: 'samurai', name: 'C. SAMURAI MANTIS', tag: 'A wandering swordsman: a straw hat, a red cape that flutters as he moves, red eyes under the brim, steel scythe-katanas. The most personality; his leaps and drops read like sword strikes.', draw: (P) => mantis(P, STYLES.samurai) },
+  ],
+});
+
+</script>
+</body>
+</html>

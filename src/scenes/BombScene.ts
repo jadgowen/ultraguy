@@ -21,7 +21,12 @@ const OX = Math.round((VIEW_W - COLS * T) / 2);
 const OY = 38;
 const FUSE = 150;
 const BLAST = 30;
-const HEARTS = 3;
+/** Hearts each: you get more than Magma (this one was the hardest minigame). */
+const HEARTS_YOU = 5;
+const HEARTS_MAGMA = 3;
+/** Magma's limits: he can't power up past these (you can). */
+const MAGMA_MAX_BOMBS = 2;
+const MAGMA_MAX_RANGE = 3;
 
 type Cell = 0 | 1 | 2; // floor, pillar, rock
 type Power = 'bomb' | 'fire' | 'speed';
@@ -81,10 +86,12 @@ export class BombScene extends Phaser.Scene {
     makeHopTextures(this);
     this.cameras.main.setBackgroundColor('#1a0806');
     this.g = this.add.graphics();
-    const mk = (c: number, r: number, tex: string): Fighter => ({ x: c * T + T / 2, y: r * T + T / 2, dir: [0, 1], speed: 1.0, maxBombs: 1, range: 2, hearts: HEARTS, invuln: 0, sprite: this.add.image(0, 0, tex).setDepth(5) });
+    const mk = (c: number, r: number, tex: string): Fighter => ({ x: c * T + T / 2, y: r * T + T / 2, dir: [0, 1], speed: 1.0, maxBombs: 1, range: 2, hearts: HEARTS_YOU, invuln: 0, sprite: this.add.image(0, 0, tex).setDepth(5) });
     this.you = mk(1, 1, 'hop_hero');
     this.magma = mk(COLS - 2, ROWS - 2, 'bomb_magma');
-    this.magma.speed = 0.9;
+    this.you.maxBombs = 2;
+    this.magma.hearts = HEARTS_MAGMA;
+    this.magma.speed = 0.78;
     this.banner = pixelText(this, VIEW_W / 2, 20, 'READY...', { fontSize: '16px', color: '#fff1e0', stroke: '#000000' }).setOrigin(0.5).setDepth(20);
     this.hud = pixelText(this, OX, 6, '', { color: '#fff1e0', stroke: '#000000' }).setDepth(20);
     pixelText(this, OX, VIEW_H - 14, 'ARROWS MOVE  JUMP/FIRE BOMB', { color: '#8a8fa8', stroke: '#000000' }).setDepth(20);
@@ -157,7 +164,7 @@ export class BombScene extends Phaser.Scene {
       this.collectPower(f);
       this.releaseBombs(f);
     }
-    this.hud.setText(`ULTRAGUY ${'*'.repeat(this.you.hearts)}${'-'.repeat(HEARTS - this.you.hearts)}   MAGMA ${'*'.repeat(this.magma.hearts)}${'-'.repeat(HEARTS - this.magma.hearts)}   BOMBS ${this.you.maxBombs} FIRE ${this.you.range}`);
+    this.hud.setText(`ULTRAGUY ${'*'.repeat(this.you.hearts)}${'-'.repeat(HEARTS_YOU - this.you.hearts)}   MAGMA ${'*'.repeat(this.magma.hearts)}${'-'.repeat(HEARTS_MAGMA - this.magma.hearts)}   BOMBS ${this.you.maxBombs} FIRE ${this.you.range}`);
   }
 
   /** Grid-aligned movement with corner assist: slide toward the lane you're turning into. */
@@ -247,7 +254,7 @@ export class BombScene extends Phaser.Scene {
       const r = Math.floor(who.y / T);
       if (who.invuln === 0 && this.flames.some((f) => f.c === c && f.r === r)) {
         who.hearts--;
-        who.invuln = 100;
+        who.invuln = who === this.you ? 150 : 100;
         sfx.hurt();
         if (who.hearts <= 0) this.finish(who === this.magma);
       }
@@ -261,9 +268,10 @@ export class BombScene extends Phaser.Scene {
     const p = this.powers.get(key);
     if (!p || this.grid[r][c] !== 0) return;
     this.powers.delete(key);
-    if (p === 'bomb') f.maxBombs = Math.min(5, f.maxBombs + 1);
-    if (p === 'fire') f.range = Math.min(6, f.range + 1);
-    if (p === 'speed') f.speed = Math.min(1.8, f.speed + 0.25);
+    const magma = f === this.magma;
+    if (p === 'bomb') f.maxBombs = Math.min(magma ? MAGMA_MAX_BOMBS : 5, f.maxBombs + 1);
+    if (p === 'fire') f.range = Math.min(magma ? MAGMA_MAX_RANGE : 6, f.range + 1);
+    if (p === 'speed' && !magma) f.speed = Math.min(1.8, f.speed + 0.25);
     if (f === this.you) sfx.pickup();
   }
 
@@ -349,7 +357,8 @@ export class BombScene extends Phaser.Scene {
     const mc = Math.floor(m.x / T);
     const mr = Math.floor(m.y / T);
     const centered = Math.abs(m.x - (mc * T + T / 2)) < 0.6 && Math.abs(m.y - (mr * T + T / 2)) < 0.6;
-    if (centered && (this.frame % 6 === 0 || this.aiPath.length === 0)) {
+    // He thinks a little slower than he used to (every 10 steps), so you can outmaneuver him.
+    if (centered && (this.frame % 10 === 0 || this.aiPath.length === 0)) {
       const danger = this.dangerSet();
       const pc = Math.floor(this.you.x / T);
       const pr = Math.floor(this.you.y / T);
@@ -363,7 +372,8 @@ export class BombScene extends Phaser.Scene {
         const atDig = dig !== null && dig.stand.length === 0;
         const nextToRock = [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dx, dy]) => this.grid[mr + dy]?.[mc + dx] === 2);
         const canBomb = this.bombs.filter((b) => b.owner === m).length < m.maxBombs;
-        if (canBomb && (lineUp || atDig || (nextToRock && Math.random() < 0.15))) {
+        // Lined up with you, he doesn't always take the shot.
+        if (canBomb && ((lineUp && Math.random() < 0.55) || atDig || (nextToRock && Math.random() < 0.15))) {
           const withBomb = this.dangerSet({ c: mc, r: mr, range: m.range });
           const escape = this.bfs([mc, mr], (c, r) => !withBomb.has(r * COLS + c));
           if (escape && escape.length <= 6) {

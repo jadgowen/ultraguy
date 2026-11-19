@@ -1,5 +1,8 @@
 import type { StageData } from './Level';
-import { bossArena, miniHall, rows, SKY } from './rooms';
+import { bossArena, bossHall, miniHall, rows, SKY } from './rooms';
+
+/** The quiet hallway before the boss room (see bossHall). */
+const lobby = bossHall();
 
 // POWER PLANT. Built around switch blocks ('[' and ']' take turns being solid,
 // blinking before they vanish) and the dark: in the unlit rooms you only see
@@ -40,7 +43,7 @@ export const POWERPLANT: StageData = {
   bossName: 'VOLT',
   bossWeapon: 'spark',
   signature: [{ kind: 'teslaCoil', from: 'roller', every: 1 }],
-  layout: ['....FGH123I|XY', 'ABCDE'],
+  layout: ['....FGH12378I|56|XY', 'ABCDE'],
   dark: 'CDEG',
   blackout: '23',
   screens: {
@@ -107,7 +110,12 @@ export const POWERPLANT: StageData = {
       CEIL,
       CEIL,
     ],
-    I: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...B...........D', CEIL, CEIL],
+    I: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...c...........D', CEIL, CEIL],
+    // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    '7': ['################', '################', '................', '................', '................', '................', '................', '................', '................', '................', '........Z.......', '........Z.......', '..k.....Z...o...', '################', '################'],
+    '8': ['################', '################', '................', '................', '................', '................', '.......f........', '................', '................', '................', '.............$..', '............###.', '................', '#####[[[]]]#####', '#####.....######'],
+    '5': lobby.left,
+    '6': lobby.right,
     X: room.left,
     Y: room.right,
   },
