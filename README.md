@@ -17,6 +17,13 @@ Each boss gives a weapon; weaknesses form a loop. Beat all 8 and FORTRESS opens 
 ABYSS EYE, SPIRE WARDEN; no weapon reward), the BOSS HALL (eight teleporters for boss
 rematches), then the final boss (OVERLORD, then SHADE).
 
+**Ultra Arena** (ULTRA ARENA on the title menu, `src/scenes/ArenaScene.ts`): a first-person deathmatch in the style
+of the old 90s shooters. A raycaster draws the arena (textured walls, floors, ceilings or open sky, fog) into a
+canvas texture each frame; four of the eight bosses (their own sprites, as billboards) patrol, close in, circle and
+shoot. Pick up Spark Shock, Frost Spike, Flame Burst and Saw Blade ammo and health; first to 10 frags. Three arenas:
+Fortress, Scrapyard, Stratos. UP/DOWN move, LEFT/RIGHT turn, Q/E strafe, FIRE shoots, JUMP switches weapons, click to
+turn with the mouse. (The first mockup is `art/mockups/arena.html`.)
+
 Every boss stage is built around its own set piece (legend in `src/level/Level.ts`; logic in
 `src/scenes/sky.ts` and `src/scenes/hazards.ts`), taught safely, tested, twisted, then pushed hard, with
 a change of direction partway:

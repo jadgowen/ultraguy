@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>ULTRA ARENA: raycaster mockup</title>
+<style>
+  html, body { margin: 0; background: #07060c; color: #fff1e0; font: 12px monospace; }
+  body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 14px; }
+  h1 { font-size: 16px; color: #ffe14a; margin: 0; letter-spacing: 1px; }
+  p { margin: 0; max-width: 960px; color: #c8ccd8; line-height: 1.5; text-align: center; }
+  canvas { image-rendering: pixelated; width: 960px; height: 540px; border: 3px solid #2b2540; outline: 1px solid #55607a; cursor: crosshair; }
+  .keys { color: #8a8fa8; }
+  b { color: #5ef0c8; font-weight: normal; }
+</style>
+</head>
+<body>
+<h1>ULTRA ARENA (raycaster mockup)</h1>
+<p>A first-person deathmatch in the style of the old 90s shooters: a raycast arena at 320x180, scaled up. Bots are the eight bosses
+(their real sprites), the pickups are UltraGuy's weapons, and the first to 10 frags wins. Press <b>T</b> to flip between three arena themes.</p>
+<canvas id="c" width="320" height="180"></canvas>
+<p class="keys"><b>W/S</b> or <b>UP/DOWN</b> move &nbsp; <b>A/D</b> strafe &nbsp; <b>LEFT/RIGHT</b> or <b>Q/E</b> turn (or click to use the mouse) &nbsp;
+<b>SPACE</b>/click fire &nbsp; <b>1-5</b> weapons &nbsp; <b>T</b> theme &nbsp; <b>M</b> map</p>
+<script>
+'use strict';
+const W = 320, H = 180, TS = 32;
+const cv = document.getElementById('c');
+const ctx = cv.getContext('2d');
+const img = ctx.createImageData(W, H);
+const buf = new Uint32Array(img.data.buffer);
+const zbuf = new Float32Array(W);
+const c8 = (v) => (v < 0 ? 0 : v > 255 ? 255 : v | 0);
+const rgb = (r, g, b) => (255 << 24) | (c8(b) << 16) | (c8(g) << 8) | c8(r);
+const hex = (h) => [(h >> 16) & 255, (h >> 8) & 255, h & 255];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const hash = (x, y, s = 0) => {
+  let h = (x * 374761393 + y * 668265263 + s * 2147483647) | 0;
+  h = Math.imul(h ^ (h >>> 13), 1274126177);
+  return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
+};
+const bayer = (x, y) => [0, 0.5, 0.75, 0.25][(x & 1) + ((y & 1) << 1)];
+
+// --- the arena -------------------------------------------------------------------
+// 1 brick, 2 steel door / plates, 3 banner / accent, 4 glowing panel
+const MAP = [
+  '111111111111111111111111',
+  '1......................1',
+  '1..22........22........1',
+  '1..2..........2...3....1',
+  '1.......44.........3...1',
+  '1.......44.............1',
+  '1..............2222....1',
+  '1...3..........2..2....1',
+  '1...3..................1',
+  '1.......11....11.......1',
+  '1.......1......1...44..1',
+  '1..44..............44..1',
+  '1..44..................1',
+  '1.......1......1.......1',
+  '1.......11....11...3...1',
+  '1..................3...1',
+  '1....2.................1',
+  '1....2.....33......22..1',
+  '1....2.................1',
+  '1..........44..........1',
+  '1...22.....44....2.....1',
+  '1................2.....1',
+  '1......................1',
+  '111111111111111111111111',
+];
+const MW = MAP[0].length, MH = MAP.length;
+const cell = (x, y) => {
+  if (x < 0 || y < 0 || x >= MW || y >= MH) return 1;
+  const ch = MAP[y][x];
+  return ch === '.' ? 0 : +ch;
+};
+const solid = (x, y) => cell(Math.floor(x), Math.floor(y)) > 0;
+
+// --- themes and textures ----------------------------------------------------------
+const THEMES = [
+  { name: 'FORTRESS', fog: [20, 12, 34], sky: null,
+    floor: (x, y) => { const t = ((x >> 3) + (y >> 3)) & 1; const k = 0.55 + hash(x >> 2, y >> 2, 3) * 0.2 + (x % 8 === 0 || y % 8 === 0 ? -0.2 : 0); return t ? [86 * k, 70 * k, 110 * k] : [70 * k, 58 * k, 92 * k]; },
+    ceil: (x, y) => { const k = 0.35 + hash(x >> 2, y >> 3, 5) * 0.15 - (y % 16 === 0 ? 0.15 : 0); return [60 * k, 50 * k, 80 * k]; },
+    walls: { 1: 'brick', 2: 'door', 3: 'banner', 4: 'torch' } },
+  { name: 'SCRAPYARD', fog: [40, 22, 18], sky: [[38, 20, 40], [200, 90, 60], [255, 170, 90]],
+    floor: (x, y) => { const k = 0.5 + hash(x >> 1, y >> 1, 7) * 0.25 - (x % 16 === 0 || y % 16 === 0 ? 0.25 : 0); return [110 * k, 88 * k, 64 * k]; },
+    ceil: null,
+    walls: { 1: 'rust', 2: 'plates', 3: 'tyres', 4: 'hazard' } },
+  { name: 'STRATOS', fog: [150, 200, 240], sky: [[40, 110, 200], [120, 190, 240], [220, 240, 255]],
+    floor: (x, y) => { const g = (x % 4 === 0 || y % 4 === 0); const k = 0.7 + bayer(x, y) * 0.08; return g ? [70 * k, 80 * k, 100 * k] : [170 * k, 182 * k, 200 * k]; },
+    ceil: null,
+    walls: { 1: 'panel', 2: 'vent', 3: 'stripe', 4: 'glow' } },
+];
+
+/** Paint one 32x32 wall texture; returns Uint32 pixels. */
+function wallTex(kind) {
+  const t = new Uint32Array(TS * TS);
+  const set = (x, y, c) => (t[y * TS + x] = rgb(clamp(c[0] | 0, 0, 255), clamp(c[1] | 0, 0, 255), clamp(c[2] | 0, 0, 255)));
+  for (let y = 0; y < TS; y++)
+    for (let x = 0; x < TS; x++) {
+      let c;
+      const n = hash(x >> 1, y >> 1, kind.length);
+      switch (kind) {
+        case 'brick': { const row = y >> 3; const off = (row & 1) * 8; const mortar = y % 8 === 7 || (x + off) % 16 === 15; const k = 0.6 + n * 0.3 + (y % 8 === 0 ? 0.15 : 0); c = mortar ? [40, 32, 54] : [110 * k, 92 * k, 140 * k]; break; }
+        case 'door': { const k = 0.55 + n * 0.15 + (x % 16 === 0 ? -0.3 : 0) + (x % 16 === 1 ? 0.25 : 0); c = [120 * k, 126 * k, 150 * k]; if ((x % 16 === 4 || x % 16 === 12) && y % 8 === 4) c = [230, 236, 250]; break; }
+        case 'banner': { const edge = x < 4 || x > 27; const k = 0.7 + n * 0.2; c = edge ? [90 * k, 80 * k, 110 * k] : [200 * k, 50 * k, 70 * k]; if (!edge && Math.abs(x - 15.5) < 4 && Math.abs(y - 14) < 7) c = [255, 225, 74]; if (!edge && y > 28) c = [180, 140, 40]; break; }
+        case 'torch': { const brick = (y >> 3) & 1 ? (x + 8) % 16 === 15 : x % 16 === 15; const k = 0.55 + n * 0.25; c = y % 8 === 7 || brick ? [40, 32, 54] : [110 * k, 92 * k, 140 * k]; const d = Math.hypot(x - 15.5, y - 12); if (d < 6) c = d < 2.5 ? [255, 250, 210] : d < 4 ? [255, 200, 80] : [240, 120, 40]; if (Math.abs(x - 15.5) < 2 && y > 16 && y < 26) c = [80, 60, 40]; break; }
+        case 'rust': { const k = 0.45 + n * 0.35 - (y % 11 === 0 ? 0.25 : 0); c = [150 * k, 80 * k, 44 * k]; if (hash(x, y, 9) < 0.03) c = [220, 150, 90]; break; }
+        case 'plates': { const seam = x % 16 === 0 || y % 10 === 0; const k = 0.5 + n * 0.2 + (y % 10 === 1 ? 0.2 : 0); c = seam ? [40, 38, 50] : [130 * k, 134 * k, 150 * k]; if (x % 16 === 3 && y % 10 === 3) c = [230, 232, 240]; if (hash(x >> 2, y >> 2, 4) < 0.15) c = [140 * k, 70 * k, 30 * k]; break; }
+        case 'tyres': { const cy = (y % 11) - 5, cx = (x % 16) - 8; const d = Math.hypot(cx, cy * 1.4); c = d < 6.5 && d > 2.5 ? [36, 36, 42] : d <= 2.5 ? [20, 18, 24] : [120 * (0.5 + n * 0.3), 70 * (0.5 + n * 0.3), 40]; if (d < 6.5 && d > 5.5) c = [70, 70, 80]; break; }
+        case 'hazard': { const stripe = ((x + y) >> 2) & 1; c = y < 6 || y > 25 ? (stripe ? [240, 200, 40] : [26, 20, 40]) : [110 + n * 40, 112 + n * 40, 124 + n * 40]; break; }
+        case 'panel': { const seam = x % 16 === 0 || y % 16 === 0; const k = 0.75 + n * 0.12 + (x % 16 === 1 || y % 16 === 1 ? 0.12 : 0); c = seam ? [90, 104, 130] : [200 * k, 214 * k, 232 * k]; break; }
+        case 'vent': { const slat = y % 4 < 2 && x > 4 && x < 27 && y > 4 && y < 27; c = slat ? [60, 70, 90] : [190 + n * 30, 204 + n * 30, 224 + n * 20]; break; }
+        case 'stripe': { c = [200 + n * 30, 214 + n * 30, 232]; if (y > 13 && y < 18) c = [74, 200, 240]; if (y === 14) c = [230, 251, 255]; break; }
+        case 'glow': { c = [180 + n * 30, 196 + n * 30, 220]; const d = Math.abs(x - 15.5); if (d < 5 && y > 3 && y < 28) c = d < 2 ? [230, 251, 255] : [94, 240, 200]; break; }
+      }
+      set(x, y, c);
+    }
+  return t;
+}
+const texCache = {};
+const tex = (kind) => (texCache[kind] ??= wallTex(kind));
+
+// --- sprites from the game's sheet --------------------------------------------------
+const BOTS = [
+  ['anvil_idle1', 'ANVIL', 0xff8a3a], ['mantis_idle1', 'MANTIS', 0x7ad04a], ['frostline_idle1', 'FROSTLINE', 0x9ee8ff], ['gale_idle1', 'GALE', 0xf4f6fb],
+  ['volt_idle1', 'VOLT', 0xffe14a], ['magma_idle1', 'MAGMA', 0xff5a2a], ['scrap_idle1', 'SCRAP', 0xb8703a], ['tide_swim1', 'TIDE', 0x5ef0c8],
+];
+const spr = {};
+async function loadSprites() {
+  const json = await (await fetch('/assets/sprites.json')).json();
+  const sheet = new Image();
+  sheet.src = '/assets/sprites.png';
+  await sheet.decode();
+  const oc = document.createElement('canvas');
+  oc.width = sheet.width;
+  oc.height = sheet.height;
+  const o = oc.getContext('2d');
+  o.drawImage(sheet, 0, 0);
+  for (const [key] of BOTS) {
+    const [x, y, w, h] = json[key];
+    const d = o.getImageData(x, y, w, h);
+    spr[key] = { w, h, px: new Uint32Array(d.data.buffer.slice(0)) };
+  }
+}
+
+// Weapons: UltraGuy's buster and four boss weapons.
+const WEAPONS = [
+  { name: 'ULTRA BUSTER', col: 0x5ef0c8, speed: 0.32, dmg: 1, rate: 12, ammo: Infinity },
+  { name: 'SPARK SHOCK', col: 0xf8e040, speed: 0.26, dmg: 2, rate: 18, spread: 2 },
+  { name: 'FROST SPIKE', col: 0x8ad8f8, speed: 0.42, dmg: 3, rate: 26 },
+  { name: 'FLAME BURST', col: 0xff7038, speed: 0.22, dmg: 1, rate: 6, short: 26 },
+  { name: 'SAW BLADE', col: 0xc8ccd8, speed: 0.24, dmg: 2, rate: 20, bounces: 3 },
+];
+
+// --- state ----------------------------------------------------------------------
+const S = {
+  theme: 0, map: false, t: 0,
+  p: { x: 1.5, y: 1.5, a: 0.8, hp: 100, frags: 0, weapon: 0, ammo: [Infinity, 0, 0, 0, 0], cool: 0, bob: 0, recoil: 0, hurt: 0, dead: 0 },
+  bots: [], shots: [], pickups: [], fx: [], feed: [], over: null,
+};
+const SPAWNS = [[2.5, 21.5], [21.5, 2.5], [21.5, 21.5], [12, 4], [14, 21.5], [6, 12], [18, 12], [1.5, 1.5]];
+const free = (x, y, r = 0.22) => !solid(x - r, y - r) && !solid(x + r, y - r) && !solid(x - r, y + r) && !solid(x + r, y + r);
+function spawnBot(i) {
+  const [k, name, col] = BOTS[i % BOTS.length];
+  const sp = SPAWNS[(i * 3 + S.t) % SPAWNS.length];
+  return { key: k, name, col, x: sp[0], y: sp[1], a: 0, hp: 6, cool: 60 + i * 20, tx: sp[0], ty: sp[1], flash: 0, dead: 0, frags: 0, strafe: i % 2 ? 1 : -1, idx: i };
+}
+function reset() {
+  Object.assign(S.p, { x: 1.5, y: 1.5, a: 0.8, hp: 100, frags: 0, weapon: 0, ammo: [Infinity, 0, 0, 0, 0], dead: 0 });
+  S.bots = [0, 1, 2, 3].map((i) => spawnBot(i * 2 + 1));
+  S.shots = [];
+  S.fx = [];
+  S.over = null;
+  S.pickups = [
+    { x: 6.5, y: 4.5, kind: 1 }, { x: 17.5, y: 11.5, kind: 2 }, { x: 5.5, y: 11.5, kind: 3 }, { x: 9.5, y: 19.5, kind: 4 },
+    { x: 12, y: 12, kind: 'hp' }, { x: 21.5, y: 18.5, kind: 'hp' }, { x: 6.5, y: 18.5, kind: 'hp' },
+  ].map((p) => ({ ...p, t: 0 }));
+}
+
+// --- input ----------------------------------------------------------------------
+const keys = new Set();
+let mouseDX = 0, mouseFire = false;
+addEventListener('keydown', (e) => {
+  keys.add(e.code);
+  if (e.code === 'KeyT') S.theme = (S.theme + 1) % THEMES.length;
+  if (e.code === 'KeyM') S.map = !S.map;
+  if (e.code.startsWith('Digit')) { const n = +e.code.slice(5) - 1; if (n >= 0 && n < WEAPONS.length && S.p.ammo[n] > 0) S.p.weapon = n; }
+  if (S.over && e.code === 'Enter') reset();
+  if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.code)) e.preventDefault();
+});
+addEventListener('keyup', (e) => keys.delete(e.code));
+cv.addEventListener('click', () => cv.requestPointerLock?.());
+addEventListener('mousemove', (e) => { if (document.pointerLockElement === cv) mouseDX += e.movementX; });
+cv.addEventListener('mousedown', () => (mouseFire = true));
+addEventListener('mouseup', () => (mouseFire = false));
+const down = (...c) => c.some((k) => keys.has(k));
+
+// --- simulation -------------------------------------------------------------------
+function los(ax, ay, bx, by) {
+  const d = Math.hypot(bx - ax, by - ay);
+  const n = Math.ceil(d * 6);
+  for (let i = 1; i < n; i++) if (solid(ax + ((bx - ax) * i) / n, ay + ((by - ay) * i) / n)) return false;
+  return true;
+}
+function move(o, dx, dy, r = 0.22) {
+  if (free(o.x + dx, o.y, r)) o.x += dx;
+  if (free(o.x, o.y + dy, r)) o.y += dy;
+}
+function fire(from, a, w, owner) {
+  const n = w.spread ?? 0;
+  for (let k = -n / 2; k <= n / 2; k++) {
+    const aa = a + k * 0.08;
+    S.shots.push({ x: from.x + Math.cos(aa) * 0.3, y: from.y + Math.sin(aa) * 0.3, dx: Math.cos(aa) * w.speed, dy: Math.sin(aa) * w.speed, col: w.col, dmg: w.dmg, owner, life: w.short ?? 140, bounces: w.bounces ?? 0 });
+  }
+}
+function burst(x, y, col, n = 8) {
+  for (let i = 0; i < n; i++) S.fx.push({ x, y, z: 0, dx: (Math.random() - 0.5) * 0.06, dy: (Math.random() - 0.5) * 0.06, dz: 0.02 + Math.random() * 0.03, col, t: 20 + Math.random() * 10 });
+}
+function feed(text) {
+  S.feed.unshift({ text, t: 200 });
+  S.feed = S.feed.slice(0, 4);
+}
+function step() {
+  S.t++;
+  const p = S.p;
+  if (S.over) return;
+  if (p.dead > 0) {
+    if (--p.dead === 0) { const sp = SPAWNS[S.t % SPAWNS.length]; Object.assign(p, { x: sp[0], y: sp[1], hp: 100, weapon: 0 }); }
+  } else {
+    const turn = (down('ArrowRight', 'KeyE') ? 1 : 0) - (down('ArrowLeft', 'KeyQ') ? 1 : 0);
+    p.a += turn * 0.045 + mouseDX * 0.004;
+    mouseDX = 0;
+    const fwd = (down('KeyW', 'ArrowUp') ? 1 : 0) - (down('KeyS', 'ArrowDown') ? 1 : 0);
+    const side = (down('KeyD') ? 1 : 0) - (down('KeyA') ? 1 : 0);
+    const sp = 0.055;
+    const dx = Math.cos(p.a) * fwd * sp + Math.cos(p.a + Math.PI / 2) * side * sp;
+    const dy = Math.sin(p.a) * fwd * sp + Math.sin(p.a + Math.PI / 2) * side * sp;
+    move(p, dx, dy);
+    if (fwd || side) p.bob += 0.18;
+    if (p.cool > 0) p.cool--;
+    const w = WEAPONS[p.weapon];
+    if ((down('Space', 'KeyJ') || mouseFire) && p.cool === 0 && p.ammo[p.weapon] > 0) {
+      fire(p, p.a, w, 'you');
+      p.cool = w.rate;
+      p.recoil = 6;
+      if (w.ammo !== Infinity) { p.ammo[p.weapon]--; if (p.ammo[p.weapon] <= 0) p.weapon = 0; }
+    }
+  }
+  if (p.recoil > 0) p.recoil--;
+  if (p.hurt > 0) p.hurt--;
+  // Bots: wander the arena; when they can see you, close in, circle and shoot.
+  for (const b of S.bots) {
+    if (b.flash > 0) b.flash--;
+    if (b.dead > 0) {
+      if (--b.dead === 0) Object.assign(b, spawnBot(b.idx + 8), { frags: b.frags, idx: b.idx });
+      continue;
+    }
+    const d = Math.hypot(p.x - b.x, p.y - b.y);
+    const sees = p.dead === 0 && d < 12 && los(b.x, b.y, p.x, p.y);
+    if (sees) {
+      b.a = Math.atan2(p.y - b.y, p.x - b.x);
+      const want = d > 4 ? 1 : d < 2.5 ? -1 : 0;
+      if (S.t % 90 === b.idx * 7) b.strafe = -b.strafe;
+      move(b, Math.cos(b.a) * want * 0.03 + Math.cos(b.a + Math.PI / 2) * b.strafe * 0.025, Math.sin(b.a) * want * 0.03 + Math.sin(b.a + Math.PI / 2) * b.strafe * 0.025, 0.25);
+      if (--b.cool <= 0) {
+        fire(b, b.a + (Math.random() - 0.5) * 0.12, { speed: 0.16, dmg: 8, col: b.col }, b);
+        b.cool = 70 + Math.floor(Math.random() * 50);
+      }
+    } else {
+      if (Math.hypot(b.tx - b.x, b.ty - b.y) < 0.4 || S.t % 240 === b.idx * 11) { const sp = SPAWNS[Math.floor(Math.random() * SPAWNS.length)]; b.tx = sp[0] + (Math.random() - 0.5); b.ty = sp[1] + (Math.random() - 0.5); }
+      b.a = Math.atan2(b.ty - b.y, b.tx - b.x);
+      const ox = b.x, oy = b.y;
+      move(b, Math.cos(b.a) * 0.035, Math.sin(b.a) * 0.035, 0.25);
+      if (ox === b.x && oy === b.y) { b.tx = b.x + (Math.random() - 0.5) * 6; b.ty = b.y + (Math.random() - 0.5) * 6; }
+    }
+  }
+  // Shots.
+  for (const s of S.shots) {
+    s.life--;
+    let nx = s.x + s.dx, ny = s.y + s.dy;
+    if (solid(nx, ny)) {
+      if (s.bounces > 0) {
+        s.bounces--;
+        if (solid(nx, s.y)) s.dx = -s.dx;
+        if (solid(s.x, ny)) s.dy = -s.dy;
+        nx = s.x + s.dx; ny = s.y + s.dy;
+      } else { burst(s.x, s.y, s.col, 5); s.life = 0; continue; }
+    }
+    s.x = nx; s.y = ny;
+    if (s.owner === 'you') {
+      for (const b of S.bots) {
+        if (b.dead || Math.hypot(b.x - s.x, b.y - s.y) > 0.38) continue;
+        b.hp -= s.dmg;
+        b.flash = 6;
+        s.life = 0;
+        burst(s.x, s.y, s.col, 6);
+        if (b.hp <= 0) {
+          b.dead = 150;
+          burst(b.x, b.y, b.col, 24);
+          p.frags++;
+          feed(`ULTRAGUY fragged ${b.name}`);
+          if (p.frags >= 10) S.over = 'win';
+        }
+        break;
+      }
+    } else if (p.dead === 0 && Math.hypot(p.x - s.x, p.y - s.y) < 0.3) {
+      p.hp -= s.dmg;
+      p.hurt = 14;
+      s.life = 0;
+      if (p.hp <= 0) {
+        p.dead = 120;
+        s.owner.frags++;
+        feed(`${s.owner.name} fragged ULTRAGUY`);
+        if (s.owner.frags >= 10) S.over = 'lose';
+      }
+    }
+  }
+  S.shots = S.shots.filter((s) => s.life > 0);
+  // Pickups.
+  for (const k of S.pickups) {
+    if (k.t > 0) { k.t--; continue; }
+    if (p.dead === 0 && Math.hypot(k.x - p.x, k.y - p.y) < 0.5) {
+      if (k.kind === 'hp') { if (p.hp >= 100) continue; p.hp = Math.min(100, p.hp + 30); }
+      else { p.ammo[k.kind] += 15; p.weapon = k.kind; feed(`picked up ${WEAPONS[k.kind].name}`); }
+      k.t = 600;
+    }
+  }
+  for (const f of S.fx) { f.x += f.dx; f.y += f.dy; f.z += f.dz; f.dz -= 0.004; f.t--; }
+  S.fx = S.fx.filter((f) => f.t > 0);
+  for (const f of S.feed) f.t--;
+  S.feed = S.feed.filter((f) => f.t > 0);
+}
+
+// --- rendering ----------------------------------------------------------------------
+function shade(c, k, fog) {
+  return rgb((c & 255) * k + fog[0] * (1 - k), ((c >> 8) & 255) * k + fog[1] * (1 - k), ((c >> 16) & 255) * k + fog[2] * (1 - k));
+}
+function render() {
+  const th = THEMES[S.theme];
+  const p = S.p;
+  const dirX = Math.cos(p.a), dirY = Math.sin(p.a);
+  const plX = -dirY * 0.66, plY = dirX * 0.66;
+  const bob = Math.sin(p.bob) * 1.5;
+  const horizon = (H >> 1) + Math.round(bob);
+  const fog = th.fog;
+  // Sky (open themes) or ceiling, then the floor: cast row by row.
+  for (let y = 0; y < H; y++) {
+    const floor = y > horizon;
+    if (!floor && th.sky) {
+      const k = y / horizon;
+      const s = th.sky;
+      const a = k < 0.6 ? s[0] : s[1], b = k < 0.6 ? s[1] : s[2];
+      const kk = k < 0.6 ? k / 0.6 : (k - 0.6) / 0.4;
+      for (let x = 0; x < W; x++) {
+        const v = kk + (bayer(x, y) - 0.5) * 0.08;
+        // Soft clouds that turn with you (puffs on a wide band of sky).
+        const ang = (p.a + ((x / W) - 0.5) * 1.15) * 60;
+        const cx = Math.floor(ang / 14), cyy = Math.floor(y / 9);
+        const fx = (ang / 14) - cx, fy = y / 9 - cyy;
+        const puff = hash(cx, cyy, 2) < 0.22 && y < horizon * 0.75 ? Math.max(0, 1 - Math.hypot(fx - 0.5, (fy - 0.5) * 1.6) * 2.2) : 0;
+        const cl = puff > bayer(x, y) * 0.5 ? 0.55 * Math.min(1, puff * 2) : 0;
+        const r0 = a[0] + (b[0] - a[0]) * v, g0 = a[1] + (b[1] - a[1]) * v, b0 = a[2] + (b[2] - a[2]) * v;
+        buf[y * W + x] = rgb(r0 + (255 - r0) * cl, g0 + (250 - g0) * cl, b0 + (245 - b0) * cl);
+      }
+      continue;
+    }
+    const rowDist = (0.5 * H) / Math.max(1, floor ? y - horizon : horizon - y);
+    const rx0 = dirX - plX, ry0 = dirY - plY, rx1 = dirX + plX, ry1 = dirY + plY;
+    let fx = p.x + rowDist * rx0, fy = p.y + rowDist * ry0;
+    const sx = (rowDist * (rx1 - rx0)) / W, sy = (rowDist * (ry1 - ry0)) / W;
+    const k = clamp(1 - rowDist / 11, 0.08, 1);
+    for (let x = 0; x < W; x++, fx += sx, fy += sy) {
+      const tx = Math.floor((fx - Math.floor(fx)) * TS) & (TS - 1), ty = Math.floor((fy - Math.floor(fy)) * TS) & (TS - 1);
+      const c = floor ? th.floor(tx + (Math.floor(fx) & 1) * 32, ty + (Math.floor(fy) & 1) * 32) : th.ceil(tx, ty);
+      buf[y * W + x] = rgb(c[0] * k + fog[0] * (1 - k), c[1] * k + fog[1] * (1 - k), c[2] * k + fog[2] * (1 - k));
+    }
+  }
+  // Walls: one ray per column.
+  for (let x = 0; x < W; x++) {
+    const cam = (2 * x) / W - 1;
+    const rdx = dirX + plX * cam, rdy = dirY + plY * cam;
+    let mx = Math.floor(p.x), my = Math.floor(p.y);
+    const ddx = Math.abs(1 / rdx), ddy = Math.abs(1 / rdy);
+    const stx = rdx < 0 ? -1 : 1, sty = rdy < 0 ? -1 : 1;
+    let sdx = rdx < 0 ? (p.x - mx) * ddx : (mx + 1 - p.x) * ddx;
+    let sdy = rdy < 0 ? (p.y - my) * ddy : (my + 1 - p.y) * ddy;
+    let side = 0, hit = 0;
+    for (let i = 0; i < 64 && !hit; i++) {
+      if (sdx < sdy) { sdx += ddx; mx += stx; side = 0; } else { sdy += ddy; my += sty; side = 1; }
+      hit = cell(mx, my);
+    }
+    const dist = side === 0 ? sdx - ddx : sdy - ddy;
+    zbuf[x] = dist;
+    const lh = Math.floor(H / dist);
+    const y0 = Math.max(0, horizon - (lh >> 1)), y1 = Math.min(H - 1, horizon + (lh >> 1));
+    let wx = side === 0 ? p.y + dist * rdy : p.x + dist * rdx;
+    wx -= Math.floor(wx);
+    let tx = Math.floor(wx * TS);
+    if ((side === 0 && rdx > 0) || (side === 1 && rdy < 0)) tx = TS - tx - 1;
+    const t = tex(th.walls[hit] ?? th.walls[1]);
+    const k = clamp(1 - dist / 12, 0.1, 1) * (side ? 0.78 : 1);
+    const glow = th.walls[hit] === 'torch' || th.walls[hit] === 'glow';
+    for (let y = y0; y <= y1; y++) {
+      const ty = Math.floor(((y - horizon + lh / 2) / lh) * TS) & (TS - 1);
+      const c = t[ty * TS + tx];
+      const bright = glow && ((c & 255) > 200 || ((c >> 8) & 255) > 200);
+      buf[y * W + x] = bright ? c : shade(c, k, fog);
+    }
+  }
+  // Sprites: bots, pickups, shots and sparks, far to near, against the depth buffer.
+  const list = [];
+  for (const b of S.bots) if (!b.dead) list.push({ x: b.x, y: b.y, bot: b });
+  for (const k of S.pickups) if (k.t === 0) list.push({ x: k.x, y: k.y, pick: k });
+  for (const s of S.shots) list.push({ x: s.x, y: s.y, shot: s });
+  for (const f of S.fx) list.push({ x: f.x, y: f.y, spark: f });
+  const inv = 1 / (plX * dirY - dirX * plY);
+  for (const o of list) o.d = (o.x - p.x) ** 2 + (o.y - p.y) ** 2;
+  list.sort((a, b) => b.d - a.d);
+  for (const o of list) {
+    const rx = o.x - p.x, ry = o.y - p.y;
+    const tx = inv * (dirY * rx - dirX * ry);
+    const ty = inv * (-plY * rx + plX * ry);
+    if (ty <= 0.1) continue;
+    const scrX = Math.floor((W / 2) * (1 + tx / ty));
+    const k = clamp(1 - ty / 12, 0.12, 1);
+    if (o.bot) {
+      const s = spr[o.bot.key];
+      if (!s) continue;
+      const hgt = Math.floor((H / ty) * 0.9), wdt = Math.floor(hgt * (s.w / s.h));
+      const bottom = horizon + Math.floor((H / ty) * 0.5);
+      const top = bottom - hgt;
+      const flip = Math.cos(o.bot.a - p.a) > 0; // facing away from us
+      for (let sx = Math.max(0, scrX - (wdt >> 1)); sx < Math.min(W, scrX + (wdt >> 1)); sx++) {
+        if (ty >= zbuf[sx]) continue;
+        let u = Math.floor(((sx - (scrX - wdt / 2)) / wdt) * s.w);
+        if (flip) u = s.w - 1 - u;
+        for (let sy = Math.max(0, top); sy < Math.min(H, bottom); sy++) {
+          const v = Math.floor(((sy - top) / hgt) * s.h);
+          const c = s.px[v * s.w + u];
+          if ((c >>> 24) < 128) continue;
+          buf[sy * W + sx] = o.bot.flash > 0 ? rgb(255, 255, 255) : shade(c, k, fog);
+        }
+      }
+    } else {
+      // Glowing billboards: pickups float and bob; shots and sparks sit at mid height.
+      const isPick = !!o.pick;
+      const col = isPick ? (o.pick.kind === 'hp' ? 0xff5a6a : WEAPONS[o.pick.kind].col) : o.shot ? o.shot.col : o.spark.col;
+      const size = isPick ? 0.22 : o.shot ? 0.12 : 0.04;
+      const z = isPick ? -0.15 + Math.sin(S.t / 15 + o.x) * 0.05 : o.spark ? -o.spark.z : 0;
+      const r = Math.max(1, (H / ty) * size);
+      const cy = horizon + (H / ty) * z;
+      const [cr, cg, cb] = hex(col);
+      for (let sx = Math.max(0, Math.floor(scrX - r * 2)); sx < Math.min(W, Math.ceil(scrX + r * 2)); sx++) {
+        if (ty >= zbuf[sx]) continue;
+        for (let sy = Math.max(0, Math.floor(cy - r * 2)); sy < Math.min(H, Math.ceil(cy + r * 2)); sy++) {
+          const dd = Math.hypot(sx - scrX, sy - cy) / r;
+          if (dd > 2) continue;
+          const i = sy * W + sx;
+          const o0 = buf[i];
+          const a = dd < 0.7 ? 1 : (2 - dd) / 1.3 * 0.6;
+          const core = dd < 0.45 ? 1 : 0;
+          const R = Math.min(255, (o0 & 255) * (1 - a) + (core ? 255 : cr) * a + (core ? 0 : cr * 0.3 * a));
+          const G = Math.min(255, ((o0 >> 8) & 255) * (1 - a) + (core ? 255 : cg) * a);
+          const B = Math.min(255, ((o0 >> 16) & 255) * (1 - a) + (core ? 255 : cb) * a);
+          buf[i] = rgb(R, G, B);
+        }
+      }
+      if (isPick && o.pick.kind === 'hp') for (const [ox, oy, w, h] of [[-0.25, -0.75, 0.5, 1.5], [-0.75, -0.25, 1.5, 0.5]]) {
+        for (let sx = Math.floor(scrX + ox * r); sx < scrX + (ox + w) * r; sx++) for (let sy = Math.floor(cy + oy * r); sy < cy + (oy + h) * r; sy++) if (sx >= 0 && sx < W && sy >= 0 && sy < H && ty < zbuf[sx]) buf[sy * W + sx] = rgb(255, 255, 255);
+      }
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  drawHud(bob);
+}
+
+/** UltraGuy's arm cannon, the crosshair, health / weapon / frags, the kill feed, the map. */
+function drawHud(bob) {
+  const p = S.p;
+  const w = WEAPONS[p.weapon];
+  const [cr, cg, cb] = hex(w.col);
+  // The arm cannon, lower right: orange forearm, steel barrel, weapon-colored core.
+  const gx = 222 + Math.cos(p.bob * 0.5) * 3, gy = 132 + Math.abs(Math.sin(p.bob * 0.5)) * 3 + p.recoil;
+  if (p.dead === 0) {
+    const R = (x, y, w2, h2, c) => { ctx.fillStyle = c; ctx.fillRect(Math.round(gx + x), Math.round(gy + y), w2, h2); };
+    R(18, 8, 70, 46, '#1a1428'); R(20, 10, 66, 42, '#b8501a'); R(20, 10, 66, 10, '#f28c28'); R(20, 10, 66, 3, '#ffc070');
+    R(4, 0, 46, 32, '#1a1428'); R(6, 2, 42, 28, '#8a8fa8'); R(6, 2, 42, 6, '#c8ccd8'); R(6, 24, 42, 6, '#55607a');
+    R(0, 6, 10, 20, '#1a1428'); R(2, 8, 8, 16, '#55607a');
+    R(16, 12, 20, 8, `rgb(${cr},${cg},${cb})`); R(18, 13, 8, 3, '#ffffff');
+    if (p.recoil > 2) {
+      ctx.fillStyle = `rgba(${cr},${cg},${cb},0.6)`;
+      ctx.beginPath(); ctx.arc(gx + 2, gy + 14, 12 + p.recoil, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.9)';
+      ctx.beginPath(); ctx.arc(gx + 2, gy + 14, 5, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  // Crosshair.
+  ctx.fillStyle = '#ffffff';
+  for (const [x, y, ww, hh] of [[W / 2 - 6, H / 2, 4, 1], [W / 2 + 3, H / 2, 4, 1], [W / 2, H / 2 - 6, 1, 4], [W / 2, H / 2 + 3, 1, 4]]) ctx.fillRect(x, y + Math.round(bob), ww, hh);
+  // Hurt flash.
+  if (p.hurt > 0) { ctx.fillStyle = `rgba(232,72,78,${p.hurt / 40})`; ctx.fillRect(0, 0, W, H); }
+  // Status bar.
+  ctx.fillStyle = 'rgba(10,8,18,0.8)';
+  ctx.fillRect(0, H - 16, W, 16);
+  ctx.fillStyle = '#2b2540';
+  ctx.fillRect(0, H - 17, W, 1);
+  ctx.font = '8px monospace';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = '#e8484e';
+  ctx.fillRect(6, H - 12, 7, 7); ctx.fillStyle = '#fff'; ctx.fillRect(8, H - 11, 3, 5); ctx.fillRect(7, H - 10, 5, 3);
+  ctx.fillStyle = p.hp > 30 ? '#fff1e0' : '#ff8a8a';
+  ctx.fillText(String(Math.max(0, p.hp)), 17, H - 12);
+  ctx.fillStyle = `rgb(${cr},${cg},${cb})`;
+  ctx.fillText(w.name + (w.ammo === Infinity ? '' : ` ${p.ammo[p.weapon]}`), 46, H - 12);
+  ctx.fillStyle = '#ffe14a';
+  ctx.fillText(`FRAGS ${p.frags}/10`, 168, H - 12);
+  ctx.fillStyle = '#8a8fa8';
+  ctx.fillText(THEMES[S.theme].name, 262, H - 12);
+  // Kill feed.
+  S.feed.forEach((f, i) => { ctx.fillStyle = `rgba(255,241,224,${Math.min(1, f.t / 40)})`; ctx.fillText(f.text, 4, 4 + i * 9); });
+  // Map.
+  if (S.map) {
+    const s = 3, ox = W - MW * s - 4, oy = 4;
+    ctx.fillStyle = 'rgba(0,0,0,0.6)'; ctx.fillRect(ox - 1, oy - 1, MW * s + 2, MH * s + 2);
+    for (let y = 0; y < MH; y++) for (let x = 0; x < MW; x++) if (cell(x, y)) { ctx.fillStyle = '#8a8fa8'; ctx.fillRect(ox + x * s, oy + y * s, s, s); }
+    for (const b of S.bots) if (!b.dead) { ctx.fillStyle = '#e8484e'; ctx.fillRect(ox + b.x * s - 1, oy + b.y * s - 1, 2, 2); }
+    ctx.fillStyle = '#5ef0c8'; ctx.fillRect(ox + p.x * s - 1, oy + p.y * s - 1, 3, 3);
+  }
+  if (p.dead > 0 || S.over) {
+    ctx.fillStyle = 'rgba(0,0,0,0.5)'; ctx.fillRect(0, H / 2 - 14, W, 26);
+    ctx.fillStyle = '#ffe14a'; ctx.textAlign = 'center';
+    ctx.fillText(S.over === 'win' ? 'YOU WIN THE MATCH!  (ENTER)' : S.over === 'lose' ? 'MATCH LOST  (ENTER)' : 'FRAGGED! RESPAWNING...', W / 2, H / 2 - 8);
+    ctx.textAlign = 'left';
+  }
+}
+
+// --- loop ---------------------------------------------------------------------------
+let last = performance.now(), acc = 0;
+function frame(now) {
+  acc += Math.min(100, now - last);
+  last = now;
+  while (acc >= 1000 / 60) { step(); acc -= 1000 / 60; }
+  render();
+  requestAnimationFrame(frame);
+}
+// For tests: window.Arena.step(n) advances, .render() draws, .S is the state.
+window.Arena = { spr, S, step: (n = 1) => { for (let i = 0; i < n; i++) step(); }, render, reset, keys };
+loadSprites().then(() => { reset(); requestAnimationFrame(frame); });
+</script>
+</body>
+</html>
