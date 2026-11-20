@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
-import { VIEW_W } from '../constants';
+import { VIEW_H, VIEW_W } from '../constants';
+import { pixelText } from '../pixelFont';
 import { sfx } from '../sfx';
-import { makeHopTextures } from './HopScene';
+import { makeHockeyArt } from './hockeyArt';
 import { ModeScene } from './ModeScene';
 
 /**
@@ -16,6 +17,8 @@ const OX = Math.round((VIEW_W - RW) / 2);
 const OY = 40;
 const MOUTH = 22; // half the goal mouth
 const WIN_SCORE = 3;
+/** The boards' thickness around the ice (drawn into the rink texture). */
+const BOARD = 8;
 
 interface Skater {
   x: number;
@@ -30,6 +33,9 @@ interface Skater {
   dashCd: number;
   stun: number;
   sprite: Phaser.GameObjects.Image;
+  /** Where the blades have been (the scratch trail), and the stride. */
+  trail: [number, number][];
+  stride: number;
 }
 
 export class HockeyScene extends ModeScene {
@@ -44,21 +50,47 @@ export class HockeyScene extends ModeScene {
   private pause = 0;
   private aiShootT = 0;
   private g!: Phaser.GameObjects.Graphics;
+  private fxG!: Phaser.GameObjects.Graphics;
+  private nets: Phaser.GameObjects.Image[] = [];
+  private puckImg!: Phaser.GameObjects.Image;
+  private spray: { x: number; y: number; vx: number; vy: number; t: number }[] = [];
+  private puckTrail: [number, number][] = [];
+  /** Steps left in the goal light, and which net (0 = yours on the left). */
+  private goalT = 0;
+  private goalNet = 0;
+  private scoreText: ReturnType<typeof pixelText>[] = [];
 
   constructor() {
     super('hockey');
   }
 
   protected setup(): void {
-    makeHopTextures(this);
+    makeHockeyArt(this, RW, RH, BOARD, MOUTH);
     this.cameras.main.setBackgroundColor('#0a1420');
-    this.g = this.add.graphics();
+    this.drawStands();
+    this.add.image(OX - BOARD, OY - BOARD, 'hk_rink').setOrigin(0).setDepth(0);
+    this.g = this.add.graphics().setDepth(1);
+    this.fxG = this.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+    this.nets = [
+      this.add.image(OX - 10, OY + RH / 2, 'hk_net').setOrigin(0, 0.5).setDepth(2),
+      this.add.image(OX + RW + 10, OY + RH / 2, 'hk_net').setOrigin(1, 0.5).setFlipX(true).setDepth(2),
+    ];
+    this.puckImg = this.add.image(0, 0, 'hk_puck').setDepth(4);
+    this.spray = [];
+    this.puckTrail = [];
+    this.goalT = 0;
     const mk = (tex: string, scale: number, max: number, accel: number): Skater => ({
       x: 0, y: 0, vx: 0, vy: 0, fx: 1, fy: 0, max, accel, dashT: 0, dashCd: 0, stun: 0,
       sprite: this.add.image(0, 0, tex).setScale(scale).setDepth(5),
+      trail: [],
+      stride: 0,
     });
-    this.you = mk('hop_hero', 1, 2.2, 0.14);
-    this.frost = mk('frostline_slide', 0.6, 1.9, 0.11);
+    this.you = mk('hk_you0', 1, 2.2, 0.14);
+    this.frost = mk('hk_frost0', 1, 1.9, 0.11);
+    const label = (x: number, t: string, col: string) => pixelText(this, x, 8, t, { color: col, stroke: '#000000' }).setOrigin(0.5, 0).setDepth(20);
+    this.scoreText = [label(VIEW_W / 2 - 22, '0', '#ffc070'), label(VIEW_W / 2 + 22, '0', '#9ee8ff')];
+    label(VIEW_W / 2 - 74, 'ULTRAGUY', '#f28c28');
+    label(VIEW_W / 2 + 76, 'FROSTLINE', '#9ee8ff');
     this.score = [0, 0];
     this.pause = 0;
     this.aiShootT = 0;
@@ -88,7 +120,10 @@ export class HockeyScene extends ModeScene {
     for (const s of [this.you, this.frost]) this.skate(s);
     this.bump();
     this.stepPuck();
-    this.hud.setText(`ULTRAGUY ${this.score[0]}  -  ${this.score[1]} FROSTLINE`).setX(VIEW_W / 2 - 60);
+    this.hud.setText('');
+    this.scoreText[0].setText(String(this.score[0]));
+    this.scoreText[1].setText(String(this.score[1]));
+    this.stepFx();
   }
 
   /** Steer a skater: push in a direction, shoot, check. */
@@ -239,6 +274,10 @@ export class HockeyScene extends ModeScene {
     this.score[side]++;
     sfx.explode();
     this.cameras.main.flash(250, side === 0 ? 255 : 120, side === 0 ? 200 : 180, 255);
+    // The goal light over the net it went into (side 0 scores on the right net).
+    this.goalT = 60;
+    this.goalNet = side === 0 ? 1 : 0;
+    for (let i = 0; i < 16; i++) this.spray.push({ x: this.puck.x, y: this.puck.y, vx: (Math.random() - 0.5) * 3, vy: (Math.random() - 0.5) * 3, t: 20 + Math.floor(Math.random() * 10) });
     this.puck.owner = null;
     this.puck.vx = this.puck.vy = 0;
     if (this.score[side] >= WIN_SCORE) {
@@ -298,37 +337,92 @@ export class HockeyScene extends ModeScene {
     else if (d > 4) this.drive(f, dx / d, dy / d, false, false);
   }
 
+  /** The stands around the rink: rows of dim faces and the arena dark. */
+  private drawStands(): void {
+    const g = this.add.graphics().setDepth(-1);
+    const cols = [0x2a3a5a, 0x3a2a4a, 0x2a4a4a, 0x4a3a3a, 0x1e2a44];
+    for (let y = 2; y < VIEW_H; y += 6)
+      for (let x = (y % 12) / 2; x < VIEW_W; x += 7) {
+        const inRink = x > OX - BOARD - 4 && x < OX + RW + BOARD + 4 && y > OY - BOARD - 4 && y < OY + RH + BOARD + 4;
+        if (inRink) continue;
+        g.fillStyle(cols[(x * 7 + y * 3) % cols.length]).fillRect(x, y + 2, 5, 3);
+        g.fillStyle(0x8a7a6a, 0.6).fillRect(x + 1, y, 3, 2);
+      }
+    // The scoreboard panel.
+    g.fillStyle(0x05080e).fillRect(VIEW_W / 2 - 126, 3, 252, 20);
+    g.fillStyle(0x1e3a5a).fillRect(VIEW_W / 2 - 125, 4, 250, 18);
+    g.fillStyle(0x05080e).fillRect(VIEW_W / 2 - 124, 5, 248, 16);
+    for (const x of [VIEW_W / 2 - 32, VIEW_W / 2 + 12]) {
+      g.fillStyle(0x1a1428).fillRect(x, 5, 20, 16);
+    }
+  }
+
+  /** Ice spray and blade trails as skaters carve and check; the puck's streak. */
+  private stepFx(): void {
+    for (const s of [this.you, this.frost]) {
+      const sp = Math.hypot(s.vx, s.vy);
+      s.stride += sp * 0.12;
+      if (sp > 0.6 && this.frame % 3 === 0) s.trail = [[s.x, s.y + 5] as [number, number], ...s.trail].slice(0, 16);
+      // Spray when checking, or when the blades bite against the direction of travel.
+      const turning = sp > 1.2 && s.vx * s.fx + s.vy * s.fy < sp * 0.4;
+      if ((s.dashT > 0 || turning) && this.frame % 2 === 0)
+        for (let i = 0; i < 2; i++) this.spray.push({ x: s.x, y: s.y + 4, vx: -s.vx * 0.4 + (Math.random() - 0.5) * 1.6, vy: -s.vy * 0.4 + (Math.random() - 0.5) * 1.6, t: 14 + Math.floor(Math.random() * 8) });
+    }
+    for (const p of this.spray) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.9;
+      p.vy *= 0.9;
+      p.t--;
+    }
+    this.spray = this.spray.filter((p) => p.t > 0);
+    const pk = this.puck;
+    if (Math.hypot(pk.vx, pk.vy) > 2.5 && !pk.owner) this.puckTrail = [[pk.x, pk.y] as [number, number], ...this.puckTrail].slice(0, 6);
+    else this.puckTrail = this.puckTrail.slice(0, Math.max(0, this.puckTrail.length - 1));
+    if (this.goalT > 0) this.goalT--;
+  }
+
   protected draw(): void {
     const g = this.g;
+    const f = this.fxG;
     g.clear();
-    // Boards and ice.
-    g.fillStyle(0x3a78b8).fillRoundedRect(OX - 6, OY - 6, RW + 12, RH + 12, 14);
-    g.fillStyle(0xe6f8ff).fillRoundedRect(OX, OY, RW, RH, 10);
-    g.fillStyle(0xc8e8f8);
-    for (let i = 0; i < 12; i++) g.fillRect(OX + 14 + i * 26, OY + 20 + ((i * 37) % 120), 18, 1);
-    // Lines: center red, blue lines, faceoff circle.
-    g.fillStyle(0xd83a4a).fillRect(OX + RW / 2 - 1, OY, 2, RH);
-    g.fillStyle(0x6ab8e8).fillRect(OX + RW / 3, OY, 2, RH).fillRect(OX + (RW * 2) / 3, OY, 2, RH);
-    g.lineStyle(1, 0x6ab8e8).strokeCircle(OX + RW / 2, OY + RH / 2, 22);
-    // Nets.
-    for (const [x, col] of [[OX - 6, 0xf28c28], [OX + RW, 0x9ee8ff]] as const) {
-      g.fillStyle(0x1a1428).fillRect(x, OY + RH / 2 - MOUTH - 1, 6, MOUTH * 2 + 2);
-      g.fillStyle(col).fillRect(x + 1, OY + RH / 2 - MOUTH, 4, MOUTH * 2);
-      g.fillStyle(0xffffff, 0.5);
-      for (let y = -MOUTH; y < MOUTH; y += 4) g.fillRect(x + 1, OY + RH / 2 + y, 4, 1);
-    }
-    g.fillStyle(0xd83a4a, 0.25).fillRect(OX, OY + RH / 2 - MOUTH, 10, MOUTH * 2).fillRect(OX + RW - 10, OY + RH / 2 - MOUTH, 10, MOUTH * 2);
-    // Skaters and shadows.
+    f.clear();
+    // Blade scratches on the ice.
+    for (const s of [this.you, this.frost])
+      s.trail.forEach(([x, y], i) => {
+        g.fillStyle(0x9ac8e8, 0.5 - i * 0.03).fillRect(OX + x - 2, OY + y, 2, 1).fillRect(OX + x + 1, OY + y, 2, 1);
+      });
+    // Nets: the one just scored on shakes and lights up red.
+    this.nets.forEach((n, i) => {
+      const shake = this.goalT > 40 && this.goalNet === i ? Math.sin(this.goalT * 2) * 1.5 : 0;
+      n.setX((i === 0 ? OX - 10 : OX + RW + 10) + shake);
+      if (this.goalT > 0 && this.goalNet === i && this.frame % 10 < 6) {
+        const x = i === 0 ? OX - 4 : OX + RW + 4;
+        f.fillStyle(0xff3a3a, 0.5).fillCircle(x, OY + RH / 2, 26);
+        f.fillStyle(0xff8a8a, 0.6).fillCircle(x, OY - 2, 5);
+      }
+    });
+    // Skaters: shadows, a stride, a check flare.
     for (const s of [this.you, this.frost]) {
-      g.fillStyle(0x000000, 0.2).fillEllipse(OX + s.x, OY + s.y + 6, 14, 5);
-      s.sprite.setPosition(OX + s.x, OY + s.y).setAlpha(s.stun > 0 && this.frame % 6 < 3 ? 0.4 : 1);
-      if (s === this.frost) s.sprite.setFlipX(s.fx > 0);
-      else s.sprite.setRotation(Math.atan2(s.fy, s.fx) + Math.PI / 2);
-      if (s.dashT > 0) g.fillStyle(0xffffff, 0.5).fillCircle(OX + s.x - s.vx * 3, OY + s.y - s.vy * 3, 4);
+      g.fillStyle(0x2a4a6a, 0.35).fillEllipse(OX + s.x, OY + s.y + 7, 14, 5);
+      const tex = s === this.you ? 'hk_you' : 'hk_frost';
+      const moving = Math.hypot(s.vx, s.vy) > 0.4;
+      s.sprite
+        .setTexture(`${tex}${moving && Math.floor(s.stride) % 2 ? 1 : 0}`)
+        .setPosition(OX + Math.round(s.x), OY + Math.round(s.y))
+        .setRotation(Math.atan2(s.fy, s.fx) + Math.PI / 2)
+        .setAlpha(s.stun > 0 && this.frame % 6 < 3 ? 0.4 : 1);
+      if (s.dashT > 0) f.fillStyle(s === this.you ? 0xffa040 : 0x9ee8ff, 0.4).fillCircle(OX + s.x + s.fx * 6, OY + s.y + s.fy * 6, 9);
+      if (s.stun > 0) for (let i = 0; i < 3; i++) f.fillStyle(0xffe14a, 0.9).fillCircle(OX + s.x + Math.cos(this.frame / 6 + i * 2) * 8, OY + s.y - 10 + Math.sin(this.frame / 6 + i * 2) * 2, 1.2);
     }
-    // Puck.
+    // Ice spray.
+    for (const p of this.spray) g.fillStyle(0xffffff, Math.min(1, p.t / 10)).fillRect(OX + p.x, OY + p.y, p.t > 10 ? 2 : 1, p.t > 10 ? 2 : 1);
+    // The puck, with a streak when it's flying.
     const p = this.puck;
-    g.fillStyle(0x1a1428).fillEllipse(OX + p.x, OY + p.y, 7, 5);
-    g.fillStyle(0x55607a).fillEllipse(OX + p.x, OY + p.y - 1, 5, 2);
+    this.puckTrail.forEach(([x, y], i) => f.fillStyle(0x6a9ac8, 0.35 - i * 0.05).fillEllipse(OX + x, OY + y, 7 - i, 4));
+    g.fillStyle(0x2a4a6a, 0.35).fillEllipse(OX + p.x, OY + p.y + 3, 8, 3);
+    this.puckImg.setPosition(OX + Math.round(p.x), OY + Math.round(p.y));
+    // Overhead lights glinting on the ice.
+    for (const [lx, ly] of [[RW * 0.25, RH * 0.3], [RW * 0.75, RH * 0.7], [RW * 0.5, RH * 0.5]]) f.fillStyle(0xffffff, 0.05).fillEllipse(OX + lx, OY + ly, 70, 26);
   }
 }

@@ -6,6 +6,7 @@ import type { StageId } from '../level/Level';
 import { pixelText } from '../pixelFont';
 import { sfx } from '../sfx';
 import { Line, dialogue, pixelateIn } from './cutscene';
+import { makeBoxingArt } from './boxingArt';
 import { ModeData, returnToGame } from './encounters';
 
 /**
@@ -125,33 +126,16 @@ export class BoxingScene extends Phaser.Scene {
   // --- the arena ------------------------------------------------------------------
 
   private drawArena(): void {
-    const g = this.add.graphics().setDepth(0);
-    // Crowd in the dark.
-    g.fillStyle(0x0a0812).fillRect(0, 0, VIEW_W, 100);
-    const colors = [0x3a2a4a, 0x4a3a5a, 0x2a2440, 0x5a3a4a];
-    for (let y = 10; y < 96; y += 7) for (let x = (y % 14) / 2; x < VIEW_W; x += 9) g.fillStyle(colors[(x * 3 + y) % colors.length]).fillRect(x, y, 5, 4).fillRect(x + 1, y - 2, 3, 2);
-    // Lights.
-    for (const x of [60, 160, 270, 370]) {
-      g.fillStyle(0xfff4d0, 0.08).fillTriangle(x - 6, 0, x + 6, 0, x + 40, 150);
-      g.fillStyle(0xfff4d0).fillRect(x - 4, 0, 8, 3);
-    }
-    // Ring mat with a lit center.
-    g.fillStyle(0x24345a).fillRect(0, 140, VIEW_W, VIEW_H - 140);
-    g.fillStyle(0x2e4472).fillEllipse(VIEW_W / 2, 190, 360, 90);
-    g.fillStyle(0x3a5488).fillEllipse(VIEW_W / 2, 186, 220, 50);
-    g.fillStyle(0x1a2444).fillRect(0, 140, VIEW_W, 3);
-    // Ropes and posts.
-    for (const [y, c] of [[96, 0xd83a4a], [112, 0xfff1e0], [128, 0x3a78d8]] as const) {
-      g.fillStyle(0x0a0812).fillRect(0, y + 2, VIEW_W, 3);
-      g.fillStyle(c).fillRect(0, y, VIEW_W, 3);
-      g.fillStyle(0xffffff, 0.4).fillRect(0, y, VIEW_W, 1);
-    }
-    for (const x of [24, VIEW_W - 34]) {
-      g.fillStyle(0x8a8fa8).fillRect(x, 86, 10, 60);
-      g.fillStyle(0xc8ccd8).fillRect(x, 86, 3, 60);
-      g.fillStyle(0xd83a4a).fillRect(x - 2, 94, 14, 6);
-    }
+    makeBoxingArt(this, VIEW_W, VIEW_H);
+    this.add.image(0, 0, 'bx_arena').setOrigin(0).setDepth(0);
+    pixelText(this, VIEW_W / 2, 34, 'FORTRESS GATE ARENA', { color: '#ffe14a', stroke: '#1a1428' }).setOrigin(0.5, 0).setDepth(1);
+    // Light, sparks and camera flashes go on top (added).
+    this.fxG = this.add.graphics().setDepth(9).setBlendMode(Phaser.BlendModes.ADD);
+    this.backFx = this.add.graphics().setDepth(2).setBlendMode(Phaser.BlendModes.ADD);
   }
+
+  private fxG!: Phaser.GameObjects.Graphics;
+  private backFx!: Phaser.GameObjects.Graphics;
 
   // --- flow ------------------------------------------------------------------------
 
@@ -557,23 +541,74 @@ export class BoxingScene extends Phaser.Scene {
     this.you.setPosition(OPP_X + dx, YOU_Y + dy).setAngle(y === 'dodge' ? this.dodgeDir * 8 : 0);
     this.you.setTint(y === 'hit' && this.yT % 6 < 3 ? 0xff9090 : y === 'tired' && this.frame % 20 < 10 ? 0xb0b0ff : 0xffffff);
 
-    // HUD.
+    this.drawFx();
+
+    // HUD: framed bars (light on top, shade beneath) and star pips.
     const h = this.hud;
     h.clear();
-    h.fillStyle(0x05040a, 0.8).fillRect(0, 0, VIEW_W, 24);
-    const bar = (x: number, val: number, col: number, label: string, right = false) => {
-      h.fillStyle(0x1a1428).fillRect(x, 13, 100, 7);
-      const w = Math.round((val / MAX_HP) * 98);
-      h.fillStyle(col).fillRect(right ? x + 1 + 98 - w : x + 1, 14, w, 5);
-      h.fillStyle(0xffffff, 0.3).fillRect(right ? x + 1 + 98 - w : x + 1, 14, w, 1);
-      void label;
+    h.fillStyle(0x05040a, 0.85).fillRect(0, 0, VIEW_W, 25);
+    h.fillStyle(0x2b2540).fillRect(0, 25, VIEW_W, 1);
+    const bar = (x: number, val: number, light: number, main: number, dark: number, right = false) => {
+      h.fillStyle(0x1a1428).fillRect(x - 1, 12, 102, 9);
+      h.fillStyle(0x8a8fa8).fillRect(x - 1, 12, 102, 1);
+      h.fillStyle(0x0e0c18).fillRect(x, 13, 100, 7);
+      const w = Math.round((val / MAX_HP) * 100);
+      const x0 = right ? x + 100 - w : x;
+      h.fillStyle(main).fillRect(x0, 13, w, 7);
+      h.fillStyle(light).fillRect(x0, 13, w, 2);
+      h.fillStyle(dark).fillRect(x0, 18, w, 2);
+      for (let k = x + 10; k < x + 100; k += 10) h.fillStyle(0x0e0c18, 0.5).fillRect(k, 13, 1, 7);
     };
-    bar(6, this.hp, 0xf28c28, 'ULTRAGUY');
-    bar(VIEW_W - 106, this.oHp, 0x8c4ad8, 'GATEKEEPER', true);
-    for (let i = 0; i < 3; i++) h.fillStyle(i < this.stars ? 0xf8e040 : 0x3a3450).fillRect(112 + i * 8, 13, 6, 6);
+    bar(6, this.hp, 0xffc070, 0xf28c28, 0xb8501a);
+    bar(VIEW_W - 106, this.oHp, 0xc8a0ff, 0x8c4ad8, 0x5a2a9a, true);
+    for (let i = 0; i < 3; i++) {
+      const sx = 116 + i * 10;
+      const on = i < this.stars;
+      h.fillStyle(on ? 0xffe14a : 0x3a3450);
+      h.fillTriangle(sx, 11, sx - 4, 19, sx + 4, 19).fillTriangle(sx, 21, sx - 4, 14, sx + 4, 14);
+    }
     const secs = Math.ceil((this.clock / ROUND_FRAMES) * 180);
     this.info.setText(this.oState === 'down' || this.yState === 'down' ? this.info.text : '');
     this.hudText(`ULTRAGUY  HEARTS ${this.hearts}`, `R${this.round}  ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`, 'GATEKEEPER');
+  }
+
+  /** Spotlights sweeping the ring, camera flashes in the crowd, and sparks where punches land. */
+  private drawFx(): void {
+    const b = this.backFx;
+    const f = this.fxG;
+    b.clear();
+    f.clear();
+    const fr = this.frame;
+    for (const [i, lx] of [60, 160, 270, 370].entries()) {
+      const sway = Math.sin(fr / 90 + i * 1.7) * 24;
+      b.fillStyle(0xfff4d0, 0.06).fillTriangle(lx - 4, 12, lx + 4, 12, VIEW_W / 2 + (lx - VIEW_W / 2) * 0.35 + sway, 196);
+      b.fillStyle(0xfff4d0, 0.05).fillEllipse(VIEW_W / 2 + (lx - VIEW_W / 2) * 0.35 + sway, 196, 70, 16);
+    }
+    // Camera flashes: a few pop each second.
+    for (let i = 0; i < 4; i++) {
+      const seed = Math.floor(fr / 7) * 4 + i;
+      const r = Math.sin(seed * 91.7) * 43758.5453;
+      const k = r - Math.floor(r);
+      if (k > 0.5) continue;
+      const x = (k * 2 * VIEW_W * 1.7) % VIEW_W;
+      const y = 26 + ((k * 977) % 70);
+      b.fillStyle(0xffffff, 0.9).fillRect(x, y, 2, 2);
+      b.fillStyle(0xffffff, 0.25).fillCircle(x + 1, y + 1, 6);
+    }
+    // A punch landing: a star of light at his face or his body.
+    if (this.oState === 'hit' && this.oT < 8) {
+      const y = OPP_Y - (this.punchHigh ? 100 : 66);
+      const k = this.oT / 8;
+      f.fillStyle(0xffffff, 0.9 * (1 - k)).fillCircle(OPP_X, y, 6 + k * 6);
+      for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2 + fr * 0.2;
+        f.fillStyle(0xffe14a, 1 - k).fillRect(OPP_X + Math.cos(a) * (8 + k * 18), y + Math.sin(a) * (8 + k * 14), 2, 2);
+      }
+    }
+    // The star uppercut: his glove blazes on the way up.
+    if (this.yState === 'star') f.fillStyle(0xffe14a, 0.35 + Math.sin(fr) * 0.1).fillCircle(this.you.x + 2, this.you.y - 74, 14);
+    // His eye's wind-up flash gets a glow, too.
+    if (this.flash > 0 && this.flash % 4 < 3) f.fillStyle(0xffffff, 0.4).fillCircle(this.eyeFlash.x, this.eyeFlash.y, 9);
   }
 
   private hudLeft?: ReturnType<typeof pixelText>;

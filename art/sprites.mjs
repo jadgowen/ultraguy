@@ -23,6 +23,7 @@ import { tideFrames } from './tideArt.mjs';
 import { scrapFrames } from './scrapArt.mjs';
 import { guardianFrames } from './guardianArt.mjs';
 import { miniFrames } from './miniArt.mjs';
+import { boxFrames } from './boxArt.mjs';
 
 // Palette characters ('.' is transparent):
 const PALETTE = {
@@ -1566,80 +1567,8 @@ for (const [k, [w, h]] of Object.entries(MINI_SIZE)) {
 }
 
 
-// --- boxing mode: the Gatekeeper from the front, UltraGuy from behind ------------------
-
-/** A boxing glove (w x h) at (x, y): red leather, pink shine, white cuff. */
-function glove(x, y, w = 10, h = 9, col = 'R', shine = 'P') {
-  return [[x, y, w, h, col], [x + 1, y + 1, w - 4, 2, shine], [x, y + h - 2, w, 2, 'W'], [x + w - 2, y + 2, 1, h - 5, 'r']];
-}
-
-/** GATEKEEPER, front view in the ring. 48 x 60. */
-function gateBoxer(pose) {
-  const dy = pose === 'upWind' ? 4 : pose === 'hitBody' ? 2 : 0;
-  const hx = pose === 'hitFace' ? 3 : pose === 'dizzy' ? -2 : 0;
-  const eye = pose === 'hitFace' ? 'd' : pose === 'dizzy' ? 'Y' : 'R';
-  if (pose === 'down') {
-    return boxes(48, 60, [
-      [4, 50, 40, 8, 'G'], [4, 50, 40, 2, 'w'], [14, 48, 18, 8, 'u'], [16, 48, 2, 8, 'G'], [22, 48, 2, 8, 'G'], [28, 48, 2, 8, 'G'],
-      [0, 46, 12, 12, 'G'], [2, 50, 8, 2, 'd'], [4, 50, 2, 2, 'd'],
-      [36, 52, 12, 6, 'U'], ...glove(10, 40), ...glove(26, 41),
-    ]);
-  }
-  const body = [
-    [14, 48, 8, 10, 'g'], [26, 48, 8, 10, 'g'], [12, 56, 12, 4, 'G'], [24, 56, 12, 4, 'G'],
-    [12, 40 + dy, 24, 10, 'U'], [12, 40 + dy, 24, 2, 'Y'], [22, 43 + dy, 4, 6, 'u'],
-    [10, 20 + dy, 28, 22, 'G'], [10, 20 + dy, 28, 1, 'w'],
-    [15, 24 + dy, 18, 13, 'u'], [17, 24 + dy, 2, 13, 'G'], [22, 24 + dy, 2, 13, 'G'], [27, 24 + dy, 2, 13, 'G'], [15, 30 + dy, 18, 2, 'G'],
-    [21, 27 + dy, 6, 5, pose === 'upper' ? 'Y' : 'R'],
-    [4, 18 + dy, 10, 8, 'U'], [34, 18 + dy, 10, 8, 'U'], [4, 18 + dy, 10, 1, 'P'], [34, 18 + dy, 10, 1, 'P'],
-    [17 + hx, 6 + dy, 14, 14, 'G'], [17 + hx, 6 + dy, 14, 1, 'w'], [17 + hx, 3 + dy, 3, 4, 'U'], [28 + hx, 3 + dy, 3, 4, 'U'],
-    [19 + hx, 11 + dy, 10, 3, 'd'], [23 + hx, 11 + dy, 3, 3, eye], [20 + hx, 16 + dy, 8, 1, 'd'],
-  ];
-  const gloves = {
-    idle: [...glove(4, 24), ...glove(34, 24)],
-    guardHigh: [[10, 14, 4, 8, 'g'], [34, 14, 4, 8, 'g'], ...glove(12, 6), ...glove(26, 6)],
-    guardLow: [...glove(10, 30), ...glove(28, 30)],
-    windL: [[2, 14, 6, 8, 'g'], ...glove(0, 8), ...glove(26, 8)],
-    windR: [[40, 14, 6, 8, 'g'], ...glove(38, 8), ...glove(12, 8)],
-    punchL: [...glove(26, 8), ...glove(6, 32, 16, 14)],
-    punchR: [...glove(12, 8), ...glove(26, 32, 16, 14)],
-    upWind: [...glove(12, 10), ...glove(36, 42)],
-    upper: [...glove(4, 24), ...glove(28, 0, 14, 12)],
-    hitFace: [...glove(2, 30), ...glove(36, 30)],
-    hitBody: [...glove(8, 36), ...glove(30, 36)],
-    dizzy: [...glove(4, 38), ...glove(34, 36)],
-  }[pose];
-  return boxes(48, 60, [...body, ...gloves]);
-}
-
-/** ULTRAGUY from behind, gloved up. 28 x 40. */
-function heroBoxer(pose) {
-  if (pose === 'down') {
-    return boxes(28, 40, [[2, 30, 24, 8, 'O'], [2, 30, 24, 2, 'Y'], [0, 28, 10, 10, 'O'], [14, 34, 10, 4, 'S'], ...glove(18, 26, 7, 6, 'B', 'C')]);
-  }
-  const torso = [
-    [7, 30, 6, 8, 'S'], [15, 30, 6, 8, 'S'], [6, 36, 8, 4, 'O'], [14, 36, 8, 4, 'O'], [6, 36, 8, 1, 'Y'], [14, 36, 8, 1, 'Y'],
-    [6, 26, 16, 5, 'S'], [6, 26, 16, 1, 's'],
-    [5, 13, 18, 14, 'O'], [5, 13, 18, 2, 'Y'], [5, 24, 18, 3, 'o'], [13, 15, 2, 9, 'o'],
-    [7, 1, 14, 13, 'O'], [9, 1, 8, 2, 'Y'], [7, 11, 14, 3, 'o'], [8, 5, 2, 3, 'G'],
-  ];
-  const arms = {
-    idle: [[2, 16, 4, 6, 'O'], [22, 16, 4, 6, 'O'], ...glove(0, 12, 7, 8, 'B', 'C'), ...glove(21, 12, 7, 8, 'B', 'C')],
-    block: [...glove(4, 2, 8, 9, 'B', 'C'), ...glove(16, 2, 8, 9, 'B', 'C')],
-    punchL: [[5, 8, 4, 8, 'O'], ...glove(4, 4, 8, 8, 'B', 'C'), ...glove(21, 12, 7, 8, 'B', 'C')],
-    punchR: [[19, 8, 4, 8, 'O'], ...glove(16, 4, 8, 8, 'B', 'C'), ...glove(0, 12, 7, 8, 'B', 'C')],
-    punchHL: [[6, 4, 4, 10, 'O'], ...glove(5, 0, 8, 7, 'B', 'C'), ...glove(21, 12, 7, 8, 'B', 'C')],
-    punchHR: [[18, 4, 4, 10, 'O'], ...glove(15, 0, 8, 7, 'B', 'C'), ...glove(0, 12, 7, 8, 'B', 'C')],
-    star: [[12, 2, 4, 12, 'O'], ...glove(9, 0, 10, 8, 'Y', 'W'), ...glove(0, 14, 7, 8, 'B', 'C')],
-  }[pose];
-  return boxes(28, 40, [...torso, ...arms]);
-}
-
-for (const pose of ['idle', 'guardHigh', 'guardLow', 'windL', 'windR', 'punchL', 'punchR', 'upWind', 'upper', 'hitFace', 'hitBody', 'dizzy', 'down']) P[`gbox_${pose}`] = gateBoxer(pose);
-for (const pose of ['idle', 'block', 'punchL', 'punchR', 'punchHL', 'punchHR', 'star', 'down']) P[`ubox_${pose}`] = heroBoxer(pose);
+// (Boxing mode's Gatekeeper and UltraGuy are drawn in art/boxArt.mjs.)
 const BOX_FRAMES = {};
-for (const pose of ['idle', 'guardHigh', 'guardLow', 'windL', 'windR', 'punchL', 'punchR', 'upWind', 'upper', 'hitFace', 'hitBody', 'dizzy', 'down']) BOX_FRAMES[`gbox_${pose}`] = single(`gbox_${pose}`, 48, 60);
-for (const pose of ['idle', 'block', 'punchL', 'punchR', 'punchHL', 'punchHR', 'star', 'down']) BOX_FRAMES[`ubox_${pose}`] = single(`ubox_${pose}`, 28, 40);
 
 for (const g of ['ceej', 'juck', 'hydro', 'beard']) BOX_FRAMES[`${g}_front`] = single(`${g}Front`, 64, 64);
 const FRAMES = { ...CHARACTER_FRAMES, ...MINI_FRAMES, ...SHOT_FRAMES, ...ITEM_FRAMES, ...BOX_FRAMES };
@@ -1679,6 +1608,7 @@ write(
       `export const BOSS_ANCHORS: Record<string, BossAnchor> = ${JSON.stringify(shared)};\n`,
   ),
 );
+for (const [name, bmp] of Object.entries(boxFrames())) rendered.push({ name, bmp });
 const tesla = voltFrames();
 for (const [name, bmp] of Object.entries(tesla.frames)) rendered.push({ name, bmp });
 write(
