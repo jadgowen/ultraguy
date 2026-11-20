@@ -27,7 +27,10 @@ of the old 90s shooters. A raycaster draws the arena (textured walls, floors, ce
 canvas texture each frame; four of the eight bosses (their own sprites, as billboards) patrol, close in, circle and
 shoot. Pick up Spark Shock, Frost Spike, Flame Burst and Saw Blade ammo and health; first to 10 frags. Three arenas:
 Fortress, Scrapyard, Stratos. UP/DOWN move, LEFT/RIGHT turn, Q/E strafe, FIRE shoots, JUMP switches weapons, click to
-turn with the mouse. (The first mockup is `art/mockups/arena.html`.)
+turn with the mouse. On a phone it has its own touch layout: a stick that appears under your left thumb (move and
+strafe, analog), drag anywhere on the right to look, FIRE (drag it to aim while shooting) and WPN. A gentle aim
+assist helps on every input: with a bot near the crosshair, turning slows over it and the view leans onto it while
+you move, aim or shoot. (The first mockup is `art/mockups/arena.html`.)
 
 Every boss stage is built around its own set piece (legend in `src/level/Level.ts`; logic in
 `src/scenes/sky.ts` and `src/scenes/hazards.ts`), taught safely, tested, twisted, then pushed hard, with
@@ -272,7 +275,8 @@ Boss select: arrows pick a boss, Enter/Z starts the stage, X starts at the boss 
 On phones and tablets, on-screen controls appear with the first touch: d-pad on the left, JUMP / FIRE on
 the right, weapon switch above them, and START / BACK at the top (FULL goes fullscreen where the browser
 allows it). Held upright, the game sits above the controls; turned sideways, the controls overlay the
-edges. Pressing a physical key hides them again. The logic is in `src/touch.ts`.
+edges. Pressing a physical key hides them again. Ultra Arena swaps in a shooter layout (`setTouchMode('fps')`;
+`Controls.stick()` / `Controls.look()` carry the analog stick and look drag). The logic is in `src/touch.ts`.
 
 ## Deploy
 Live at https://jadgowen.github.io/ultraguy/. `npm run deploy` builds (typecheck, tests, Vite) and

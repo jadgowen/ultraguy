@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { TouchState, dpadDirs } from '../src/touch';
+import { TouchState, dpadDirs, stickAxes } from '../src/touch';
 
 describe('dpadDirs', () => {
   it('ignores the dead zone in the middle', () => {
@@ -49,5 +49,29 @@ describe('TouchState', () => {
     expect(t.takeLatched()).toEqual([]);
     expect(t.takeBack()).toBe(true);
     expect(t.takeBack()).toBe(false);
+  });
+});
+
+describe('stickAxes', () => {
+  it('ignores a tiny wobble where the thumb landed', () => {
+    expect(stickAxes(3, -2, 50)).toEqual({ x: 0, y: 0 });
+  });
+  it('scales with the push and caps at the rim', () => {
+    const half = stickAxes(25, 0, 50);
+    expect(half.x).toBeCloseTo(0.5);
+    const far = stickAxes(0, -200, 50);
+    expect(far.y).toBeCloseTo(-1);
+    const diag = stickAxes(100, 100, 50);
+    expect(Math.hypot(diag.x, diag.y)).toBeCloseTo(1);
+  });
+});
+
+describe('TouchState look', () => {
+  it('hands back the drag once, then resets', () => {
+    const t = new TouchState();
+    t.addLook(12);
+    t.addLook(-4);
+    expect(t.takeLook()).toBe(8);
+    expect(t.takeLook()).toBe(0);
   });
 });

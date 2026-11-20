@@ -4,6 +4,10 @@
  * BACK and weapon-switch buttons. Controls.poll() merges what's held here with
  * the keyboard and gamepad, so the game never knows the difference.
  *
+ * Ultra Arena swaps in a shooter layout (setTouchMode('fps')): a floating
+ * stick under the left thumb (move and strafe, analog), drag anywhere on the
+ * right to look, a FIRE button you can also drag to aim, and WPN.
+ *
  * TouchState is plain logic (unit tested); mountTouchControls() wires the DOM.
  */
 import type { Action } from './settings';
@@ -31,7 +35,19 @@ export function dpadDirs(dx: number, dy: number, r: number): Dir[] {
 
 const now = (): number => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
+/** The arena stick for a thumb at (dx, dy) from where it landed: each axis -1..1, the length capped at 1. */
+export function stickAxes(dx: number, dy: number, r: number): { x: number; y: number } {
+  const len = Math.hypot(dx, dy);
+  if (len < r * 0.12) return { x: 0, y: 0 };
+  const k = Math.min(1, len / r) / len;
+  return { x: dx * k, y: dy * k };
+}
+
 export class TouchState {
+  /** The arena stick (analog, -1..1; `on` while a thumb is on it). */
+  stick = { x: 0, y: 0, on: false };
+  /** Look drag since the last read, in CSS pixels. */
+  private look = 0;
   private byPointer = new Map<number, Set<TouchButton>>();
   private held = new Set<TouchButton>();
   private latched = new Set<TouchButton>();
@@ -59,6 +75,19 @@ export class TouchState {
   releaseAll(): void {
     this.byPointer.clear();
     this.held.clear();
+    this.stick = { x: 0, y: 0, on: false };
+    this.look = 0;
+  }
+
+  addLook(dx: number): void {
+    this.look += dx;
+  }
+
+  /** Look drag since the last call. */
+  takeLook(): number {
+    const v = this.look;
+    this.look = 0;
+    return v;
   }
 
   isHeld(b: TouchButton): boolean {
@@ -90,6 +119,16 @@ export class TouchState {
 export const touch = new TouchState();
 
 let enabled = false;
+let mode: 'pad' | 'fps' = 'pad';
+let modeHook: (() => void) | null = null;
+
+/** Switch the on-screen layout: the platformer pad, or the arena's shooter controls. */
+export function setTouchMode(m: 'pad' | 'fps'): void {
+  if (mode === m) return;
+  mode = m;
+  touch.releaseAll();
+  modeHook?.();
+}
 
 /** Whether the on-screen controls are showing. */
 export function touchEnabled(): boolean {
@@ -126,6 +165,22 @@ const CSS = `
 #touch .start { right: calc(env(safe-area-inset-right) + 16px); top: calc(env(safe-area-inset-top) + 12px); }
 #touch .back { left: calc(env(safe-area-inset-left) + 16px); top: calc(env(safe-area-inset-top) + 12px); }
 #touch .full { left: calc(env(safe-area-inset-left) + 80px); top: calc(env(safe-area-inset-top) + 12px); }
+/* Arena layout: two invisible halves under everything, a floating stick, FIRE and WPN. */
+#touch .fps { display: none; }
+#touch.arena .pad, #touch.arena .jump, #touch.arena .fire, #touch.arena .prev, #touch.arena .next { display: none; }
+#touch.arena .fps { display: flex; }
+#touch .zone { top: 0; bottom: 0; background: none; border: 0; }
+#touch .zone.lz { left: 0; width: 42%; }
+#touch .zone.rz { right: 0; width: 58%; }
+#touch .stick { position: absolute; width: 120px; height: 120px; margin: -60px 0 0 -60px; border-radius: 50%;
+  border: 2px solid rgba(255, 241, 224, 0.3); background: rgba(255, 241, 224, 0.08); pointer-events: none;
+  left: calc(env(safe-area-inset-left) + 92px); bottom: calc(env(safe-area-inset-bottom) + 30px); top: auto; }
+#touch .stick.live { border-color: rgba(94, 240, 200, 0.7); background: rgba(94, 240, 200, 0.12); }
+#touch .knob { position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px;
+  border-radius: 50%; background: rgba(255, 241, 224, 0.35); border: 2px solid rgba(255, 241, 224, 0.6); }
+#touch .ffire { right: calc(env(safe-area-inset-right) + 22px); bottom: calc(env(safe-area-inset-bottom) + 34px);
+  width: 86px; height: 86px; border-radius: 50%; font-size: 13px; }
+#touch .fwpn { right: calc(env(safe-area-inset-right) + 118px); bottom: calc(env(safe-area-inset-bottom) + 18px); }
 `;
 
 const BUTTONS: { cls: string; label: string; action: TouchButton }[] = [
@@ -159,6 +214,23 @@ export function mountTouchControls(onFirstTouch: () => void, onLayout: () => voi
     arrows[d] = i;
   }
   root.appendChild(pad);
+  // Arena layout (hidden until setTouchMode('fps')): the halves go first so every button sits above them.
+  const div = (cls: string, text = ''): HTMLElement => {
+    const el = document.createElement('div');
+    el.className = cls;
+    el.textContent = text;
+    root.appendChild(el);
+    return el;
+  };
+  const leftZone = div('t fps zone lz');
+  const rightZone = div('t fps zone rz');
+  const stick = div('fps stick');
+  const knob = document.createElement('div');
+  knob.className = 'knob';
+  stick.appendChild(knob);
+  const fpsFire = div('t fps ffire', 'FIRE');
+  const fpsWpn = div('t fps small fwpn', 'WPN');
+  fpsWpn.dataset.action = 'jump';
   const buttonEls: HTMLElement[] = [];
   for (const b of BUTTONS) {
     const el = document.createElement('div');
@@ -201,10 +273,47 @@ export function mountTouchControls(onFirstTouch: () => void, onLayout: () => voi
   const refresh = (): void => {
     for (const d of Object.keys(arrows) as Dir[]) arrows[d].classList.toggle('on', touch.isHeld(d));
     for (const el of buttonEls) el.classList.toggle('down', touch.isHeld(el.dataset.action as TouchButton));
+    fpsFire.classList.toggle('down', touch.isHeld('fire'));
+    fpsWpn.classList.toggle('down', touch.isHeld('jump'));
+  };
+
+  // Arena fingers: the stick thumb (where it landed), and fingers that look (the right half, FIRE).
+  const STICK_R = 50;
+  let stickId = -1;
+  let stickO = { x: 0, y: 0 };
+  const lookers = new Map<number, number>(); // pointer -> last x
+  const placeStick = (x: number | null, y = 0, kx = 0, ky = 0): void => {
+    const live = x !== null;
+    stick.classList.toggle('live', live);
+    if (live) {
+      Object.assign(stick.style, { left: `${x}px`, top: `${y}px`, bottom: 'auto' });
+    } else stick.removeAttribute('style');
+    knob.style.transform = `translate(${kx}px, ${ky}px)`;
+  };
+  const trackStick = (e: PointerEvent): void => {
+    let dx = e.clientX - stickO.x;
+    let dy = e.clientY - stickO.y;
+    // Past the rim, the stick follows the thumb.
+    const len = Math.hypot(dx, dy);
+    if (len > STICK_R * 1.4) {
+      stickO = { x: e.clientX - (dx / len) * STICK_R * 1.4, y: e.clientY - (dy / len) * STICK_R * 1.4 };
+      dx = e.clientX - stickO.x;
+      dy = e.clientY - stickO.y;
+    }
+    const a = stickAxes(dx, dy, STICK_R);
+    touch.stick = { x: a.x, y: a.y, on: true };
+    // Clear pushes also count as d-pad presses (menus: choose the arena, and so on).
+    touch.setPointer(e.pointerId, dpadDirs(a.x, a.y, 1.6));
+    const k = Math.min(1, STICK_R / Math.max(1, Math.hypot(dx, dy)));
+    placeStick(stickO.x, stickO.y, dx * k, dy * k);
   };
 
   const track = (e: PointerEvent): void => {
-    if (padPointers.has(e.pointerId)) {
+    if (e.pointerId === stickId) trackStick(e);
+    else if (lookers.has(e.pointerId)) {
+      touch.addLook(e.clientX - lookers.get(e.pointerId)!);
+      lookers.set(e.pointerId, e.clientX);
+    } else if (padPointers.has(e.pointerId)) {
       const r = pad.getBoundingClientRect();
       const dx = e.clientX - (r.left + r.width / 2);
       const dy = e.clientY - (r.top + r.height / 2);
@@ -227,6 +336,26 @@ export function mountTouchControls(onFirstTouch: () => void, onLayout: () => voi
       onFirstTouch();
     }
     if (e.target === pad || pad.contains(e.target as Node)) padPointers.add(e.pointerId);
+    if (mode === 'fps') {
+      if (e.target === leftZone) {
+        stickId = e.pointerId;
+        stickO = { x: e.clientX, y: e.clientY };
+        trackStick(e);
+        refresh();
+        return;
+      }
+      if (e.target === rightZone || e.target === fpsFire) {
+        lookers.set(e.pointerId, e.clientX);
+        touch.setPointer(e.pointerId, e.target === fpsFire ? ['fire'] : []);
+        refresh();
+        return;
+      }
+      if (e.target === fpsWpn) {
+        touch.setPointer(e.pointerId, ['jump']);
+        refresh();
+        return;
+      }
+    }
     // Release implicit capture so a sliding finger can reach other buttons.
     const target = e.target as HTMLElement;
     try {
@@ -241,13 +370,31 @@ export function mountTouchControls(onFirstTouch: () => void, onLayout: () => voi
   });
   const end = (e: PointerEvent): void => {
     padPointers.delete(e.pointerId);
+    lookers.delete(e.pointerId);
+    if (e.pointerId === stickId) {
+      stickId = -1;
+      touch.stick = { x: 0, y: 0, on: false };
+      placeStick(null);
+    }
     touch.release(e.pointerId);
     refresh();
   };
   window.addEventListener('pointerup', end);
   window.addEventListener('pointercancel', end);
+  modeHook = () => {
+    root.classList.toggle('arena', mode === 'fps');
+    padPointers.clear();
+    lookers.clear();
+    stickId = -1;
+    placeStick(null);
+    refresh();
+  };
+  modeHook();
   window.addEventListener('blur', () => {
     touch.releaseAll();
+    lookers.clear();
+    stickId = -1;
+    placeStick(null);
     refresh();
   });
   root.addEventListener('contextmenu', (e) => e.preventDefault());

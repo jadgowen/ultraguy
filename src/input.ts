@@ -19,6 +19,9 @@ export class Controls {
   private latched = new Set<Action>();
   private pressed = new Set<Action>();
   private released = new Set<Action>();
+  /** Analog extras from the touch screen (the arena): a stick, and a look drag in CSS pixels. */
+  private stickV: { x: number; y: number } | null = null;
+  private lookV = 0;
 
   constructor(private scene: Phaser.Scene, bindings: Record<Action, number[]> = loadSettings().keys) {
     // A touch button still held from the previous screen isn't a new press
@@ -67,6 +70,8 @@ export class Controls {
     // On-screen touch controls (see touch.ts).
     for (const a of touch.heldActions()) this.held.add(a);
     for (const a of touch.takeLatched()) this.latched.add(a);
+    this.stickV = touch.stick.on ? { x: touch.stick.x, y: touch.stick.y } : null;
+    this.lookV = touch.takeLook();
 
     this.pressed.clear();
     for (const a of ACTIONS) {
@@ -87,5 +92,15 @@ export class Controls {
 
   justReleased(a: Action): boolean {
     return this.released.has(a);
+  }
+
+  /** The touch stick while a thumb is on it (each axis -1..1), else null. */
+  stick(): { x: number; y: number } | null {
+    return this.stickV;
+  }
+
+  /** Touch look drag this step (CSS pixels; + is right). */
+  look(): number {
+    return this.lookV;
   }
 }

@@ -4,6 +4,7 @@ import { STEP_MS, VIEW_H, VIEW_W } from '../constants';
 import { Controls } from '../input';
 import { pixelText } from '../pixelFont';
 import { sfx } from '../sfx';
+import { setTouchMode, touchEnabled } from '../touch';
 import { pixelateIn, pixelateOut } from './cutscene';
 
 /**
@@ -15,12 +16,19 @@ import { pixelateIn, pixelateOut } from './cutscene';
  *
  * UP/DOWN move, LEFT/RIGHT turn, PREV/NEXT (Q/E, shoulder buttons) strafe,
  * FIRE shoots, JUMP switches weapons, START pauses. Click to turn with the mouse.
+ * On a phone: a stick under the left thumb moves and strafes, dragging on the
+ * right looks, FIRE (drag it to aim too), WPN (see touch.ts). A gentle aim
+ * assist helps everyone: near a bot, turning slows and the view leans onto it.
  */
 
 const W = VIEW_W;
 const H = VIEW_H - 18; // the status bar sits below the view
 const TS = 32;
 const FRAG_LIMIT = 10;
+/** Radians per CSS pixel of touch look drag. */
+const LOOK_SENS = 0.0075;
+/** Aim assist: how far off the crosshair (radians) a bot can be and still pull. */
+const ASSIST_CONE = 0.14;
 
 // 1 brick / rust / panel, 2 door / plates / vent, 3 banner / tyres / stripe, 4 torch / hazard / glow.
 const MAP = [
@@ -271,7 +279,9 @@ export class ArenaScene extends Phaser.Scene {
     this.banner = pixelText(this, VIEW_W / 2, H / 2 - 22, '', { fontSize: '16px', color: '#ffe14a', stroke: '#1a1428' }).setOrigin(0.5).setDepth(7);
     this.sub = pixelText(this, VIEW_W / 2, H / 2 + 2, '', { color: '#fff1e0', stroke: '#1a1428', align: 'center' }).setOrigin(0.5, 0).setDepth(7);
     // Mouse: click to capture it and turn with it; hold the button to fire.
-    this.input.on('pointerdown', () => {
+    // (Touches are the on-screen controls' business, not a mouse click.)
+    this.input.on('pointerdown', (ptr: Phaser.Input.Pointer) => {
+      if (ptr.wasTouch || touchEnabled()) return;
       if (this.phase === 'play' && !this.input.mouse?.locked) this.input.mouse?.requestPointerLock();
       this.mouseFire = true;
     });
@@ -279,7 +289,11 @@ export class ArenaScene extends Phaser.Scene {
     this.input.on('pointermove', (ptr: Phaser.Input.Pointer) => {
       if (this.input.mouse?.locked) this.mouseDX += ptr.movementX;
     });
-    this.events.once('shutdown', () => this.input.mouse?.releasePointerLock());
+    setTouchMode('fps');
+    this.events.once('shutdown', () => {
+      this.input.mouse?.releasePointerLock();
+      setTouchMode('pad');
+    });
     this.reset();
     stopMusic();
     pixelateIn(this, 700);
@@ -326,11 +340,15 @@ export class ArenaScene extends Phaser.Scene {
         sfx.tick();
       }
       this.banner.setText('ULTRA ARENA');
-      this.sub.setText(`< ${THEMES[this.theme].name} >\n\nFIRST TO ${FRAG_LIMIT} FRAGS\nJUMP TO FIGHT   START TO LEAVE`);
+      this.sub.setText(`< ${THEMES[this.theme].name} >\n\nFIRST TO ${FRAG_LIMIT} FRAGS\n${touchEnabled() ? 'FIRE TO FIGHT   START TO LEAVE' : 'JUMP TO FIGHT   START TO LEAVE'}`);
       if (c.justPressed('jump') || c.justPressed('fire')) {
         this.phase = 'play';
         this.banner.setText('FIGHT!');
-        this.sub.setText('UP/DOWN MOVE  LEFT/RIGHT TURN  Q/E STRAFE\nFIRE SHOOT  JUMP SWITCH WEAPON  CLICK FOR MOUSE');
+        this.sub.setText(
+          touchEnabled()
+            ? 'LEFT THUMB MOVE   DRAG RIGHT TO LOOK\nFIRE SHOOTS (DRAG IT TO AIM)   WPN SWITCHES'
+            : 'UP/DOWN MOVE  LEFT/RIGHT TURN  Q/E STRAFE\nFIRE SHOOT  JUMP SWITCH WEAPON  CLICK FOR MOUSE',
+        );
         this.time.delayedCall(2200, () => this.phase === 'play' && (this.banner.setText(''), this.sub.setText('')));
         sfx.ready();
       } else if (c.justPressed('start')) this.leave();
@@ -351,7 +369,7 @@ export class ArenaScene extends Phaser.Scene {
     if (c.justPressed('start')) {
       this.phase = 'paused';
       this.banner.setText('PAUSED');
-      this.sub.setText('JUMP TO RESUME   START TO LEAVE');
+      this.sub.setText(touchEnabled() ? 'FIRE TO RESUME   START TO LEAVE' : 'JUMP TO RESUME   START TO LEAVE');
       return;
     }
     this.stepPlayer();
@@ -430,11 +448,22 @@ export class ArenaScene extends Phaser.Scene {
       }
       return;
     }
-    const turn = (c.isDown('right') ? 1 : 0) - (c.isDown('left') ? 1 : 0);
-    p.a += turn * 0.045 + this.mouseDX * 0.004;
+    // The touch stick moves and strafes (analog); otherwise UP/DOWN move, LEFT/RIGHT turn, PREV/NEXT strafe.
+    const stick = c.stick();
+    const turn = stick ? 0 : (c.isDown('right') ? 1 : 0) - (c.isDown('left') ? 1 : 0);
+    const fwd = stick ? -stick.y : (c.isDown('up') ? 1 : 0) - (c.isDown('down') ? 1 : 0);
+    const side = stick ? stick.x : (c.isDown('next') ? 1 : 0) - (c.isDown('prev') ? 1 : 0);
+    const firing = c.isDown('fire') || this.mouseFire;
+    let aim = turn * 0.045 + this.mouseDX * 0.004 + c.look() * LOOK_SENS;
     this.mouseDX = 0;
-    const fwd = (c.isDown('up') ? 1 : 0) - (c.isDown('down') ? 1 : 0);
-    const side = (c.isDown('next') ? 1 : 0) - (c.isDown('prev') ? 1 : 0);
+    // Aim assist: with a bot near the crosshair, turning slows over it and, while
+    // you're moving, aiming or shooting, the view leans onto it.
+    const off = this.assistTarget();
+    if (off !== null) {
+      aim *= 0.6;
+      if (aim || fwd || side || firing) p.a += off * (firing ? 0.1 : 0.06);
+    }
+    p.a += aim;
     const sp = 0.055;
     this.move(p, Math.cos(p.a) * fwd * sp + Math.cos(p.a + Math.PI / 2) * side * sp, Math.sin(p.a) * fwd * sp + Math.sin(p.a + Math.PI / 2) * side * sp);
     if (fwd || side) p.bob += 0.18;
@@ -451,13 +480,30 @@ export class ArenaScene extends Phaser.Scene {
     }
     if (p.cool > 0) p.cool--;
     const w = WEAPONS[p.weapon];
-    if ((c.isDown('fire') || this.mouseFire) && p.cool === 0 && p.ammo[p.weapon] > 0) {
+    if (firing && p.cool === 0 && p.ammo[p.weapon] > 0) {
       this.fire(p, p.a, w, null);
       p.cool = w.rate;
       p.recoil = 6;
       sfx.shoot();
       if (p.weapon !== 0 && --p.ammo[p.weapon] <= 0) p.weapon = 0;
     }
+  }
+
+  /** How far (radians) the nearest bot in sight is off the crosshair, if one is close to it. */
+  private assistTarget(): number | null {
+    const p = this.p;
+    let best: number | null = null;
+    for (const b of this.bots) {
+      if (b.dead > 0) continue;
+      const d = Math.hypot(b.x - p.x, b.y - p.y);
+      if (d > 12 || d < 0.3) continue;
+      const off = Phaser.Math.Angle.Wrap(Math.atan2(b.y - p.y, b.x - p.x) - p.a);
+      // (A wider cone up close, where a bot fills more of the view.)
+      const cone = ASSIST_CONE * Math.min(2, Math.max(1, 3 / d));
+      if (Math.abs(off) > cone || (best !== null && Math.abs(off) >= Math.abs(best))) continue;
+      if (this.los(p.x, p.y, b.x, b.y)) best = off;
+    }
+    return best;
   }
 
   private stepBots(): void {
