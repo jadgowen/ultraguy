@@ -41,7 +41,7 @@ change the game entirely; each is its own scene, entered through a dialogue and 
 | Boss Hall capsule | Anvil | brick-breaker: smash his forge wall and hit him behind it; his sparks slow your paddle; hot bricks (and every hit on him) drop multiballs; he patches holes | `BreakerScene.ts` |
 | Boss Hall capsule | Mantis | lane-crossing hop: dodge the traffic, ride logs and pads, fill all three pads without landing where Mantis waits | `HopScene.ts` |
 | Boss Hall capsule | Frostline | one-on-one ice hockey: slippery skating, shots and body checks, first to 3 | `HockeyScene.ts` |
-| Boss Hall capsule | Gale | vertical sky shooter: kites, wind gusts that shove your ship, then Gale's feathers, blades and a low tornado you can fly over | `SkiesScene.ts` |
+| Boss Hall capsule | Gale | vertical sky shooter (art in `skiesArt.ts`): kites, swooper squadrons, ring-firing spinners, balloon bombers (always carry a P) and darts that flag their column, with wind gusts shoving your ship; P capsules power your shot up to five-way, and the fifth turns it into a big laser that cuts through everything in its column (losing a ship costs a level); then Gale's feathers, blades and a low tornado you can fly over | `SkiesScene.ts` |
 | Boss Hall capsule | Volt | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
 | Boss Hall capsule | Scrap | top-down junk maze: four rooms, keys, a hookshot that swings you across shafts; Scrap's magnet field turns shots until you stun him | `DungeonScene.ts` |
 | Boss Hall capsule | Tide | undersea pinball: hit Tide while his shell is open; lanes pry it open, targets start a multiball; a ball saver after each serve | `PinballScene.ts` |
