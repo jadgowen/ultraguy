@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { bossHall, bossRoom, rows, SKY, water } from './rooms';
+import { bossArena, bossHall, bossRoom, rows, SKY, water } from './rooms';
 
 /** The quiet hallway before the boss room (see bossHall). */
 const lobby = bossHall();
@@ -10,8 +10,32 @@ const lobby = bossHall();
 
 const CEIL = '################';
 
-/** Room shared by the three fortress guardians (plain string rows, safe to reuse). */
-const guardRoom = bossRoom();
+/**
+ * A guardian's room: the standard boss room with one-way ledges ('C') laid
+ * across both screens. `ledges` maps a row to runs of arena columns (0-31;
+ * the right screen's wall is column 31). Guardians fly or leap, so the
+ * ledges are for you.
+ */
+function guardArena(ledges: Record<number, [number, number][]>): { left: string[]; right: string[] } {
+  const base = bossRoom();
+  const left: Record<number, string> = {};
+  const right: Record<number, string> = {};
+  for (const [row, runs] of Object.entries(ledges)) {
+    const r = Number(row);
+    const line = (base.left[r] + base.right[r]).split('');
+    for (const [a, b] of runs) for (let c = a; c <= b; c++) line[c] = 'C';
+    left[r] = line.slice(0, 16).join('');
+    right[r] = line.slice(16).join('');
+  }
+  return bossArena('#', left, right);
+}
+
+/** GATEKEEPER: three low ledges to hop over him and get behind his shield. */
+const gateRoom = guardArena({ 10: [[3, 5], [14, 17], [26, 28]] });
+/** ABYSS EYE: two tiers of ledges up the chamber (its perches and pods line up with them). */
+const abyssRoom = guardArena({ 10: [[3, 8], [23, 28]], 7: [[10, 13], [18, 21]] });
+/** SPIRE WARDEN: a tower of three tiers, 32, 80 and 128 px up (see WARDEN_TIERS). */
+const wardenRoom = guardArena({ 11: [[2, 7], [24, 29]], 8: [[9, 13], [18, 22]], 5: [[14, 17]] });
 const FLOOR = '################';
 
 /**
@@ -62,8 +86,8 @@ export const FORTRESS_1: StageData = {
     J: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
     '5': lobby.left,
     '6': lobby.right,
-    X: guardRoom.left,
-    Y: guardRoom.right,
+    X: gateRoom.left,
+    Y: gateRoom.right,
   },
 };
 
@@ -149,8 +173,8 @@ export const FORTRESS_2: StageData = {
     J: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
     '5': lobby.left,
     '6': lobby.right,
-    X: guardRoom.left,
-    Y: guardRoom.right,
+    X: abyssRoom.left,
+    Y: abyssRoom.right,
   },
 };
 
@@ -207,8 +231,8 @@ export const FORTRESS_3: StageData = {
     M: [...rows('...............#', 10), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
     '5': lobby.left,
     '6': lobby.right,
-    X: guardRoom.left,
-    Y: guardRoom.right,
+    X: wardenRoom.left,
+    Y: wardenRoom.right,
   },
 };
 

@@ -16,6 +16,15 @@ export interface Room {
   floor: number;
 }
 
+/** Something besides the boss that shots can hit (it takes the damage itself). */
+export interface BossTarget {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  hit(dmg: number): void;
+}
+
 /**
  * Shared boss behavior: drop-in intro while the health bar fills, taking hits
  * (with a brief invincibility window and a weakness), and the death state.
@@ -117,6 +126,19 @@ export abstract class Boss {
   /** Override: shots bounce off instead of passing through (e.g. a shield). */
   blocksShots(): boolean {
     return false;
+  }
+
+  /**
+   * Override: whether this particular shot bounces off (a shield that only
+   * covers one side, say). Defaults to blocksShots().
+   */
+  blocksShot(_shot: { x: number; w: number; vx: number }): boolean {
+    return this.blocksShots();
+  }
+
+  /** Override: other things in the fight your shots can hit (wall pods, say). */
+  targets(): BossTarget[] {
+    return [];
   }
 
   /** Override for phases where the boss can't be touched or hit (e.g. vanished). */

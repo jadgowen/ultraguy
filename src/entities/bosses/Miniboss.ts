@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import type { GuardianKind, MiniKind, Point } from '../../level/Level';
+import type { MiniKind, Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import type { WeaponId } from '../../weapons';
@@ -62,17 +62,8 @@ export const MINIBOSSES: Record<MiniKind, MiniDef> = {
   angler: { name: 'ANGLER', w: 38, h: 26, hp: 18, weakness: 'spark', moves: ['dash', 'volley', 'ring'], flies: true, shot: { tex: 'bbubble', w: 10, h: 10 } },
 };
 
-/**
- * Fortress guardians: full stage bosses (door, boss music, STAGE CLEAR) built
- * on the same move set, bigger and tougher, with the heavier moves.
- */
-export const GUARDIANS: Record<GuardianKind, MiniDef> = {
-  gatekeeper: { name: 'GATEKEEPER', w: 46, h: 44, hp: 28, weakness: 'spark', moves: ['stomp', 'spread', 'charge', 'volley'], shot: { tex: 'bshot', w: 6, h: 6 } },
-  abyss: { name: 'ABYSS EYE', w: 40, h: 40, hp: 28, weakness: 'frost', moves: ['ring', 'spread', 'swoop', 'rain'], flies: true, shot: { tex: 'vorb', w: 8, h: 8 } },
-  warden: { name: 'SPIRE WARDEN', w: 34, h: 50, hp: 28, weakness: 'cyclone', moves: ['slam', 'spread', 'roll', 'lob', 'slam'], shot: { tex: 'fireball', w: 8, h: 8 } },
-};
 
-/** One class for minibosses and guardians: a small set of moves, picked at random without repeats. */
+/** One class for the stages' minibosses: a small set of moves, picked at random without repeats. */
 export class Miniboss extends Boss {
   readonly def: MiniDef;
   private move: Move | 'idle' = 'idle';
@@ -90,8 +81,8 @@ export class Miniboss extends Boss {
   private strike: { x: number; t: number } | null = null;
   private strikeT = 0;
 
-  constructor(g: GameScene, readonly mini: MiniKind | GuardianKind, at: Point, room: Room) {
-    const def = mini in GUARDIANS ? GUARDIANS[mini as GuardianKind] : MINIBOSSES[mini as MiniKind];
+  constructor(g: GameScene, readonly mini: MiniKind, at: Point, room: Room) {
+    const def = MINIBOSSES[mini];
     super(g, mini, def.w, def.h, def.weakness, at, room);
     this.def = def;
     this.hp = this.maxHp = def.hp;
@@ -101,7 +92,7 @@ export class Miniboss extends Boss {
   }
 
   get part(): PartDef | undefined {
-    return this.guardian ? undefined : MINI_PARTS[this.mini as MiniKind];
+    return MINI_PARTS[this.mini];
   }
 
   /** Its part has been shot off. */
@@ -134,7 +125,7 @@ export class Miniboss extends Boss {
 
   /** Beaten only by its arena (shots bounce off). */
   get arenaOnly(): boolean {
-    return !this.guardian && !!ARENA_ONLY[this.mini as MiniKind];
+    return !!ARENA_ONLY[this.mini];
   }
 
   blocksShots(): boolean {
@@ -145,10 +136,6 @@ export class Miniboss extends Boss {
   private sinkT = 0;
   private hinted = false;
 
-  /** A fortress guardian is the stage's boss, not a mid-stage fight. */
-  get guardian(): boolean {
-    return this.mini in GUARDIANS;
-  }
 
   protected get texKey(): string {
     return this.broken ? `${this.mini}_b` : this.mini;
@@ -210,7 +197,7 @@ export class Miniboss extends Boss {
     // Over a hole in the ice (nothing under its middle): it falls in.
     if (this.mini === 'mammoth' && this.grounded === false && this.vy > 0 && this.bottom > this.room.floor + 2) this.sinkT = 1;
     // Half health: the fight changes (the room joins in; see GameScene.miniPhase).
-    if (!this.enraged && this.phase2 && !this.guardian) {
+    if (!this.enraged && this.phase2) {
       this.enraged = true;
       this.g.miniPhase(this.mini as MiniKind);
     }

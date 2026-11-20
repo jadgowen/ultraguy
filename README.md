@@ -148,6 +148,17 @@ comes in as you beat bosses (`src/shop.ts`).
 Every boss stage ends with an extra stretch before the boss door (screens `7` and `8`: more of the stage's
 enemies, a stage hazard and a bolt cache). Enemies drop bolts often (small 2, big 8) and caches hold 25.
 
+**Fortress guardians.** Each has its own fight and room of one-way ledges (`guardArena` in
+`src/level/fortress.ts`; art in `art/guardianArt.mjs`):
+- GATEKEEPER (`Gatekeeper.ts`): his portcullis tower shield bounces shots from the front. Hop over him from
+  the ledges and hit his back, catch him with the shield raised overhead for a slam (it sends shockwaves), or
+  dodge his shield bash: if he rams the wall he's dazed with the shield dropped.
+- ABYSS EYE (`Abyss.ts`): shots bounce off its shut lids. It drifts between perches level with two tiers of
+  ledges, cracks its lids (the tell) and opens to fire rings or aimed orbs: that's your window. Four pods in the
+  walls shoot while it's shut; destroy all four and it reels, wide open (they grow back).
+- SPIRE WARDEN (`Warden.ts`): a winged knight in a tower of three tiers. He leaps between them (toward yours)
+  and slashes a sword wave along his tier, lobs fireballs, or dives from above into floor shockwaves.
+
 **Boss hallways.** Past the stage's last door there's a quiet hallway (like the X games): two screens with a low,
 beamed ceiling and no enemies, then the boss door. It has the checkpoint (and the boss-test start), so you can
 pick your weapon calmly, and a retry after a boss death starts there. `bossHall()` in `src/level/rooms.ts`

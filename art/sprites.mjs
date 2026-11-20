@@ -21,6 +21,7 @@ import { galeFrames } from './galeArt.mjs';
 import { mantisFrames } from './mantisArt.mjs';
 import { tideFrames } from './tideArt.mjs';
 import { scrapFrames } from './scrapArt.mjs';
+import { guardianFrames } from './guardianArt.mjs';
 
 // Palette characters ('.' is transparent):
 const PALETTE = {
@@ -1592,72 +1593,8 @@ function capsule(on) {
   ]);
 }
 
-// --- fortress guardians (stage bosses of the three fortress stages) ---------------
-
-/** GATEKEEPER (Fortress Gate): an armored golem with a portcullis for a chest. */
-function gatekeeper(attack) {
-  const fy = attack ? 2 : 24;
-  return boxes(52, 48, [
-    [12, 38, 10, 7, 'g'], [30, 38, 10, 7, 'g'], [9, 44, 15, 4, 'G'], [28, 44, 15, 4, 'G'],
-    [8, 14, 36, 26, 'g'], [8, 14, 36, 2, 'w'],
-    [14, 18, 24, 18, 'u'], [21, 23, 10, 8, attack ? 'R' : 'U'], [24, 25, 4, 3, attack ? 'Y' : 'P'],
-    [13, 17, 3, 20, 'G'], [20, 17, 3, 20, 'G'], [27, 17, 3, 20, 'G'], [34, 17, 3, 20, 'G'],
-    [10, 23, 32, 2, 'G'], [10, 31, 32, 2, 'G'],
-    [0, 12, 12, 12, 'U'], [40, 12, 12, 12, 'U'], [0, 12, 12, 2, 'P'], [40, 12, 12, 2, 'P'],
-    [2, 20, 8, 6, 'g'], [42, 20, 8, 6, 'g'],
-    [1, fy, 10, 12, 'G'], [41, fy, 10, 12, 'G'], [1, fy, 10, 2, 'w'], [41, fy, 10, 2, 'w'],
-    [18, 4, 16, 11, 'G'], [18, 4, 16, 1, 'w'], [18, 1, 3, 5, 'U'], [31, 1, 3, 5, 'U'],
-    [20, 8, 12, 3, 'd'], [26, 8, 4, 3, attack ? 'R' : 'V'],
-    // detail: shoulder spikes, knuckle studs, glowing seams, chest rivets
-    [2, 8, 3, 4, 'w'], [7, 9, 3, 3, 'w'], [42, 9, 3, 3, 'w'], [47, 8, 3, 4, 'w'],
-    ...[2, 5, 8].map((x) => [x, fy + 3, 1, 1, 'W']), ...[42, 45, 48].map((x) => [x, fy + 3, 1, 1, 'W']),
-    [8, 30, 36, 1, attack ? 'R' : 'U'], [8, 36, 36, 1, attack ? 'R' : 'U'],
-    [10, 16, 1, 1, 'W'], [41, 16, 1, 1, 'W'], [10, 38, 1, 1, 'W'], [41, 38, 1, 1, 'W'],
-  ]);
-}
-
-/** ABYSS EYE (Fortress Depths): an armored eye that floats in the dark. */
-function abyssEye(attack) {
-  const iris = attack ? 'R' : 'U';
-  return boxes(46, 46, [
-    [21, 0, 4, 5, 'u'], [21, 41, 4, 5, 'u'], [0, 21, 5, 4, 'u'], [41, 21, 5, 4, 'u'],
-    [5, 5, 4, 4, 'u'], [37, 5, 4, 4, 'u'], [5, 37, 4, 4, 'u'], [37, 37, 4, 4, 'u'],
-    [10, 3, 26, 40, 'S'], [3, 10, 40, 26, 'S'], [7, 7, 32, 32, 'S'], [10, 3, 26, 2, 's'], [3, 10, 2, 26, 's'],
-    [14, 9, 18, 28, 'W'], [9, 14, 28, 18, 'W'], [12, 12, 22, 22, 'W'],
-    [16, 16, 14, 14, iris], [18, 15, 10, 16, iris], [15, 18, 16, 10, iris],
-    [20, 20, 6, 6, 'd'], [18, 17, 3, 2, 'W'],
-    ...(attack ? [[8, 7, 30, 8, 'S'], [8, 31, 30, 8, 'S'], [12, 14, 22, 1, 's'], [12, 31, 22, 1, 's']] : []),
-    // detail: veins on the eye, rivets round the shell, an iris ring
-    [13, 20, 3, 1, 'R'], [14, 21, 1, 2, 'R'], [30, 27, 4, 1, 'R'], [31, 28, 1, 2, 'R'], [15, 30, 3, 1, 'R'], [29, 15, 3, 1, 'R'],
-    ...[[11, 5], [34, 5], [5, 11], [40, 11], [5, 34], [40, 34], [11, 40], [34, 40]].map(([x, y]) => [x, y, 1, 1, 'w']),
-    [17, 16, 12, 1, attack ? 'r' : 'u'], [17, 29, 12, 1, attack ? 'r' : 'u'],
-  ]);
-}
-
-/** SPIRE WARDEN (Fortress Spire): a winged knight with a blade arm. */
-function spireWarden(attack) {
-  const wing = attack
-    ? [[0, 2, 10, 24, 'w'], [0, 18, 6, 8, 'G'], [2, 0, 4, 4, 'w'], [0, 9, 8, 1, 'G'], [0, 14, 8, 1, 'G']]
-    : [[0, 12, 10, 26, 'w'], [0, 30, 6, 8, 'G'], [0, 19, 8, 1, 'G'], [0, 25, 8, 1, 'G']];
-  const arm = attack ? [[30, 6, 5, 14, 'G'], [31, 0, 3, 8, 'C'], [31, 0, 3, 1, 'W']] : [[30, 24, 5, 14, 'G'], [33, 32, 7, 3, 'C'], [33, 32, 7, 1, 'W']];
-  return boxes(40, 56, [
-    ...wing,
-    [12, 42, 6, 10, 'g'], [22, 42, 6, 10, 'g'], [10, 51, 9, 5, 'G'], [21, 51, 9, 5, 'G'],
-    [9, 18, 22, 26, 'U'], [12, 20, 16, 10, 's'], [9, 38, 22, 3, 'y'], [17, 24, 6, 5, attack ? 'R' : 'Y'],
-    [6, 16, 8, 6, 'G'], [26, 16, 8, 6, 'G'], [6, 16, 8, 1, 'w'], [26, 16, 8, 1, 'w'],
-    [12, 4, 16, 15, 'G'], [12, 4, 16, 1, 'w'], [17, 0, 6, 6, 'R'],
-    [16, 10, 11, 3, 'd'], [22, 10, 4, 3, attack ? 'R' : 'V'],
-    ...arm,
-    // detail: mail texture, buckle, blade edge, feather tips, helmet shading
-    ...[[12, 32], [16, 33], [20, 32], [24, 33], [14, 35], [22, 35], [18, 36]].map(([x, y]) => [x, y, 1, 1, 's']),
-    [18, 38, 4, 3, 'Y'], [19, 39, 2, 1, 'y'],
-    [12, 14, 16, 1, 'g'], [19, 0, 2, 2, 'P'],
-    ...(attack ? [[1, 4, 2, 1, 'W'], [1, 10, 2, 1, 'W']] : [[1, 14, 2, 1, 'W'], [1, 20, 2, 1, 'W']]),
-  ]);
-}
-
-const MINI_ART = { press: pressTitan, press_b: (a) => pressTitan(a, true), mammoth_b: (a) => tuskMammoth(a, true), toad: briarToad, mammoth: tuskMammoth, kite: stormKite, dynamo, crab: cinderCrab, crusher, angler, gatekeeper, abyss: abyssEye, warden: spireWarden };
-const MINI_SIZE = { press: [44, 40], press_b: [44, 40], mammoth_b: [48, 36], toad: [44, 32], mammoth: [48, 36], kite: [44, 28], dynamo: [40, 40], crab: [46, 30], crusher: [48, 34], angler: [44, 32], gatekeeper: [52, 48], abyss: [46, 46], warden: [40, 56] };
+const MINI_ART = { press: pressTitan, press_b: (a) => pressTitan(a, true), mammoth_b: (a) => tuskMammoth(a, true), toad: briarToad, mammoth: tuskMammoth, kite: stormKite, dynamo, crab: cinderCrab, crusher, angler };
+const MINI_SIZE = { press: [44, 40], press_b: [44, 40], mammoth_b: [48, 36], toad: [44, 32], mammoth: [48, 36], kite: [44, 28], dynamo: [40, 40], crab: [46, 30], crusher: [48, 34], angler: [44, 32] };
 for (const [k, fn] of Object.entries(MINI_ART)) {
   P[`${k}Idle`] = fn(false);
   P[`${k}Attack`] = fn(true);
@@ -1806,14 +1743,14 @@ const molten = anvilFrames();
 for (const [name, bmp] of Object.entries(molten.frames)) rendered.push({ name, bmp });
 // Mantis, Frostline, Gale and Tide share one generated anchors file.
 const shared = {};
-for (const art of [mantisFrames(), frostlineFrames(), galeFrames(), tideFrames(), scrapFrames()]) {
+for (const art of [mantisFrames(), frostlineFrames(), galeFrames(), tideFrames(), scrapFrames(), guardianFrames()]) {
   for (const [name, bmp] of Object.entries(art.frames)) rendered.push({ name, bmp });
   Object.assign(shared, art.anchors);
 }
 write(
   'src/entities/bosses/bossAnchors.ts',
   Buffer.from(
-    '// Generated by art/sprites.mjs (art/mantisArt.mjs, frostlineArt, galeArt, tideArt, scrapArt): glow points on each\n' +
+    '// Generated by art/sprites.mjs (art/mantisArt.mjs, frostlineArt, galeArt, tideArt, scrapArt, guardianArt): glow points on each\n' +
       '// frame, as offsets from the sprite\'s bottom-center, facing right.\n' +
       'export type Spot = [number, number];\n' +
       'export interface BossAnchor { eye?: Spot; core?: Spot; tip?: Spot; hand?: Spot; mouth?: Spot; lights?: Spot[]; up?: Spot }\n' +

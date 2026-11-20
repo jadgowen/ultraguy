@@ -1142,10 +1142,22 @@ export class GameScene extends Phaser.Scene {
         }
       }
 
-      // Shots that hit the boss's cover (Jared's counter) bounce off it.
+      // Other things in the fight (the Abyss Eye's wall pods) take shots too.
+      if (boss && boss.state === 'fight' && !b.hitTargets.has(boss)) {
+        const tgt = boss.targets().find((t) => overlaps(b, t));
+        if (tgt) {
+          tgt.hit(b.weapon === 'buster' ? b.power : 2);
+          sfx.hit();
+          this.impact(b);
+          if (!b.pierce) b.dead = true;
+          continue;
+        }
+      }
+
+      // Shots that hit the boss's cover (Jared's counter) or a shield bounce off it.
       const cover = boss?.coverTop() ?? null;
       const covered = cover !== null && b.y + b.h / 2 > cover;
-      if (boss && boss.state === 'fight' && (boss.blocksShots() || covered) && overlaps(b, boss)) {
+      if (boss && boss.state === 'fight' && (boss.blocksShot(b) || covered) && overlaps(b, boss)) {
         b.deflect();
         sfx.deflect();
         continue;
@@ -1845,7 +1857,7 @@ export class GameScene extends Phaser.Scene {
         return;
       }
       // Miniboss: the camera unlocks, it leaves a big refill, and the stage goes on.
-      if (boss instanceof Miniboss && !boss.guardian) {
+      if (boss instanceof Miniboss) {
         this.miniDefeated = true;
         this.arena = null;
         this.dropPickup(boss.cx - 10, boss.cy, 10, 0, 'hp_big', 12, 10);
