@@ -6,6 +6,7 @@ import { pixelText } from '../pixelFont';
 import { sfx } from '../sfx';
 import { pixelateIn } from './cutscene';
 import { ModeData, returnToGame } from './encounters';
+import { makeSkiesArt } from './skiesArt';
 
 /**
  * OVERLORD'S ARMADA: a fixed-screen alien shooter. Your fighter slides along
@@ -61,6 +62,9 @@ export class ShooterScene extends Phaser.Scene {
   private overT = 0;
   private waveT = 0;
   private g!: Phaser.GameObjects.Graphics;
+  private fxG!: Phaser.GameObjects.Graphics;
+  private flame!: Phaser.GameObjects.Image;
+  private sparks: { x: number; y: number; vx: number; vy: number; t: number; col: number }[] = [];
   private ship!: Phaser.GameObjects.Image;
   private bossImg!: Phaser.GameObjects.Image;
   private droneImgs: Phaser.GameObjects.Image[] = [];
@@ -77,11 +81,16 @@ export class ShooterScene extends Phaser.Scene {
     this.controls = new Controls(this);
     Object.assign(this, { acc: 0, frame: 0, shipX: FIELD_W / 2, lives: LIVES, invuln: 0, dead: 0, shots: [], enemyShots: [], drones: [], wave: 0, boss: null, score: 0, result: null, overT: 0, waveT: 0, droneImgs: [] });
     makeShooterTextures(this);
+    makeSkiesArt(this);
     this.cameras.main.setBackgroundColor('#05020a');
+    this.add.image(OX, TOP, makeSpace(this, FIELD_W, 240 - TOP)).setOrigin(0).setDepth(-1);
+    this.sparks = [];
+    this.fxG = this.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+    this.flame = this.add.image(0, 0, 'sk_flame0').setDepth(5.9);
     this.stars = Array.from({ length: 60 }, () => ({ x: Math.random() * FIELD_W, y: Math.random() * 240, s: 0.2 + Math.random() * 0.8 }));
     this.g = this.add.graphics();
     this.bossImg = this.add.image(0, 0, 'overlord_idle').setVisible(false).setDepth(3);
-    this.ship = this.add.image(0, 0, 'sh_ship').setDepth(6);
+    this.ship = this.add.image(0, 0, 'sk_ship').setDepth(6);
     this.banner = pixelText(this, VIEW_W / 2, 110, '', { fontSize: '16px', color: '#fff1e0', stroke: '#000000' }).setOrigin(0.5).setDepth(20);
     this.hud = pixelText(this, OX, 6, '', { color: '#fff1e0', stroke: '#000000' }).setDepth(20);
     pixelText(this, OX, VIEW_H - 10, 'LEFT/RIGHT MOVE  JUMP/FIRE SHOOT', { color: '#8a8fa8', stroke: '#000000' }).setDepth(20);
@@ -276,6 +285,7 @@ export class ShooterScene extends Phaser.Scene {
           if (s.x >= x - 1 && s.x <= x + 13 && s.y >= y - 2 && s.y <= y + 10) {
             d.alive = false;
             s.dead = true;
+            this.pop(x + 6, y + 5, [0xc8a0ff, 0xff8a8a, 0xc8ccd8][d.kind]);
             this.score += [10, 20, 40][d.kind] * (d.dive ? 2 : 1);
             sfx.alienDie();
             break;
@@ -287,6 +297,7 @@ export class ShooterScene extends Phaser.Scene {
           const cx = b.x + side * 26;
           if (b.cannons[i] > 0 && Math.abs(s.x - cx) < 7 && s.y < 76 && s.y > 50) {
             b.cannons[i]--;
+            this.pop(s.x, s.y, 0xffe14a, 5);
             s.dead = true;
             sfx.hit();
             if (b.cannons[i] === 0) {
@@ -300,6 +311,7 @@ export class ShooterScene extends Phaser.Scene {
           s.dead = true;
           if (coreOpen) {
             b.core--;
+            this.pop(s.x, s.y, 0xff5050, 6);
             sfx.hit();
             if (b.core <= 0) {
               this.score += 1000;
@@ -348,16 +360,39 @@ export class ShooterScene extends Phaser.Scene {
     if (won) playVoice(this, 'overlord_loses');
   }
 
+  /** A burst of sparks (in field coordinates). */
+  private pop(x: number, y: number, col: number, n = 10): void {
+    for (let i = 0; i < n; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const v = 0.6 + Math.random() * 1.8;
+      this.sparks.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, t: 14 + Math.floor(Math.random() * 10), col: i % 3 === 0 ? 0xffffff : col });
+    }
+  }
+
   private draw(): void {
     const g = this.g;
     g.clear();
-    g.fillStyle(0x0a0614).fillRect(OX, TOP, FIELD_W, 240 - TOP);
-    for (const s of this.stars) g.fillStyle(s.s > 0.7 ? 0xc8ccf0 : 0x4a4a7a).fillRect(OX + s.x, s.y, 1, 1);
-    g.lineStyle(1, 0x3a2a5a).strokeRect(OX - 1, TOP - 1, FIELD_W + 2, 240 - TOP + 2);
-    // Shields.
+    const fx = this.fxG;
+    fx.clear();
+    // Stars twinkle over the painted nebula.
+    for (const s of this.stars) {
+      if (s.y < TOP) continue;
+      const tw = (Math.sin(this.frame / (8 + s.s * 20) + s.x) + 1) / 2;
+      g.fillStyle(s.s > 0.7 ? 0xe6eaff : 0x6a6aa0, 0.4 + tw * 0.6).fillRect(OX + s.x, s.y, s.s > 0.9 ? 2 : 1, 1);
+    }
+    g.lineStyle(1, 0x5a3a8a).strokeRect(OX - 1, TOP - 1, FIELD_W + 2, 240 - TOP + 2);
+    g.lineStyle(1, 0x2a1a4a).strokeRect(OX - 2, TOP - 2, FIELD_W + 4, 240 - TOP + 4);
+    // Shields: glowing energy barriers that lose blocks as they're hit.
     for (let i = 0; i < 3; i++) {
       const sx = OX + this.shieldX(i);
-      this.shields[i].forEach((row, r) => row.forEach((on, c) => on && g.fillStyle(r === 0 ? 0x8af0c8 : 0x3aa88a).fillRect(sx + c * 3, 180 + r * 3, 3, 3)));
+      this.shields[i].forEach((row, r) =>
+        row.forEach((on, c) => {
+          if (!on) return;
+          const top = r === 0 || !this.shields[i][r - 1][c];
+          g.fillStyle(top ? 0xbffff0 : (c + r) % 2 ? 0x3ab89a : 0x2aa088).fillRect(sx + c * 3, 180 + r * 3, 3, 3);
+          fx.fillStyle(0x5ef0c8, 0.12).fillRect(sx + c * 3 - 1, 180 + r * 3 - 1, 5, 5);
+        }),
+      );
     }
     // Drones.
     const flap = Math.floor(this.frame / 20) % 2 ? 'b' : 'a';
@@ -393,42 +428,109 @@ export class ShooterScene extends Phaser.Scene {
       }
     }
     // Shots.
-    for (const s of this.shots) g.fillStyle(0x5ef0c8).fillRect(OX + s.x - 1, s.y - 4, 2, 6).fillStyle(0xffffff).fillRect(OX + s.x - 1, s.y - 4, 2, 2);
-    for (const s of this.enemyShots) g.fillStyle(this.frame % 4 < 2 ? 0xff5050 : 0xffe14a).fillRect(OX + s.x - 1, s.y - 2, 3, 4);
+    for (const s of this.shots) {
+      g.fillStyle(0x2aa088).fillRect(OX + s.x - 1, s.y - 4, 3, 8);
+      g.fillStyle(0xbffff0).fillRect(OX + s.x, s.y - 5, 1, 8);
+      fx.fillStyle(0x5ef0c8, 0.3).fillCircle(OX + s.x, s.y, 5);
+    }
+    for (const s of this.enemyShots) {
+      g.fillStyle(this.frame % 4 < 2 ? 0xff5050 : 0xffe14a).fillRect(OX + s.x - 1, s.y - 3, 3, 6);
+      fx.fillStyle(0xff5050, 0.3).fillCircle(OX + s.x, s.y, 5);
+    }
+    // Sparks from hits.
+    for (const p of this.sparks) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.92;
+      p.vy *= 0.92;
+      p.t--;
+      fx.fillStyle(p.col, Math.min(1, p.t / 10)).fillRect(OX + p.x, p.y, 2, 2);
+    }
+    this.sparks = this.sparks.filter((p) => p.t > 0);
     // You.
-    this.ship.setPosition(OX + this.shipX, SHIP_Y).setVisible(this.dead === 0 && (this.invuln === 0 || this.frame % 6 < 3));
+    const shown = this.dead === 0 && (this.invuln === 0 || this.frame % 6 < 3);
+    this.ship.setPosition(OX + this.shipX, SHIP_Y).setVisible(shown);
+    this.flame.setTexture(`sk_flame${Math.floor(this.frame / 3) % 2}`).setPosition(OX + this.shipX, SHIP_Y + 11).setVisible(shown);
     if (this.dead > 60) for (let k = 0; k < 6; k++) g.fillStyle(k % 2 ? 0xff7a2a : 0xffe14a).fillCircle(OX + this.shipX + Math.cos(k + this.dead) * (90 - this.dead), SHIP_Y + Math.sin(k * 2 + this.dead) * (90 - this.dead) * 0.5, 2);
     this.hud.setText(`SCORE ${String(this.score).padStart(5, '0')}   LIVES ${Math.max(0, this.lives)}   WAVE ${this.wave}`);
   }
 }
 
+/** The space behind the armada: a deep gradient, two nebula clouds, a ringed planet low on one side. */
+function makeSpace(scene: Phaser.Scene, w: number, h: number): string {
+  const key = 'sh_space';
+  if (scene.textures.exists(key)) return key;
+  const t = scene.textures.createCanvas(key, w, h)!;
+  const c = t.getContext();
+  const bay = (x: number, y: number) => [0, 0.5, 0.75, 0.25][(x & 1) + ((y & 1) << 1)];
+  const hsh = (x: number, y: number) => {
+    let q = (x * 374761393 + y * 668265263) | 0;
+    q = Math.imul(q ^ (q >>> 13), 1274126177);
+    return ((q ^ (q >>> 16)) >>> 0) / 4294967296;
+  };
+  for (let y = 0; y < h; y++)
+    for (let x = 0; x < w; x++) {
+      const n1 = Math.max(0, 1 - Math.hypot((x - w * 0.25) / 70, (y - h * 0.3) / 40)) * (0.6 + hsh(x >> 3, y >> 3) * 0.4);
+      const n2 = Math.max(0, 1 - Math.hypot((x - w * 0.8) / 60, (y - h * 0.65) / 50)) * (0.6 + hsh((x >> 3) + 40, y >> 3) * 0.4);
+      const k = bay(x, y) * 0.3;
+      const r = 8 + n1 * 70 + n2 * 20 + k * 10, g = 4 + n1 * 20 + n2 * 50 + k * 6, b = 18 + n1 * 80 + n2 * 70 + k * 14;
+      c.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
+      c.fillRect(x, y, 1, 1);
+    }
+  // A ringed planet peeking up from the bottom corner.
+  const px0 = w - 46, py0 = h + 18;
+  for (let y = h - 60; y < h; y++)
+    for (let x = w - 110; x < w; x++) {
+      const d = Math.hypot(x - px0, y - py0);
+      if (d < 54) {
+        const lit = 1 - Math.hypot(x - (px0 - 20), y - (py0 - 30)) / 80 + bay(x, y) * 0.15;
+        c.fillStyle = lit > 0.55 ? '#c86a8a' : lit > 0.3 ? '#8a3a6a' : '#4a1a4a';
+        c.fillRect(x, y, 1, 1);
+      }
+      const rx = (x - px0) / 80, ry = (y - py0 + 30) / 10;
+      const rd = rx * rx + ry * ry;
+      if (rd > 0.8 && rd < 1 && !(d < 54 && y > py0 - 30)) {
+        c.fillStyle = '#e8b0c8';
+        c.fillRect(x, y, 1, 1);
+      }
+    }
+  t.refresh();
+  return key;
+}
+
 export function makeShooterTextures(scene: Phaser.Scene): void {
-  if (scene.textures.exists('sh_ship')) return;
-  const g = scene.make.graphics({ x: 0, y: 0 }, false);
-  const K = 0x1a1428;
-  // UltraGuy's fighter: orange hull, teal cockpit, twin engines.
-  g.fillStyle(K).fillTriangle(8, 0, 0, 12, 16, 12);
-  g.fillStyle(0xf28c28).fillTriangle(8, 1, 2, 11, 14, 11);
-  g.fillStyle(0xffc070).fillTriangle(8, 2, 6, 6, 10, 6);
-  g.fillStyle(0x5ef0c8).fillRect(7, 5, 2, 3);
-  g.fillStyle(0xb85a1a).fillRect(2, 10, 4, 2).fillRect(10, 10, 4, 2);
-  g.fillStyle(0xffe14a).fillRect(3, 12, 2, 1).fillRect(11, 12, 2, 1);
-  g.generateTexture('sh_ship', 16, 13);
-  // Overlord drones: three kinds, two frames each.
-  const colors = [[0x8c4ad8, 0x5a2a8a], [0xd83a4a, 0x8c2030], [0x55607a, 0x8a8fa8]];
-  colors.forEach(([body, dark], kind) => {
-    for (const frame of ['a', 'b']) {
-      g.clear();
-      g.fillStyle(K).fillRect(1, 1, 10, 7);
-      g.fillStyle(body).fillRect(2, 2, 8, 5);
-      g.fillStyle(dark).fillRect(2, 5, 8, 2);
-      g.fillStyle(0xffe14a).fillRect(kind === 2 ? 5 : 3, 3, 2, 2);
-      if (kind !== 2) g.fillStyle(0xffe14a).fillRect(7, 3, 2, 2);
-      g.fillStyle(K);
-      if (frame === 'a') g.fillRect(0, 7, 2, 3).fillRect(10, 7, 2, 3);
-      else g.fillRect(2, 8, 2, 2).fillRect(8, 8, 2, 2);
-      g.generateTexture(`sh_drone${kind}${frame}`, 12, 10);
+  if (scene.textures.exists('sh_drone0a')) return;
+  // The Overlord's drones, three kinds (purple squid, red crab, grey sentinel), two frames each, shaded.
+  const K = '#1a1428';
+  const pal: Record<string, string>[] = [
+    { K, B: '#c8a0ff', b: '#8c4ad8', d: '#5a2a8a', Y: '#ffe14a', W: '#ffffff' },
+    { K, B: '#ff8a8a', b: '#d83a4a', d: '#8c2030', Y: '#ffe14a', W: '#ffffff' },
+    { K, B: '#c8ccd8', b: '#8a8fa8', d: '#55607a', Y: '#ff5050', W: '#ffffff' },
+  ];
+  const art: Record<string, string[]>[] = [
+    {
+      a: ['...KKKKKK...', '..KBBBBBbK..', '.KBWYbbYWbK.', '.KBBbbbbbbK.', '..KbdbbdbK..', '.KdK.KK.KdK.', 'KdK......KdK', 'KK........KK', '............', '............'],
+      b: ['...KKKKKK...', '..KBBBBBbK..', '.KBWYbbYWbK.', '.KBBbbbbbbK.', '..KbdbbdbK..', '..KdKKKKdK..', '..KdK..KdK..', '...KK..KK...', '............', '............'],
+    },
+    {
+      a: ['K..........K', 'KbK......KbK', '.KbKKKKKKbK.', '..KBBBBBbK..', '.KBYWbbWYbK.', '.KbbbbbbbbK.', '..KdddddK...', '.KdK...KdK..', 'KdK.....KdK.', '............'],
+      b: ['............', '.KbK....KbK.', 'KbKKKKKKKKbK', '..KBBBBBbK..', '.KBYWbbWYbK.', '.KbbbbbbbbK.', '..KdddddK...', '..KdK.KdK...', '..KK...KK...', '............'],
+    },
+    {
+      a: ['....KKKK....', '..KKBBBBKK..', '.KBBBbbBBbK.', 'KBBKYYYYKbbK', 'KbbbbbbbbbdK', '.KdKdKKdKdK.', '..K.K..K.K..', '............', '............', '............'],
+      b: ['....KKKK....', '..KKBBBBKK..', '.KBBBbbBBbK.', 'KBBKWYYWKbbK', 'KbbbbbbbbbdK', '.KdKdKKdKdK.', '.K..K..K..K.', '............', '............', '............'],
+    },
+  ];
+  art.forEach((frames, kind) => {
+    for (const [frame, rows] of Object.entries(frames)) {
+      const t = scene.textures.createCanvas(`sh_drone${kind}${frame}`, 12, 10)!;
+      const c = t.getContext();
+      rows.forEach((row, y) => [...row].forEach((ch, x) => {
+        if (ch === '.') return;
+        c.fillStyle = pal[kind][ch];
+        c.fillRect(x, y, 1, 1);
+      }));
+      t.refresh();
     }
   });
-  g.destroy();
 }

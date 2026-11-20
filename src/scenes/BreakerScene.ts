@@ -54,6 +54,9 @@ export class BreakerScene extends ModeScene {
   private drops: { x: number; y: number; kind: Power }[] = [];
   private speed = 2.8;
   private g!: Phaser.GameObjects.Graphics;
+  private fxG!: Phaser.GameObjects.Graphics;
+  private brickImgs: Phaser.GameObjects.Image[] = [];
+  private trails: [number, number][][] = [];
   private anvilImg!: Phaser.GameObjects.Image;
 
   constructor() {
@@ -71,7 +74,13 @@ export class BreakerScene extends ModeScene {
     Object.assign(this, { px: FW / 2, pw: PW, wideT: 0, slowT: 0, stunT: 0, lives: BALLS, sparks: [], drops: [], speed: 2.8 });
     this.anvil = { x: FW / 2, dir: 1, hp: ANVIL_HP, hurtT: 0, swingT: 0 };
     this.cameras.main.setBackgroundColor('#140a08');
-    this.g = this.add.graphics();
+    makeBreakerArt(this);
+    this.add.image(OX - 6, TOP - 4, 'bk_forge').setOrigin(0).setDepth(-1);
+    this.g = this.add.graphics().setDepth(2);
+    this.fxG = this.add.graphics().setDepth(7).setBlendMode(Phaser.BlendModes.ADD);
+    this.brickImgs = [];
+    for (let r = 0; r < BROWS; r++) for (let c = 0; c < BCOLS; c++) this.brickImgs.push(this.add.image(OX + c * BW, WALL_Y + r * BH, 'bk_brick1').setOrigin(0).setDepth(1));
+    this.trails = [];
     this.anvilImg = this.add.image(0, 0, 'anvil_idle').setDepth(5);
     this.help('LEFT/RIGHT MOVE   JUMP/FIRE LAUNCH');
   }
@@ -252,24 +261,20 @@ export class BreakerScene extends ModeScene {
 
   protected draw(): void {
     const g = this.g;
+    const fx = this.fxG;
     g.clear();
-    // The forge: walls, glow at the top.
-    g.fillStyle(0x2a1410).fillRect(OX - 6, TOP - 4, FW + 12, BOTTOM - TOP + 8);
-    g.fillStyle(0x0c0606).fillRect(OX, TOP, FW, BOTTOM - TOP);
-    g.fillStyle(0x5a1a0a).fillRect(OX, TOP, FW, 40);
-    g.fillStyle(0x8c2a10, 0.5).fillRect(OX, TOP + 34, FW, 6);
-    // Bricks.
-    const colors: Record<number, [number, number]> = { 1: [0xb85a1a, 0xf28c28], 2: [0x55607a, 0x8a8fa8], 3: [0xd83a4a, 0xffe14a] };
+    fx.clear();
+    // The furnace strip breathes behind Anvil.
+    fx.fillStyle(0xff5a1a, 0.12 + Math.sin(this.frame / 20) * 0.05).fillRect(OX, TOP, FW, 40);
+    // Bricks: clay, steel, and hot ones that pulse.
     for (let r = 0; r < BROWS; r++)
       for (let c = 0; c < BCOLS; c++) {
         const k = this.bricks[r][c];
+        const img = this.brickImgs[r * BCOLS + c];
+        img.setVisible(!!k);
         if (!k) continue;
-        const [dark, light] = colors[k];
-        const x = OX + c * BW;
-        const y = WALL_Y + r * BH;
-        g.fillStyle(dark).fillRect(x, y, BW - 1, BH - 1);
-        g.fillStyle(light).fillRect(x, y, BW - 1, 2);
-        if (k === 3 && this.frame % 20 < 10) g.fillStyle(0xfff1e0).fillRect(x + 8, y + 3, 3, 2);
+        img.setTexture(`bk_brick${k}`);
+        if (k === 3) fx.fillStyle(0xff8a2a, 0.12 + (Math.sin(this.frame / 8 + c) + 1) * 0.06).fillRect(OX + c * BW - 1, WALL_Y + r * BH - 1, BW + 1, BH + 1);
       }
     // Anvil behind the wall.
     const a = this.anvil;
@@ -277,27 +282,116 @@ export class BreakerScene extends ModeScene {
     this.anvilImg.setTint(this.result === 'win' ? 0x555555 : 0xffffff);
     // Sparks and drops.
     for (const s of this.sparks) {
-      g.fillStyle(0xffe14a).fillRect(OX + s.x - 1, s.y - 1, 3, 3);
-      g.fillStyle(0xf28c28).fillRect(OX + s.x - s.vx * 2, s.y - s.vy * 2, 2, 2);
+      fx.fillStyle(0xffe14a).fillRect(OX + s.x - 1, s.y - 1, 2, 2);
+      fx.fillStyle(0xf28c28, 0.7).fillRect(OX + s.x - s.vx * 2, s.y - s.vy * 2, 2, 2);
     }
     const dropColor: Record<Power, number> = { wide: 0x5ab84a, multi: 0x6ab8e8, slow: 0xc8ccd8 };
     for (const d of this.drops) {
-      g.fillStyle(0x1a1428).fillRect(OX + d.x - 6, d.y - 4, 12, 8);
-      g.fillStyle(dropColor[d.kind]).fillRect(OX + d.x - 5, d.y - 3, 10, 6);
-      // An icon: three balls for MULTI, a long bar for WIDE, one dot for SLOW.
+      // A pill capsule with its icon.
+      g.fillStyle(0x1a1428).fillRoundedRect(OX + d.x - 8, d.y - 5, 16, 10, 4);
+      g.fillStyle(dropColor[d.kind]).fillRoundedRect(OX + d.x - 7, d.y - 4, 14, 8, 3);
+      g.fillStyle(0xffffff, 0.5).fillRect(OX + d.x - 5, d.y - 3, 10, 1);
+      fx.fillStyle(dropColor[d.kind], 0.25).fillCircle(OX + d.x, d.y, 9);
       g.fillStyle(0xffffff);
       if (d.kind === 'multi') for (const dx of [-3, 0, 3]) g.fillRect(OX + d.x + dx - 1, d.y - 1, 2, 2);
       else if (d.kind === 'wide') g.fillRect(OX + d.x - 4, d.y - 1, 8, 2);
       else g.fillRect(OX + d.x - 1, d.y - 1, 2, 2);
     }
-    // Paddle (flickers while stunned) and balls.
-    const stunned = this.stunT > 0 && this.frame % 6 < 3;
-    g.fillStyle(0x1a1428).fillRect(OX + this.px - this.pw / 2 - 1, PADDLE_Y - 1, this.pw + 2, 6);
-    g.fillStyle(stunned ? 0x8a8fa8 : 0xf28c28).fillRect(OX + this.px - this.pw / 2, PADDLE_Y, this.pw, 4);
-    g.fillStyle(stunned ? 0xc8ccd8 : 0x5ef0c8).fillRect(OX + this.px - this.pw / 2 + 2, PADDLE_Y, this.pw - 4, 1);
-    for (const b of this.balls) {
-      g.fillStyle(0x1a1428).fillCircle(OX + b.x, b.y, 3.5);
-      g.fillStyle(0xfff1e0).fillCircle(OX + b.x, b.y, 2.5);
+    // Paddle: an orange bar with chrome end caps and a teal light strip (grey and flickering while stunned).
+    const stunned = this.stunT > 0;
+    const flick = stunned && this.frame % 6 < 3;
+    const x0 = OX + this.px - this.pw / 2;
+    g.fillStyle(0x1a1428).fillRoundedRect(x0 - 2, PADDLE_Y - 2, this.pw + 4, 8, 3);
+    g.fillStyle(flick ? 0x8a8fa8 : 0xb85a1a).fillRect(x0, PADDLE_Y, this.pw, 4);
+    g.fillStyle(flick ? 0xc8ccd8 : 0xf28c28).fillRect(x0, PADDLE_Y, this.pw, 2);
+    g.fillStyle(flick ? 0xeef2fa : 0xffc070).fillRect(x0, PADDLE_Y, this.pw, 1);
+    for (const ex of [x0 - 1, x0 + this.pw - 5]) {
+      g.fillStyle(0x8a8fa8).fillRect(ex, PADDLE_Y - 1, 6, 6);
+      g.fillStyle(0xeef2fa).fillRect(ex, PADDLE_Y - 1, 6, 1);
     }
+    g.fillStyle(stunned ? 0x55607a : 0x5ef0c8).fillRect(x0 + 8, PADDLE_Y + 2, this.pw - 16, 1);
+    if (!stunned) fx.fillStyle(0x5ef0c8, 0.15).fillRect(x0, PADDLE_Y - 2, this.pw, 8);
+    // Balls: chrome, with a short trail and a glow.
+    while (this.trails.length < this.balls.length) this.trails.push([]);
+    this.balls.forEach((b, i) => {
+      const t = (this.trails[i] = [[b.x, b.y] as [number, number], ...this.trails[i]].slice(0, 5));
+      if (!b.stuck) t.forEach(([x, y], k) => k > 0 && fx.fillStyle(0xfff1e0, 0.25 - k * 0.05).fillCircle(OX + x, y, 2.5 - k * 0.3));
+      g.fillStyle(0x1a1428).fillCircle(OX + b.x, b.y, 3.5);
+      g.fillStyle(0xc8ccd8).fillCircle(OX + b.x, b.y, 2.6);
+      g.fillStyle(0xffffff).fillRect(OX + b.x - 1.5, b.y - 1.5, 1.5, 1.5);
+      fx.fillStyle(0xfff4c0, 0.2).fillCircle(OX + b.x, b.y, 6);
+    });
+    this.trails.length = this.balls.length;
   }
+}
+
+/** The forge behind the wall (with its frame) and the three kinds of brick. */
+function makeBreakerArt(scene: Phaser.Scene): void {
+  if (scene.textures.exists('bk_forge')) return;
+  const bay = (x: number, y: number) => [0, 0.5, 0.75, 0.25][(x & 1) + ((y & 1) << 1)];
+  const hsh = (x: number, y: number, s = 0) => {
+    let q = (x * 374761393 + y * 668265263 + s * 2147483647) | 0;
+    q = Math.imul(q ^ (q >>> 13), 1274126177);
+    return ((q ^ (q >>> 16)) >>> 0) / 4294967296;
+  };
+  const pick = (ramp: string[], k: number, x: number, y: number) => {
+    const v = Math.min(ramp.length - 1, Math.max(0, k * (ramp.length - 1)));
+    const lo = Math.floor(v);
+    return ramp[Math.min(ramp.length - 1, lo + (v - lo > bay(x, y) ? 1 : 0))];
+  };
+  const W = FW + 12, H = BOTTOM - TOP + 8;
+  const bg = scene.textures.createCanvas('bk_forge', W, H)!;
+  const c = bg.getContext();
+  const px = (col: string, x: number, y: number, w = 1, h = 1) => {
+    c.fillStyle = col;
+    c.fillRect(x, y, w, h);
+  };
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const frame = x < 6 || x >= W - 6 || y < 4 || y >= H - 4;
+      if (frame) {
+        px(pick(['#1a1010', '#3a2420', '#5a3a30', '#8a5a44'], 0.6 - (x < 6 ? 0 : 0.2) + (y < 4 ? 0.2 : 0), x, y), x, y);
+        continue;
+      }
+      // Stone wall, lit from the furnace at the top, fading to dark toward the paddle.
+      const lit = Math.max(0, 1 - (y - 4) / 150);
+      const row = (y - 4) >> 3, off = (row & 1) * 10;
+      const mortar = (y - 4) % 8 === 7 || (x - 6 + off) % 20 === 19;
+      px(mortar ? '#0c0606' : pick(['#120808', '#2a1410', '#4a2418', '#7a3a1e'], lit * 0.85 + hsh((x + off) >> 4, row, 2) * 0.15, x, y), x, y);
+    }
+  // The furnace strip where Anvil walks, chains hanging, pipes up the sides.
+  for (let y = 4; y < 44; y++) for (let x = 6; x < W - 6; x++) px(pick(['#5a1a0a', '#8c2a10', '#c8501a', '#ff8a2a'], 0.25 + (y - 4) / 60 + hsh(x >> 2, y >> 2, 4) * 0.2, x, y), x, y);
+  for (let x = 6; x < W - 6; x++) px('#1a0c08', x, 44, 1, 2);
+  for (const cx of [40, W - 46]) for (let y = 46; y < 110; y += 4) {
+    px('#1a1428', cx - 1, y, 4, 3);
+    px('#8a8fa8', cx, y + 1, 2, 1);
+  }
+  for (const pxX of [8, W - 12])
+    for (let y = 50; y < H - 6; y++) px(pick(['#2b2540', '#55607a', '#8a8fa8', '#c8ccd8'], 0.3 + (pxX < 20 ? 0.4 : 0.1) + ((y % 30) < 2 ? 0.3 : 0), y, pxX), pxX, y, 4, 1);
+  bg.refresh();
+  const brick = (key: string, ramp: string[], rivets: boolean, hot: boolean) => {
+    const t = scene.textures.createCanvas(key, BW, BH)!;
+    const b = t.getContext();
+    for (let y = 0; y < BH; y++)
+      for (let x = 0; x < BW; x++) {
+        const edge = x === BW - 1 || y === BH - 1;
+        const k = 0.6 - y / 14 + (y === 0 || x === 0 ? 0.35 : 0) - (y === BH - 2 ? 0.2 : 0) + hsh(x >> 2, y, key.length) * 0.1;
+        b.fillStyle = edge ? '#1a1428' : pick(ramp, k, x, y);
+        b.fillRect(x, y, 1, 1);
+      }
+    if (rivets) for (const rx of [3, BW - 5]) {
+      b.fillStyle = '#ffffff';
+      b.fillRect(rx, 3, 1, 1);
+      b.fillStyle = '#2b2540';
+      b.fillRect(rx + 1, 4, 1, 1);
+    }
+    if (hot) {
+      b.fillStyle = '#fff4c0';
+      b.fillRect(8, 3, 4, 2);
+    }
+    t.refresh();
+  };
+  brick('bk_brick1', ['#5a2a10', '#b85a1a', '#f28c28', '#ffc070'], false, false);
+  brick('bk_brick2', ['#2b2540', '#55607a', '#8a8fa8', '#eef2fa'], true, false);
+  brick('bk_brick3', ['#8c2030', '#d83a4a', '#ff8a2a', '#ffe14a'], false, true);
 }

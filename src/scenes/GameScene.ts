@@ -3,6 +3,7 @@ import { nowPlaying, playJingle, playMusic, playVoice, stageMusic, stopMusic } f
 import { BOSS_INTROS, INTRO, IntroCard } from './bossIntro';
 import { TileFx } from '../tileFx';
 import { ArenaFx } from './arenaFx';
+import { uiHighlight, uiPanel } from '../uiArt';
 import { ensureScene, startScene } from './lazy';
 import { Blackout } from './blackout';
 import { Elevator } from './elevator';
@@ -2609,8 +2610,13 @@ export class GameScene extends Phaser.Scene {
     const h = 82 + this.pauseRows * rowH;
     const top = VIEW_H / 2 - h / 2;
     const left = VIEW_W / 2 - 100;
-    layer.add(this.add.rectangle(VIEW_W / 2, VIEW_H / 2, 200, h, 0x000000, 0.88).setStrokeStyle(1, 0x5ef0c8));
-    layer.add(pixelText(this, VIEW_W / 2, top + 14, 'PAUSED', { ...style, fontSize: '16px' }).setOrigin(0.5));
+    layer.add(this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x05040a, 0.45).setOrigin(0));
+    layer.add(this.add.image(VIEW_W / 2, VIEW_H / 2, uiPanel(this, 200, h, 'steel', 0.94)));
+    layer.add(pixelText(this, VIEW_W / 2 + 1, top + 15, 'PAUSED', { ...style, fontSize: '16px', color: '#1a1428' }).setOrigin(0.5));
+    layer.add(pixelText(this, VIEW_W / 2, top + 14, 'PAUSED', { ...style, fontSize: '16px', color: '#ffc070' }).setOrigin(0.5));
+    // The selected row's highlight.
+    const rowY = (i: number) => (i < this.unlocked.length ? top + 44 + i * rowH : top + 44 + this.unlocked.length * rowH + 4 + (i - this.unlocked.length) * rowH);
+    layer.add(this.add.image(left + 6, rowY(this.pauseIndex) - 2, uiHighlight(this, 188, 12)).setOrigin(0, 0));
     // Armor parts found (dim = not found yet).
     PART_ORDER.forEach((id, i) => {
       layer.add(this.add.image(VIEW_W / 2 - 27 + i * 18, top + 32, `part_${id}`).setAlpha(p.has(id) ? 1 : 0.2));
@@ -2623,8 +2629,12 @@ export class GameScene extends Phaser.Scene {
       const selected = i === this.pauseIndex;
       layer.add(pixelText(this, left + 12, y, `${selected ? '>' : ' '} ${def.name}`, { ...style, color: selected ? '#fff1e0' : '#8a8fa8' }));
       const value = def.cost === 0 ? p.maxAmmo : p.ammo[id];
+      // Ammo: a framed gauge, the units in the weapon's colors with a lit top.
+      bars.fillStyle(0x1a1428).fillRect(left + 119, y + 1, p.maxAmmo * 2 + 1, 8);
       for (let u = 0; u < p.maxAmmo; u++) {
-        bars.fillStyle(u < value ? def.colors.main : 0x3a3550, 1).fillRect(left + 120 + u * 2, y + 2, 1, 6);
+        const on = u < value;
+        bars.fillStyle(on ? def.colors.main : 0x2b2540, 1).fillRect(left + 120 + u * 2, y + 2, 1, 6);
+        if (on) bars.fillStyle(def.colors.light, 1).fillRect(left + 120 + u * 2, y + 2, 1, 2);
       }
     });
     const tanks = loadSave().tanks;

@@ -128,6 +128,9 @@ export class RaceScene extends Phaser.Scene {
   private laneGfx: Phaser.GameObjects.Graphics[] = [];
   private bg: Phaser.GameObjects.TileSprite[] = [];
   private hud!: Phaser.GameObjects.Graphics;
+  /** Dust off the tyres and exhaust puffs (world x, screen y). */
+  private dust: { x: number; y: number; vx: number; vy: number; t: number; col: number }[] = [];
+  private dustG!: Phaser.GameObjects.Graphics;
   private banner!: ReturnType<typeof pixelText>;
   private timeText!: ReturnType<typeof pixelText>;
   private countdown = 0;
@@ -181,6 +184,8 @@ export class RaceScene extends Phaser.Scene {
     this.player = mk('bike_hero', 2);
     this.volt = mk('bike_volt', 1);
     this.hud = this.add.graphics().setScrollFactor(0).setDepth(60);
+    this.dust = [];
+    this.dustG = this.add.graphics().setScrollFactor(0).setDepth(45);
     this.banner = pixelText(this, VIEW_W / 2, 64, '', { fontSize: '16px', color: '#fff1e0', stroke: '#000000' }).setOrigin(0.5).setScrollFactor(0).setDepth(61);
     this.timeText = pixelText(this, VIEW_W - 8, 6, '0:00.0', { color: '#fff1e0', stroke: '#000000' }).setOrigin(1, 0).setScrollFactor(0).setDepth(61);
     pixelText(this, 8, 6, 'VOLT SPEEDWAY', { color: '#f8e040', stroke: '#000000' }).setScrollFactor(0).setDepth(61);
@@ -466,6 +471,34 @@ export class RaceScene extends Phaser.Scene {
       b.shadow.setPosition(Math.round(sx), Math.round(ly - this.groundH(b.x) + 3)).setDepth(Math.round(li) * 10 + 4).setVisible(b.air);
       b.sprite.setTint(b.stall > 0 && this.frame % 10 < 5 ? 0xff8a8a : 0xffffff);
     }
+    // Dust kicked up behind the rear wheel, exhaust puffs (thicker with turbo heat).
+    const dg = this.dustG;
+    dg.clear();
+    for (const b of [this.volt, this.player]) {
+      if (b.air || b.v < 0.8 || this.frame % 2) continue;
+      const li = Phaser.Math.Clamp(b.lane, 0, LANES - 1);
+      const lo = Math.floor(li);
+      const ly = Phaser.Math.Linear(LANE_Y[lo], LANE_Y[Math.min(LANES - 1, lo + 1)], li - lo);
+      const y = ly - this.groundH(b.x) + 2;
+      this.dust.push({ x: b.x - 10, y, vx: -0.4 - Math.random() * 0.6, vy: -0.3 - Math.random() * 0.5, t: 18, col: 0xb08a5a });
+      if (b.heat > 40) this.dust.push({ x: b.x - 14, y: y - 8, vx: -0.6, vy: -0.2, t: 14, col: b === this.player ? 0xffa040 : 0xf8e040 });
+    }
+    for (const d of this.dust) {
+      d.x += d.vx;
+      d.y += d.vy;
+      d.vy += 0.03;
+      d.t--;
+      const r = 1 + (18 - d.t) * 0.12;
+      dg.fillStyle(d.col, Math.min(0.7, d.t / 20)).fillCircle(d.x - camX, d.y, r);
+    }
+    this.dust = this.dust.filter((d) => d.t > 0);
+    // Speed lines when someone is flat out.
+    if (this.player.v > 3) for (let i = 0; i < 6; i++) {
+      const y = 40 + ((i * 37 + this.frame * 3) % 150);
+      const x = (VIEW_W - ((this.frame * 9 + i * 71) % (VIEW_W + 40)));
+      dg.fillStyle(0xffffff, 0.25).fillRect(x, y, 24, 1);
+    }
+
     // HUD: heat gauge and the race map.
     const h = this.hud;
     h.clear();
@@ -488,37 +521,55 @@ export class RaceScene extends Phaser.Scene {
 /** Bikes and the crowd, drawn once. */
 function makeBikeTextures(scene: Phaser.Scene): void {
   if (scene.textures.exists('bike_hero')) return;
-  const bike = (key: string, frame: number, frameHi: number, accent: number, rider: number, riderHi: number, visor: number) => {
-    const g = scene.make.graphics({ x: 0, y: 0 }, false);
-    const r = (c: number, x: number, y: number, w: number, h: number) => g.fillStyle(c).fillRect(x, y, w, h);
-    const K = 0x1a1428;
-    // Wheels.
-    for (const wx of [3, 21]) {
-      g.fillStyle(K).fillCircle(wx + 3, 17, 5);
-      g.fillStyle(0x3a3a44).fillCircle(wx + 3, 17, 4);
-      g.fillStyle(0x8a8fa8).fillCircle(wx + 3, 17, 2);
-      g.fillStyle(0xd8e0ec).fillRect(wx + 2, 15, 1, 1);
+  /** A shaded motocross bike and rider, 30 x 23, facing right. */
+  const bike = (key: string, frame: string[], accent: string, rider: string[], visor: string, bolt: boolean) => {
+    const t = scene.textures.createCanvas(key, 30, 23)!;
+    const c = t.getContext();
+    const p = (col: string, x: number, y: number, w = 1, h = 1) => {
+      c.fillStyle = col;
+      c.fillRect(x, y, w, h);
+    };
+    const K = '#1a1428';
+    // Knobbly wheels with spokes and a hub glint.
+    for (const cx of [6, 24]) {
+      for (let y = 12; y < 23; y++)
+        for (let x = cx - 6; x <= cx + 6; x++) {
+          const d = Math.hypot(x - cx, y - 17.5);
+          if (d > 5.6) continue;
+          p(d > 4.6 ? ((Math.atan2(y - 17.5, x - cx) * 4) | 0) % 2 ? K : '#2b2540' : d > 3.6 ? '#3a3a44' : d > 1.5 ? (((x + y) & 1) ? '#55607a' : '#8a8fa8') : '#c8ccd8', x, y);
+        }
+      p('#ffffff', cx - 1, 16);
     }
-    // Frame and tank.
-    r(K, 5, 9, 20, 6);
-    r(frame, 6, 10, 18, 4);
-    r(frameHi, 6, 10, 18, 1);
-    r(accent, 12, 11, 6, 2);
-    r(K, 22, 6, 3, 6);
-    r(0x8a8fa8, 23, 6, 1, 5);
-    r(0x8a8fa8, 4, 13, 6, 2);
-    // Rider.
-    r(K, 9, 0, 9, 10);
-    r(rider, 10, 1, 7, 8);
-    r(riderHi, 10, 1, 7, 2);
-    r(K, 14, 3, 4, 3);
-    r(visor, 15, 3, 3, 2);
-    r(rider, 17, 6, 5, 2);
-    g.generateTexture(key, 30, 23);
-    g.destroy();
+    // Swingarm, fork, frame, tank and seat.
+    for (let i = 0; i < 8; i++) p('#8a8fa8', 7 + i, 16 - i * 0.4);
+    for (let i = 0; i < 7; i++) p('#c8ccd8', 23 - i * 0.3, 16 - i);
+    p(K, 7, 8, 17, 7);
+    for (let y = 9; y < 14; y++) p(y === 9 ? frame[2] : y < 12 ? frame[1] : frame[0], 8, y, 15, 1);
+    p(accent, 13, 10, 7, 2);
+    if (bolt) {
+      p('#fff4b0', 15, 10, 1, 1);
+      p('#fff4b0', 16, 11, 1, 1);
+    }
+    p(K, 21, 5, 4, 5);
+    p('#c8ccd8', 22, 5, 2, 1); // handlebar
+    p('#2b2540', 4, 12, 6, 2); // exhaust
+    p('#8a8fa8', 4, 12, 6, 1);
+    // Rider: boot, leg, body leaning forward, arm to the bars, helmet with visor.
+    p(K, 10, 10, 5, 4);
+    p(rider[1], 11, 11, 3, 2);
+    p(K, 10, 1, 9, 9);
+    for (let y = 2; y < 9; y++) p(y < 4 ? rider[2] : y < 7 ? rider[1] : rider[0], 11, y, 7, 1);
+    p(K, 16, 5, 7, 3);
+    p(rider[1], 17, 6, 5, 1);
+    p(K, 13, -1, 8, 7);
+    for (let y = 0; y < 5; y++) p(y < 2 ? rider[2] : rider[1], 14, y, 6, 1);
+    p(K, 17, 1, 4, 3);
+    p(visor, 18, 1, 3, 2);
+    p('#ffffff', 18, 1, 1, 1);
+    t.refresh();
   };
-  bike('bike_hero', 0x3a3a50, 0x6a6a88, 0xf28c28, 0xf28c28, 0xffc070, 0x5ef0c8);
-  bike('bike_volt', 0x1a2a4a, 0x3a5a8a, 0xf8e040, 0x2a3a6a, 0x4a6aa0, 0xf8e040);
+  bike('bike_hero', ['#2b2540', '#55607a', '#8a8fa8'], '#f28c28', ['#b85a1a', '#f28c28', '#ffc070'], '#5ef0c8', false);
+  bike('bike_volt', ['#1a2a4a', '#2a4a7a', '#4a6aa0'], '#f8e040', ['#1e2858', '#34428a', '#5a6ac8'], '#9ee8ff', true);
   const c = scene.make.graphics({ x: 0, y: 0 }, false);
   c.fillStyle(0x1c2438).fillRect(0, 0, 64, 34);
   const colors = [0xf28c28, 0x5ef0c8, 0xf8e040, 0xd83a4a, 0xc8ccd8, 0x8c4ad8];

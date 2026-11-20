@@ -14,6 +14,7 @@ import type { GameSceneData } from './GameScene';
 import { FONT, MenuScene } from './menu';
 import { playMusic } from '../audio';
 import { PixelText, pixelText } from '../pixelFont';
+import { uiPanel } from '../uiArt';
 
 const PANEL_W = 104;
 const PANEL_H = 58;
@@ -28,6 +29,10 @@ const CENTER = 4;
 export class StageSelectScene extends MenuScene {
   private pick = 0;
   private frames: Phaser.GameObjects.Rectangle[] = [];
+  /** Each cell's boss (for the idle animation), and the glow behind the picked cell. */
+  private bossImgs: (Phaser.GameObjects.Image | null)[] = [];
+  private bossKeys: (string | null)[] = [];
+  private glow!: Phaser.GameObjects.Rectangle;
   private launching: { start: () => void; t: number } | null = null;
   private launchText!: PixelText;
   private backKey!: Phaser.Input.Keyboard.Key;
@@ -62,7 +67,10 @@ export class StageSelectScene extends MenuScene {
     this.launching = null;
     this.backdrop('fortress', 0.6);
     this.frames = [];
+    this.bossImgs = [];
+    this.bossKeys = [];
     this.cameras.main.setBackgroundColor('#0b0d1a');
+    this.glow = this.add.rectangle(0, 0, PANEL_W + 10, PANEL_H + 10, 0x5ef0c8, 0.18).setBlendMode(Phaser.BlendModes.ADD).setDepth(-1);
     const save = loadSave();
     this.fortressOpen = ALL_BOSS_STAGES.every((id) => save.cleared.includes(id));
     this.exOpen = exUnlocked(save);
@@ -75,8 +83,10 @@ export class StageSelectScene extends MenuScene {
     STAGE_GRID.forEach((id, i) => {
       const x = COL_X[i % 3];
       const y = ROW_Y[Math.floor(i / 3)];
-      this.add.rectangle(x, y, PANEL_W, PANEL_H, 0x141626);
+      this.add.image(x, y, uiPanel(this, PANEL_W, PANEL_H, 'steel', 0.92));
       const frame = this.add.rectangle(x, y, PANEL_W, PANEL_H).setStrokeStyle(2, 0x3a3f66);
+      this.bossImgs.push(null);
+      this.bossKeys.push(null);
       this.frames.push(frame);
 
       if (!id) {
@@ -100,8 +110,11 @@ export class StageSelectScene extends MenuScene {
       const stage = BOSS_STAGES[id];
       const cleared = save.cleared.includes(id);
       this.add.rectangle(x, y - PANEL_H / 2 + 2, PANEL_W, 3, Phaser.Display.Color.HexStringToColor(THEMES[stage.theme].sky).color);
+      this.add.ellipse(x, y + 5, 30, 4, 0x000000, 0.4);
       const boss = this.add.image(x, y + 6, `${stage.boss}_idle`).setOrigin(0.5, 1);
       if (cleared) boss.setTint(0x9a9ab0);
+      this.bossImgs[i] = boss;
+      this.bossKeys[i] = stage.boss ?? null;
       pixelText(this, x, y + 9, stage.bossName ?? '', { fontFamily: FONT, fontSize: '8px', color: '#fff1e0' }).setOrigin(0.5, 0);
       this.normalMarks.push(
         pixelText(this, x, y + 18, cleared ? `${stage.name} - CLEAR` : stage.name, { ...small, color: cleared ? '#5ef0c8' : '#8a8fa8' }).setOrigin(0.5, 0),
@@ -235,6 +248,18 @@ export class StageSelectScene extends MenuScene {
   update(t: number, delta: number): void {
     super.update(t, delta);
     const blink = Math.floor(this.frame / 8) % 2 === 0;
-    this.frames.forEach((f, i) => f.setStrokeStyle(2, i === this.pick ? (blink ? 0x5ef0c8 : 0xfff1e0) : 0x3a3f66));
+    this.frames.forEach((f, i) => f.setStrokeStyle(i === this.pick ? 2 : 1, i === this.pick ? (blink ? 0x5ef0c8 : 0xfff1e0) : 0x2b2540));
+    // The picked cell glows, and its boss comes alive: an idle loop and a little lift.
+    const at = this.frames[this.pick];
+    if (at) this.glow.setPosition(at.x, at.y).setAlpha(0.14 + Math.sin(this.frame / 10) * 0.06);
+    this.bossImgs.forEach((img, i) => {
+      if (!img) return;
+      const key = this.bossKeys[i]!;
+      const picked = i === this.pick;
+      const n = 1 + (Math.floor(this.frame / 9) % 4);
+      const frame = key === 'tide' ? `tide_swim${n}` : `${key}_idle${n}`;
+      img.setTexture(picked && this.textures.exists(frame) ? frame : `${key}_idle`);
+      img.setY(this.frames[i].y + 6 - (picked ? 2 : 0));
+    });
   }
 }

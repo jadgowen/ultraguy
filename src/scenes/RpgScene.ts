@@ -10,6 +10,7 @@ import { sfx } from '../sfx';
 import { WEAPONS, type WeaponId } from '../weapons';
 import { pixelateIn } from './cutscene';
 import { ModeData, returnToGame } from './encounters';
+import { makeRpgBackdrop, rpgWindow } from './rpgArt';
 import { GUARDIANS, type Battle, type Guardian, type HurtOpts } from './rpgGuardians';
 
 /**
@@ -136,14 +137,17 @@ export class RpgScene extends Phaser.Scene {
 
     // The battle window and the foe.
     this.window(VIEW_W / 2 - 110, 30, 220, 120);
-    this.add.rectangle(VIEW_W / 2 - 106, 34, 212, 112, 0x0a1430).setOrigin(0);
-    for (let i = 0; i < 6; i++) this.add.rectangle(VIEW_W / 2 - 106, 34 + i * 20, 212, 1, 0x14224a).setOrigin(0);
+    // The guardian's own backdrop, and a shadow at his feet.
+    this.add.image(VIEW_W / 2 - 106, 34, makeRpgBackdrop(this, this.foeDef.id)).setOrigin(0);
+    this.add.ellipse(VIEW_W / 2, 132, 70, 10, 0x000000, 0.4);
     this.foe = this.add.image(VIEW_W / 2, 90, this.foeDef.sprite).setScale(1.4);
     this.tweens.add({ targets: this.foe, y: 87, duration: 1100, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
     this.flashRect = this.add.rectangle(VIEW_W / 2 - 106, 34, 212, 112, 0xffffff).setOrigin(0).setAlpha(0);
     // His health: a thin bar under the battle window.
+    this.add.rectangle(VIEW_W / 2 - 101, 140, 202, 5, 0x1a1428).setOrigin(0);
     this.add.rectangle(VIEW_W / 2 - 100, 141, 200, 3, 0x2b2540).setOrigin(0);
     this.foeBar = this.add.rectangle(VIEW_W / 2 - 100, 141, 200, 3, this.foeDef.color).setOrigin(0);
+    this.add.rectangle(VIEW_W / 2 - 100, 141, 200, 1, 0xffffff, 0.35).setOrigin(0);
     pixelText(this, VIEW_W / 2 - 101, 38, this.foeDef.name, { color: '#ffffff', stroke: '#000000' });
 
     // Status (top), commands (bottom left), messages (bottom right).
@@ -164,10 +168,9 @@ export class RpgScene extends Phaser.Scene {
     this.updateStatus();
   }
 
-  /** A Dragon-Quest-style window: black with a double white border. */
+  /** A 16-bit RPG window: a blue gradient with a silver bevel and gold corners (see rpgArt). */
   private window(x: number, y: number, w: number, h: number): void {
-    this.add.rectangle(x, y, w, h, 0x000000).setOrigin(0).setStrokeStyle(2, 0xffffff);
-    this.add.rectangle(x + 3, y + 3, w - 6, h - 6).setOrigin(0).setStrokeStyle(1, 0x8a8fa8);
+    this.add.image(x, y, rpgWindow(this, w, h)).setOrigin(0);
   }
 
   private updateStatus(): void {

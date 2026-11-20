@@ -6,7 +6,8 @@ import { pixelText } from '../pixelFont';
 import { sfx } from '../sfx';
 import { pixelateIn } from './cutscene';
 import { ModeData, returnToGame } from './encounters';
-import { makeHopTextures } from './HopScene';
+import { makeBombArt } from './bombArt';
+import { makeHopArt } from './hopArt';
 
 /**
  * MAGMA'S BOMB PIT: a maze bomb battle, seen from above. Drop bombs (JUMP or
@@ -65,6 +66,9 @@ export class BombScene extends Phaser.Scene {
   private you!: Fighter;
   private magma!: Fighter;
   private g!: Phaser.GameObjects.Graphics;
+  private fxG!: Phaser.GameObjects.Graphics;
+  private pool: Phaser.GameObjects.Image[] = [];
+  private poolUsed = 0;
   private banner!: ReturnType<typeof pixelText>;
   private hud!: ReturnType<typeof pixelText>;
   private result: 'win' | 'lose' | null = null;
@@ -82,13 +86,17 @@ export class BombScene extends Phaser.Scene {
     Object.assign(this, { acc: 0, frame: 0, bombs: [], flames: [], result: null, overT: 0, started: 0, aiPath: [] });
     this.powers = new Map();
     this.buildArena();
-    makeBombTextures(this);
-    makeHopTextures(this);
-    this.cameras.main.setBackgroundColor('#1a0806');
-    this.g = this.add.graphics();
+    makeBombArt(this);
+    makeHopArt(this);
+    this.cameras.main.setBackgroundColor('#140606');
+    this.pool = [];
+    this.poolUsed = 0;
+    this.bakeArena();
+    this.g = this.add.graphics().setDepth(1);
+    this.fxG = this.add.graphics().setDepth(6).setBlendMode(Phaser.BlendModes.ADD);
     const mk = (c: number, r: number, tex: string): Fighter => ({ x: c * T + T / 2, y: r * T + T / 2, dir: [0, 1], speed: 1.0, maxBombs: 1, range: 2, hearts: HEARTS_YOU, invuln: 0, sprite: this.add.image(0, 0, tex).setDepth(5) });
-    this.you = mk(1, 1, 'hop_hero');
-    this.magma = mk(COLS - 2, ROWS - 2, 'bomb_magma');
+    this.you = mk(1, 1, 'hop_hero0');
+    this.magma = mk(COLS - 2, ROWS - 2, 'bm_magma0');
     this.you.maxBombs = 2;
     this.magma.hearts = HEARTS_MAGMA;
     this.magma.speed = 0.78;
@@ -432,72 +440,80 @@ export class BombScene extends Phaser.Scene {
 
   // --- drawing ---------------------------------------------------------------------------
 
+  /** The floor and the pillars never change: paint them once (a frame of lava-lit rock around them). */
+  private bakeArena(): void {
+    const rt = this.add.renderTexture(OX, OY, COLS * T, ROWS * T).setOrigin(0).setDepth(0);
+    for (let r = 0; r < ROWS; r++)
+      for (let c = 0; c < COLS; c++) {
+        if (this.grid[r][c] === 1) rt.draw(r < ROWS - 1 && this.grid[r + 1][c] !== 1 ? 'bm_pillar_face' : 'bm_pillar_top', c * T, r * T);
+        else rt.draw(`bm_floor${(c * 7 + r * 13 + c * r) % 11 === 0 ? 1 : 0}`, c * T, r * T);
+      }
+    const rim = this.add.graphics().setDepth(0.5);
+    rim.fillStyle(0x0a0404).fillRect(OX - 3, OY - 3, COLS * T + 6, 3).fillRect(OX - 3, OY + ROWS * T, COLS * T + 6, 3).fillRect(OX - 3, OY, 3, ROWS * T).fillRect(OX + COLS * T, OY, 3, ROWS * T);
+    rim.fillStyle(0xd84a1a).fillRect(OX - 1, OY - 1, COLS * T + 2, 1).fillRect(OX - 1, OY + ROWS * T, COLS * T + 2, 1).fillRect(OX - 1, OY, 1, ROWS * T).fillRect(OX + COLS * T, OY, 1, ROWS * T);
+  }
+
+  /** Show a pooled image this frame. */
+  private put(key: string, x: number, y: number, depth = 2, origin0 = true, alpha = 1): void {
+    let img = this.pool[this.poolUsed];
+    if (!img) {
+      img = this.add.image(0, 0, key);
+      this.pool.push(img);
+    }
+    this.poolUsed++;
+    img.setTexture(key).setOrigin(origin0 ? 0 : 0.5).setPosition(Math.round(x), Math.round(y)).setDepth(depth).setAlpha(alpha).setVisible(true);
+  }
+
   private draw(): void {
     const g = this.g;
+    const fx = this.fxG;
     g.clear();
-    for (let r = 0; r < ROWS; r++) {
+    fx.clear();
+    this.poolUsed = 0;
+    const f0 = this.frame;
+    // Crates and the power-ups waiting under blown ones.
+    for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS; c++) {
         const x = OX + c * T;
         const y = OY + r * T;
         const cell = this.grid[r][c];
-        if (cell === 1) {
-          g.fillStyle(0x1a0c0a).fillRect(x, y, T, T);
-          g.fillStyle(0x3a1c16).fillRect(x + 1, y + 1, T - 2, T - 2);
-          g.fillStyle(0x5a2e22).fillRect(x + 1, y + 1, T - 2, 2);
-          g.fillStyle(0x24100c).fillRect(x + 1, y + T - 3, T - 2, 2);
-        } else {
-          g.fillStyle((r + c) % 2 ? 0x2a120e : 0x30160f).fillRect(x, y, T, T);
+        if (cell === 2) this.put('bm_crate', x, y);
+        else if (cell === 0) {
           const p = this.powers.get(r * COLS + c);
-          if (p && cell === 0) {
-            g.fillStyle(0x1a1428).fillRect(x + 2, y + 2, 12, 12);
-            g.fillStyle(p === 'bomb' ? 0x3a78d8 : p === 'fire' ? 0xff7a2a : 0x5ef0c8).fillRect(x + 3, y + 3, 10, 10);
-            g.fillStyle(0xfff1e0);
-            if (p === 'bomb') g.fillCircle(x + 8, y + 9, 3);
-            else if (p === 'fire') g.fillTriangle(x + 8, y + 4, x + 5, y + 11, x + 11, y + 11);
-            else g.fillRect(x + 5, y + 7, 6, 2).fillTriangle(x + 11, y + 5, x + 11, y + 11, x + 13, y + 8);
-          }
-          if (cell === 2) {
-            g.fillStyle(0x1a0c0a).fillRect(x, y, T, T);
-            g.fillStyle(0x6a3a2a).fillRect(x + 1, y + 1, T - 2, T - 2);
-            g.fillStyle(0x8a5a3a).fillRect(x + 1, y + 1, T - 2, 2);
-            g.fillStyle(0x4a2418).fillRect(x + 3, y + 7, 10, 1).fillRect(x + 8, y + 2, 1, 5);
-            g.fillStyle(0xff7a2a).fillRect(x + 11, y + 10, 2, 1);
+          if (p) {
+            this.put(`bm_pw_${p}`, x + 1, y + 1 + Math.round(Math.sin(f0 / 10 + c) * 1), 2);
+            fx.fillStyle(p === 'bomb' ? 0x3a78d8 : p === 'fire' ? 0xff7a2a : 0x2aa088, 0.25).fillCircle(x + 8, y + 8, 9);
           }
         }
       }
-    }
+    // Lava glow breathing up through the floor cracks.
+    fx.fillStyle(0xff5a1a, 0.04 + Math.sin(f0 / 40) * 0.02).fillRect(OX, OY, COLS * T, ROWS * T);
+    // Bombs: they swell faster as the fuse burns down; a spark on the fuse.
     for (const b of this.bombs) {
-      const x = OX + b.c * T + 8;
-      const y = OY + b.r * T + 9;
-      const pulse = b.t < 50 ? (this.frame % 8 < 4 ? 1 : 0) : this.frame % 30 < 15 ? 1 : 0;
-      g.fillStyle(0x0a0608).fillCircle(x, y, 6 + pulse);
-      g.fillStyle(0x3a3a50).fillCircle(x - 2, y - 2, 2);
-      g.fillStyle(0x8a8fa8).fillRect(x + 2, y - 8, 2, 3);
-      g.fillStyle(this.frame % 4 < 2 ? 0xffe14a : 0xff7a2a).fillRect(x + 3, y - 10, 2, 2);
+      const x = OX + b.c * T;
+      const y = OY + b.r * T;
+      const fast = b.t < 50;
+      const swell = fast ? f0 % 8 < 4 : f0 % 30 < 15;
+      this.put(`bm_bomb${swell ? 1 : 0}`, x, y, 3);
+      fx.fillStyle(f0 % 4 < 2 ? 0xffe14a : 0xff7a2a, 0.9).fillRect(x + 9, y - 1, 2, 2);
+      fx.fillStyle(0xffe14a, 0.25).fillCircle(x + 10, y, 4);
+      if (fast) fx.fillStyle(0xff3a1a, 0.15).fillCircle(x + 8, y + 9, 10);
     }
+    // Blasts: flickering fire tiles with heat around them.
     for (const f of this.flames) {
       const x = OX + f.c * T;
       const y = OY + f.r * T;
-      const k = f.t / BLAST;
-      g.fillStyle(0xff3a1a, 0.9).fillRect(x + 1, y + 1, T - 2, T - 2);
-      g.fillStyle(0xffa83a).fillRect(x + 3, y + 3, T - 6, T - 6);
-      g.fillStyle(0xfff0a0).fillRect(x + 5 + (1 - k) * 2, y + 5 + (1 - k) * 2, T - 10 - (1 - k) * 4, T - 10 - (1 - k) * 4);
+      this.put(`bm_fire${(f0 + f.c + f.r) % 3}`, x, y, 4, true, Math.min(1, f.t / 8));
+      fx.fillStyle(0xff7a2a, 0.3 * (f.t / BLAST)).fillCircle(x + 8, y + 8, 12);
     }
+    for (let i = this.poolUsed; i < this.pool.length; i++) this.pool[i].setVisible(false);
+    // The fighters: UltraGuy turns the way he's walking; Magma's plates part and close.
     for (const f of [this.you, this.magma]) {
-      f.sprite.setPosition(OX + f.x, OY + f.y - 1).setVisible(f.invuln === 0 || this.frame % 6 < 3);
+      g.fillStyle(0x000000, 0.35).fillEllipse(OX + f.x, OY + f.y + 6, 12, 4);
+      f.sprite.setPosition(OX + f.x, OY + f.y - 1).setVisible(f.invuln === 0 || f0 % 6 < 3);
     }
+    this.you.sprite.setTexture(f0 % 16 < 8 ? 'hop_hero0' : 'hop_hero1').setRotation(Math.atan2(this.you.dir[0], -this.you.dir[1]));
+    this.magma.sprite.setTexture(f0 % 40 < 20 ? 'bm_magma0' : 'bm_magma1');
+    fx.fillStyle(0xff8a2a, 0.2).fillCircle(OX + this.magma.x, OY + this.magma.y - 1, 11);
   }
-}
-
-function makeBombTextures(scene: Phaser.Scene): void {
-  if (scene.textures.exists('bomb_magma')) return;
-  const g = scene.make.graphics({ x: 0, y: 0 }, false);
-  // Magma from above: a basalt boulder with lava seams and ember eyes.
-  g.fillStyle(0x1a1428).fillCircle(8, 8, 8);
-  g.fillStyle(0x4a4650).fillCircle(8, 8, 7);
-  g.fillStyle(0x6a6670).fillCircle(6, 6, 3);
-  g.fillStyle(0xff7a2a).fillRect(3, 9, 4, 1).fillRect(6, 10, 1, 2).fillRect(10, 4, 1, 3).fillRect(11, 10, 3, 1);
-  g.fillStyle(0xffe14a).fillRect(5, 4, 2, 2).fillRect(9, 4, 2, 2);
-  g.generateTexture('bomb_magma', 16, 16);
-  g.destroy();
 }

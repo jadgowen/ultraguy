@@ -24,6 +24,7 @@ import { scrapFrames } from './scrapArt.mjs';
 import { guardianFrames } from './guardianArt.mjs';
 import { miniFrames } from './miniArt.mjs';
 import { boxFrames } from './boxArt.mjs';
+import { enemyFrames } from './enemyArt.mjs';
 
 // Palette characters ('.' is transparent):
 const PALETTE = {
@@ -1587,7 +1588,9 @@ function renderFrame(name, f) {
   return bmp;
 }
 
-const rendered = Object.entries(FRAMES).map(([name, f]) => ({ name, bmp: renderFrame(name, f) }));
+// The regular stage enemies are redrawn in art/enemyArt.mjs (same names and sizes): use those.
+const ENEMY_ART = enemyFrames();
+const rendered = Object.entries(FRAMES).map(([name, f]) => ({ name, bmp: ENEMY_ART[name] ?? renderFrame(name, f) }));
 
 // Bosses drawn on the shaded-parts rig come in finished (they're shaded already).
 const molten = anvilFrames();

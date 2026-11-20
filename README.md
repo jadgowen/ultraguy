@@ -17,6 +17,11 @@ Each boss gives a weapon; weaknesses form a loop. Beat all 8 and FORTRESS opens 
 ABYSS EYE, SPIRE WARDEN; no weapon reward), the BOSS HALL (eight teleporters for boss
 rematches), then the final boss (OVERLORD, then SHADE).
 
+**Look.** The regular stage enemies are drawn on the shaded rig too (`art/enemyArt.mjs`; the walker and lava slug
+keep their original art). Every minigame now has art of its own (`*Art.ts` beside each scene). Menus share a
+steel-framed glass panel and a highlight bar (`src/uiArt.ts`): the title (a shine across the logo, an animated
+UltraGuy, drifting embers), boss select (the picked cell glows and its boss comes alive) and the pause menu.
+
 **Ultra Arena** (ULTRA ARENA on the title menu, `src/scenes/ArenaScene.ts`): a first-person deathmatch in the style
 of the old 90s shooters. A raycaster draws the arena (textured walls, floors, ceilings or open sky, fog) into a
 canvas texture each frame; four of the eight bosses (their own sprites, as billboards) patrol, close in, circle and

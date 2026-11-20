@@ -6,6 +6,7 @@ import type { ThemeId } from '../level/Level';
 import { THEMES } from '../level/themes';
 import { sfx } from '../sfx';
 import { PixelText, pixelText } from '../pixelFont';
+import { uiHighlight, uiPanel } from '../uiArt';
 
 export const FONT = 'monospace';
 
@@ -19,6 +20,8 @@ export abstract class MenuScene extends Phaser.Scene {
   private acc = 0;
   private items: PixelText[] = [];
   private cursor: PixelText | null = null;
+  /** The glow behind the selected row. */
+  private highlight: Phaser.GameObjects.Image | null = null;
   protected selected = 0;
   /** Parallax layers behind the menu, drifting slowly. */
   private backdropLayers: { sprite: Phaser.GameObjects.TileSprite; speed: number }[] = [];
@@ -30,6 +33,7 @@ export abstract class MenuScene extends Phaser.Scene {
     this.frame = 0;
     this.items = [];
     this.cursor = null;
+    this.highlight = null;
     this.inputLocked = false;
     this.backdropLayers = [];
     this.controls = new Controls(this);
@@ -55,14 +59,16 @@ export abstract class MenuScene extends Phaser.Scene {
     }
   }
 
-  /** A soft panel behind a block of menu text. */
-  protected panel(x: number, y: number, w: number, h: number): Phaser.GameObjects.Rectangle {
-    return this.add.rectangle(x, y, w, h, 0x0a0c18, 0.72).setStrokeStyle(1, 0x3a4470).setDepth(-4);
+  /** A steel-framed glass panel behind a block of menu text (centered on x, y). */
+  protected panel(x: number, y: number, w: number, h: number): Phaser.GameObjects.Image {
+    return this.add.image(Math.round(x), Math.round(y), uiPanel(this, w, h)).setDepth(-4);
   }
 
   /** Lay out a vertical list; returns the text objects (for relabeling). */
   protected list(x: number, y: number, labels: string[], start = 0): PixelText[] {
     this.items = labels.map((l, i) => pixelText(this, x, y + i * 14, l, { fontFamily: FONT, fontSize: '12px', color: '#fff1e0' }));
+    const width = Math.max(...this.items.map((t) => t.width)) + 30;
+    this.highlight = this.add.image(x - 18, y, uiHighlight(this, width, 13)).setOrigin(0, 0).setDepth(-3);
     this.cursor = pixelText(this, x - 14, y, '>', { fontFamily: FONT, fontSize: '12px', color: '#5ef0c8' });
     this.select(start);
     return this.items;
@@ -72,6 +78,7 @@ export abstract class MenuScene extends Phaser.Scene {
     if (!this.items.length) return;
     this.selected = (i + this.items.length) % this.items.length;
     this.cursor?.setY(this.items[this.selected].y);
+    this.highlight?.setY(this.items[this.selected].y - 1);
     this.items.forEach((t, j) => t.setColor(j === this.selected ? '#fff1e0' : '#8a8fa8'));
   }
 
@@ -96,7 +103,9 @@ export abstract class MenuScene extends Phaser.Scene {
       }
       if (this.tick()) return;
     }
-    this.cursor?.setVisible(Math.floor(this.frame / 20) % 3 !== 0);
+    // The cursor nudges toward the item; the highlight breathes.
+    if (this.cursor && this.items.length) this.cursor.setX(this.items[0].x - 14 + Math.round(Math.sin(this.frame / 8) * 1.5));
+    this.highlight?.setAlpha(0.75 + Math.sin(this.frame / 14) * 0.25);
     for (const b of this.backdropLayers) b.sprite.tilePositionX += b.speed * Math.min(delta, 100) / 16.7;
   }
 
