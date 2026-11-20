@@ -29,9 +29,10 @@ export interface Line {
  * shows. Calls `done` after the last. Returns a step function to call once
  * per game step.
  */
-export function dialogue(scene: Phaser.Scene, lines: Line[], next: () => boolean, done: () => void): () => void {
+export function dialogue(scene: Phaser.Scene, lines: Line[], next: () => boolean, done: () => void, atTop = false): () => void {
   const layer = scene.add.container(0, 0).setScrollFactor(0).setDepth(80);
-  const boxY = VIEW_H - 62;
+  // (At the top when the speakers stand at the bottom of the screen.)
+  const boxY = atTop ? 20 : VIEW_H - 62;
   let i = -1;
   let t = 0;
   let shown = 0;

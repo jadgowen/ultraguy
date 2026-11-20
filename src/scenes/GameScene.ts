@@ -27,7 +27,7 @@ import { sfx } from '../sfx';
 import { WEAPONS, WeaponId, WEAPON_ORDER } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
 import { dialogue, pixelateIn, pixelateOut } from './cutscene';
-import { Encounter, MINI_ENCOUNTERS, PART_GUARDIANS, Resume, Ret, VAULT_ENCOUNTERS } from './encounters';
+import { BOSS_ENCOUNTERS, Encounter, MINI_ENCOUNTERS, PART_GUARDIANS, Resume, Ret, VAULT_ENCOUNTERS } from './encounters';
 import { Hazards } from './hazards';
 import { Sky } from './sky';
 import { PixelText, pixelText } from '../pixelFont';
@@ -180,6 +180,10 @@ export class GameScene extends Phaser.Scene {
   private bossRoom: Room | null = null;
   private shadeRing: Phaser.GameObjects.Image | null = null;
   private bossDefeated = false;
+  /** A boss fought in its own game: the encounter has started (until we hear back). */
+  private bossWarped = false;
+  /** That boss, standing in his room while he talks. */
+  private bossStandIn: Phaser.GameObjects.Image | null = null;
   /** The stage's miniboss has been beaten this visit. */
   private miniDefeated = false;
   /** Energy tanks lying in the stage (taken ones stay taken this visit). */
@@ -288,6 +292,8 @@ export class GameScene extends Phaser.Scene {
     this.bossRoom = null;
     this.shadeRing = null;
     this.bossDefeated = false;
+    this.bossWarped = false;
+    this.bossStandIn = null;
     this.miniDefeated = false;
     this.tankItems = [];
     this.oneUpItems = [];
@@ -1533,9 +1539,31 @@ export class GameScene extends Phaser.Scene {
   private trySpawnBoss(): void {
     const at = this.level.boss;
     const kind = this.level.data.boss;
-    if (!at || !kind || this.boss || this.bossDefeated) return;
+    if (!at || !kind || this.boss || this.bossDefeated || this.bossWarped) return;
     if (this.level.sectionAt(at.x, at.y - 1) !== this.section) return;
-    this.spawnBossInRoom(kind);
+    const game = BOSS_ENCOUNTERS[kind];
+    if (game) this.startBossEncounter(kind, game);
+    else this.spawnBossInRoom(kind);
+  }
+
+  /**
+   * A boss fought only in its own game: the camera locks on his room, he stands
+   * there and says his piece, then the screen pixelates into his game.
+   */
+  private startBossEncounter(kind: BossKind, game: Encounter): void {
+    const at = this.level.boss!;
+    const sec = this.level.sectionAt(at.x, at.y - 1)!;
+    const camX = Math.round(this.bossRoomCamX(sec));
+    this.arena = { camX, left: camX + 8, right: camX + VIEW_W - 8 };
+    this.camX = camX;
+    this.bossWarped = true;
+    const p = this.player;
+    p.vx = 0;
+    this.bossStandIn?.destroy();
+    this.bossStandIn = this.add.image(at.x, at.y, `${kind}_idle1`).setOrigin(0.5, 1).setFlipX(p.cx < at.x).setDepth(5);
+    this.shake(4);
+    sfx.charge(2);
+    this.startEncounter(game, { kind: 'boss', step: 0, ex: this.exMode }, true);
   }
 
   /** Lock the camera on the boss room ('X' marker's section) and start a boss there. */
@@ -1644,14 +1672,14 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Dialogue, then warp into the encounter's mode. */
-  private startEncounter(enc: Encounter, ret: Ret): void {
+  private startEncounter(enc: Encounter, ret: Ret, atTop = false): void {
     stopMusic();
     const skip = () => this.controls.justPressed('start') || this.controls.justPressed('jump');
     void ensureScene(this.game, enc.scene); // fetch its code while they talk
     this.story = dialogue(this, enc.lines(), skip, () => {
       this.story = () => {};
       pixelateOut(this, 900, () => startScene(this, enc.scene, { stage: this.stageId, ret }));
-    });
+    }, atTop);
   }
 
   /** Before respawning: where to come back to after an encounter. */
@@ -1675,6 +1703,19 @@ export class GameScene extends Phaser.Scene {
         const cp = r.won ? { x: at.x, y: at.y } : before(at.x);
         if (cp) this.checkpoint = { ...cp };
       }
+    } else if (r.kind === 'boss') {
+      // Won: back in his empty room. Lost: that try is over, back at the door.
+      const at = L.boss;
+      if (at) {
+        if (r.won) {
+          this.bossDefeated = true;
+          const sec = L.sectionAt(at.x, at.y - 1);
+          this.checkpoint = { x: sec ? this.bossRoomCamX(sec) + 60 : at.x - 80, y: at.y };
+        } else {
+          const cp = before(at.x);
+          if (cp) this.checkpoint = { ...cp };
+        }
+      }
     } else if (r.kind === 'part') {
       this.partGuardianBeaten = r.won;
       const at = L.upgrade;
@@ -1688,6 +1729,24 @@ export class GameScene extends Phaser.Scene {
   /** After respawning: carry on. */
   private finishResume(r: Resume): void {
     this.readyTimer = 0;
+    if (r.kind === 'boss') {
+      if (r.won) {
+        // Straight on to the reward, as if he'd gone down in a blaze.
+        this.player.heal(this.player.maxHp);
+        playJingle(this, 'jingle_victory');
+        const reward = this.level.data.bossWeapon;
+        if (this.exMode) this.exClear();
+        else if (reward) this.startWeaponGet(reward);
+        else this.stageClear();
+        return;
+      }
+      // Losing his game costs a try, the same as falling to him.
+      if (this.stageId !== 'dojo' && visit.lives > 0) visit.lives--;
+      else if (this.stageId !== 'dojo') {
+        this.loseLife(); // none left: GAME OVER
+        return;
+      }
+    }
     playMusic(this, stageMusic(this.level.data));
     if (r.kind === 'vault' && r.won) {
       this.player.heal(10);

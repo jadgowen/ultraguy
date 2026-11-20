@@ -30,7 +30,7 @@ function guardArena(ledges: Record<number, [number, number][]>): { left: string[
   return bossArena('#', left, right);
 }
 
-/** GATEKEEPER: three low ledges to hop over him and get behind his shield. */
+/** GATEKEEPER: his room (walking in starts the boxing match; the ledges are left from his old fight). */
 const gateRoom = guardArena({ 10: [[3, 5], [14, 17], [26, 28]] });
 /** ABYSS EYE: two tiers of ledges up the chamber (its perches and pods line up with them). */
 const abyssRoom = guardArena({ 10: [[3, 8], [23, 28]], 7: [[10, 13], [18, 21]] });

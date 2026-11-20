@@ -26,6 +26,8 @@ const H = VIEW_H;
 const DEPTH = 4200;
 const VIEW_Y = 78;
 const HEARTS = 5;
+/** How fast you sink when not diving or braking. */
+const CRUISE = 1.05;
 const SEGMENTS = 14;
 const SEG_GAP = 14;
 
@@ -152,7 +154,7 @@ export class TrenchScene extends ModeScene {
     // Swim: LEFT/RIGHT steer, DOWN dives, UP brakes; the dash is a burst with a beat of safety.
     const ix = (c.isDown('right') ? 1 : 0) - (c.isDown('left') ? 1 : 0);
     p.vx = p.vx * 0.86 + ix * 0.32;
-    let sink = c.isDown('down') ? 1.9 : c.isDown('up') ? 0.45 : 1.05;
+    let sink = c.isDown('down') ? 1.9 : c.isDown('up') ? 0.45 : CRUISE;
     if (p.dashCd > 0) p.dashCd--;
     if (c.justPressed('jump') && p.dashCd === 0) {
       p.dash = 14;
@@ -302,7 +304,7 @@ export class TrenchScene extends ModeScene {
     if (this.attack) {
       const a = this.attack;
       a.t++;
-      const warn = depthK > 0.6 ? 40 : 52;
+      const warn = this.warnFrames();
       if (a.kind === 'side') {
         // Lights glow at the edge first, then he lunges straight across.
         const sx = a.dir > 0 ? -30 : W + 30;
@@ -333,14 +335,24 @@ export class TrenchScene extends ModeScene {
     if (--this.attackCd > 0 || p.y < 300) return;
     // Pick a strike: from the side at your depth (give or take), or from below once it's deep.
     if (depthK > 0.45 && Math.random() < 0.4) this.attack = { kind: 'rise', x: Math.max(30, Math.min(W - 30, p.x + (Math.random() - 0.5) * 40)), t: 0 };
-    else this.attack = { kind: 'side', dir: Math.random() < 0.5 ? 1 : -1, y: p.y + (Math.random() - 0.3) * 50, t: 0 };
+    else {
+      // Aimed where you'll be when his head reaches the middle if you keep cruising,
+      // so you have to brake (UP) or dive (DOWN) out of the way.
+      const lead = (this.warnFrames() + (W / 2 + 30) / 7.5) * CRUISE;
+      this.attack = { kind: 'side', dir: Math.random() < 0.5 ? 1 : -1, y: p.y + lead + (Math.random() - 0.5) * 24, t: 0 };
+    }
     sfx.cyclone();
+  }
+
+  /** How long his lights glow before he strikes (shorter deeper down). */
+  private warnFrames(): number {
+    return this.p.y / DEPTH > 0.6 ? 32 : 42;
   }
 
   private attackLive(): boolean {
     const a = this.attack;
     if (!a) return false;
-    const warn = this.p.y / DEPTH > 0.6 ? 40 : 52;
+    const warn = this.warnFrames();
     return a.t >= warn + (a.kind === 'rise' ? 10 : 0);
   }
 

@@ -11,10 +11,11 @@ import { GUARDIANS } from './rpgGuardians';
  *
  *  - Boss Hall rematches (the capsules send some bosses into their own game),
  *  - minibosses,
- *  - guardians of hidden armor parts.
+ *  - guardians of hidden armor parts,
+ *  - stage bosses fought only in their own game (the Gatekeeper's boxing match).
  */
 
-export type EncounterKind = 'vault' | 'mini' | 'part';
+export type EncounterKind = 'vault' | 'mini' | 'part' | 'boss';
 
 export interface Encounter {
   /** Scene key of the mode. */
@@ -30,6 +31,8 @@ export interface Ret {
   step: number;
   /** Boss Hall: capsules already beaten before this one (so the hall remembers). */
   done?: number[];
+  /** An EX rematch (so the stage comes back in EX mode). */
+  ex?: boolean;
 }
 
 export interface Resume extends Ret {
@@ -44,7 +47,7 @@ export interface ModeData {
 
 /** End a mode: warp back to the stage with the result. */
 export function returnToGame(scene: Phaser.Scene, data: ModeData, won: boolean): void {
-  pixelateOut(scene, 800, () => scene.scene.start('game', { stage: data.stage, resume: { ...data.ret, won } }));
+  pixelateOut(scene, 800, () => scene.scene.start('game', { stage: data.stage, ex: data.ret.ex, resume: { ...data.ret, won } }));
 }
 
 /**
@@ -96,6 +99,14 @@ export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
     scene: 'shooter',
     lines: () => [{ name: 'OVERLORD', text: 'Pathetic machine. My armada will blot you from the sky!', portrait: { key: 'overlord_idle' }, voice: 'overlord_challenge', color: 0xff5050 }],
   },
+};
+
+/**
+ * Stage bosses fought in their own game, in the stage itself as well as in the
+ * Hall: walking into the room starts the dialogue and the warp.
+ */
+export const BOSS_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
+  gatekeeper: VAULT_ENCOUNTERS.gatekeeper,
 };
 
 /** Minibosses fought in another game style (none now: Briar Toad's crossing became Mantis's Boss Hall game). */

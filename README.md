@@ -56,9 +56,9 @@ change the game entirely; each is its own scene, entered through a dialogue and 
 | Boss Hall capsule | Gale | vertical sky shooter (art in `skiesArt.ts`): kites, swooper squadrons, ring-firing spinners, balloon bombers (always carry a P) and darts that flag their column, with wind gusts shoving your ship; P capsules power your shot up to five-way, and the fifth turns it into a big laser that cuts through everything in its column (losing a ship costs a level); then Gale's feathers, blades and a low tornado you can fly over | `SkiesScene.ts` |
 | Boss Hall capsule | Volt | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
 | Boss Hall capsule | Scrap | top-down junk maze: four rooms, keys, a hookshot that swings you across shafts; Scrap's magnet field turns shots until you stun him (scrap-heap walls with lit tops and front faces, rusted floor plates, magnet posts, shutters, blinking warning lamps, beetles and turret sprouts, a chained claw hookshot, a heart-and-key status bar; art in `dungeonArt.ts`) | `DungeonScene.ts` |
-| Boss Hall capsule | Tide | trench descent: dive head-first down a winding deep-sea trench (darker the deeper you go; your lamp and flares light the way) past jellyfish, sea mines and urchins, grabbing air bubbles, while Tide hunts you: his body loops through the dark, then his lights glow where he'll strike, lunging across from the side or surging up from below. Reach the vent at the bottom and he jams in it behind you (art in `trenchArt.ts`; the old pinball table, `PinballScene.ts`, is no longer on a capsule) | `TrenchScene.ts` |
+| Boss Hall capsule | Tide | trench descent: dive head-first down a winding deep-sea trench (darker the deeper you go; your lamp and flares light the way) past jellyfish, sea mines and urchins, grabbing air bubbles, while Tide hunts you: his body loops through the dark, then his lights glow where he'll strike, lunging across from the side (aimed where you'd be if you kept cruising, so brake or dive out of it) or surging up from below. Reach the vent at the bottom and he jams in it behind you (art in `trenchArt.ts`; the old pinball table, `PinballScene.ts`, is no longer on a capsule) | `TrenchScene.ts` |
 | Boss Hall capsule | Magma | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
-| Boss Hall bonus | Gatekeeper | behind-the-back boxing, three rounds, Coach Jared in your corner (both fighters drawn on the shaded rig in `art/boxArt.mjs`; the arena, with its crowd, lighting rig, banner, ropes and mat, in `boxingArt.ts`; sweeping spotlights, camera flashes and punch sparks) | `BoxingScene.ts` |
+| Fortress Gate + Boss Hall bonus | Gatekeeper | behind-the-back boxing (his only fight), three rounds, Coach Jared in your corner (both fighters drawn on the shaded rig in `art/boxArt.mjs`; the arena, with its crowd, lighting rig, banner, ropes and mat, in `boxingArt.ts`; sweeping spotlights, camera flashes and punch sparks) | `BoxingScene.ts` |
 | Boss Hall bonus (after beating the game) | Overlord | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
 
 Every Boss Hall capsule is its own game (they share `ModeScene.ts`); the exit opens once all eight
@@ -168,9 +168,11 @@ enemies, a stage hazard and a bolt cache). Enemies drop bolts often (small 2, bi
 
 **Fortress guardians.** Each has its own fight and room of one-way ledges (`guardArena` in
 `src/level/fortress.ts`; art in `art/guardianArt.mjs`):
-- GATEKEEPER (`Gatekeeper.ts`): his portcullis tower shield bounces shots from the front. Hop over him from
-  the ledges and hit his back, catch him with the shield raised overhead for a slam (it sends shockwaves), or
-  dodge his shield bash: if he rams the wall he's dazed with the shield dropped.
+- GATEKEEPER: fought in the ring. Walking into his room, he stands there and says his piece (the dialogue
+  sits at the top so you can see him), then the screen pixelates into his boxing match (`BoxingScene.ts`;
+  `BOSS_ENCOUNTERS` in `encounters.ts`). Win and it's STAGE CLEAR back in his empty room; lose and it costs a
+  try, back at the door checkpoint (GAME OVER if none are left). EX rematches box too. His old platform fight
+  (`Gatekeeper.ts`: a portcullis tower shield, slams, a shield bash) is still in the code, unused.
 - ABYSS EYE (`Abyss.ts`): shots bounce off its shut lids. It drifts between perches level with two tiers of
   ledges, cracks its lids (the tell) and opens to fire rings or aimed orbs: that's your window. Four pods in the
   walls shoot while it's shut; destroy all four and it reels, wide open (they grow back).
