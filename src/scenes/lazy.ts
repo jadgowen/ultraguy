@@ -18,6 +18,7 @@ const LOADERS: Record<string, () => Promise<new () => Phaser.Scene>> = {
   pinball: () => import('./PinballScene').then((m) => m.PinballScene),
   dungeon: () => import('./DungeonScene').then((m) => m.DungeonScene),
   arena: () => import('./ArenaScene').then((m) => m.ArenaScene),
+  trench: () => import('./TrenchScene').then((m) => m.TrenchScene),
 };
 
 const pending = new Map<string, Promise<void>>();

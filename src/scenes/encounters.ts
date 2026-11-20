@@ -69,8 +69,8 @@ export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
     lines: () => [{ name: 'GALE', text: "Up here, the wind decides who flies. Let's see if it decides for you!", portrait: { key: 'gale_idle' }, voice: 'gale_challenge', color: 0xa8e070 }],
   },
   tide: {
-    scene: 'pinball',
-    lines: () => [{ name: 'TIDE', text: "Welcome to my tide pool! Bounce, roll, and try not to wash out!", portrait: { key: 'tide_idle' }, voice: 'tide_challenge', color: 0x6ab8e8 }],
+    scene: 'trench',
+    lines: () => [{ name: 'TIDE', text: "Down in my trench, the light gives out long before the bottom. Dive, sweetie... if you dare.", portrait: { key: 'tide_idle' }, voice: 'tide_challenge', color: 0x6ab8e8 }],
   },
   mantis: {
     scene: 'hop',
