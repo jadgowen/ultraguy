@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { VIEW_W } from '../constants';
 import { sfx } from '../sfx';
-import { makeHopTextures } from './HopScene';
+import { makeDungeonArt } from './dungeonArt';
+import { makeHopArt } from './hopArt';
 import { ModeScene } from './ModeScene';
 
 /**
@@ -131,6 +132,12 @@ export class DungeonScene extends ModeScene {
   private mantis: { x: number; y: number; hp: number; state: MantisState; t: number; dx: number; dy: number; stun: number; hurt: number; guardT: number; hookImmune: number; tx: number; ty: number } | null = null;
   private thorns: { x: number; y: number; vx: number; vy: number; t: number }[] = [];
   private g!: Phaser.GameObjects.Graphics;
+  /** Additive light (shots, lamps, the magnet field) and pooled images. */
+  private fxG!: Phaser.GameObjects.Graphics;
+  private pool: Phaser.GameObjects.Image[] = [];
+  private poolUsed = 0;
+  private walkT = 0;
+  private lastP = { x: 0, y: 0 };
   private heroImg!: Phaser.GameObjects.Image;
   private mantisImg!: Phaser.GameObjects.Image;
 
@@ -139,8 +146,16 @@ export class DungeonScene extends ModeScene {
   }
 
   protected setup(): void {
-    makeHopTextures(this);
-    this.cameras.main.setBackgroundColor('#14121a');
+    makeHopArt(this);
+    makeDungeonArt(this);
+    this.cameras.main.setBackgroundColor('#0c0a12');
+    this.pool = [];
+    this.poolUsed = 0;
+    this.add.image(OX, OY, 'dg_vignette').setOrigin(0).setDepth(8);
+    this.fxG = this.add.graphics().setDepth(9).setBlendMode(Phaser.BlendModes.ADD);
+    const frame = this.add.graphics().setDepth(7.5);
+    frame.fillStyle(0x0c0a12).fillRect(OX - 3, OY - 3, RW * T + 6, 3).fillRect(OX - 3, OY + RH * T, RW * T + 6, 3).fillRect(OX - 3, OY, 3, RH * T).fillRect(OX + RW * T, OY, 3, RH * T);
+    frame.fillStyle(0x8a8fa8).fillRect(OX - 1, OY - 1, RW * T + 2, 1).fillRect(OX - 1, OY + RH * T, RW * T + 2, 1).fillRect(OX - 1, OY, 1, RH * T).fillRect(OX + RW * T, OY, 1, RH * T);
     this.rooms = Object.fromEntries(Object.entries(ROOMS).map(([k, rows]) => [k, rows.map((r) => r.split(''))]));
     this.cleared = new Set();
     this.keys = 0;
@@ -149,8 +164,8 @@ export class DungeonScene extends ModeScene {
     this.shots = [];
     this.thorns = [];
     this.mantis = null;
-    this.g = this.add.graphics();
-    this.heroImg = this.add.image(0, 0, 'hop_hero').setDepth(6);
+    this.g = this.add.graphics().setDepth(4);
+    this.heroImg = this.add.image(0, 0, 'hop_hero0').setDepth(6);
     this.mantisImg = this.add.image(0, 0, 'scrap_idle').setDepth(5).setScale(0.7).setVisible(false); // the Junk Golem art is 48x44; keep him maze-sized
     this.p = { x: 0, y: 0, fx: 0, fy: 1, hp: MAX_HP, invuln: 0, entry: { x: 0, y: 0 } };
     this.enter('A', null);
@@ -261,9 +276,8 @@ export class DungeonScene extends ModeScene {
     this.stepEnemies();
     if (this.mantis) this.stepMantis();
     this.exits();
-    const hearts = Array.from({ length: MAX_HP / 2 }, (_, i) => (p.hp >= (i + 1) * 2 ? '@' : p.hp === i * 2 + 1 ? 'o' : '-')).join('');
-    const boss = this.mantis && this.room === 'D' ? `   SCRAP ${'#'.repeat(Math.ceil(this.mantis.hp / 4))}` : '';
-    this.hud.setText(`LIFE ${hearts}   KEYS ${this.keys}${this.bigKey ? ' +BIG' : ''}${boss}`).setX(OX);
+    // (The status bar is drawn in drawHud.)
+    this.hud.setText('');
   }
 
   private hurt(n: number, force = false, from?: { x: number; y: number }): void {
@@ -644,106 +658,166 @@ export class DungeonScene extends ModeScene {
 
   // --- drawing ---------------------------------------------------------------------------------
 
+  /** Show a pooled image this frame. */
+  private put(key: string, x: number, y: number, o: { depth?: number; rot?: number; flash?: boolean; origin0?: boolean; alpha?: number; scale?: number } = {}): void {
+    let img = this.pool[this.poolUsed];
+    if (!img) {
+      img = this.add.image(0, 0, key);
+      this.pool.push(img);
+    }
+    this.poolUsed++;
+    img.setTexture(key).setOrigin(o.origin0 ? 0 : 0.5).setPosition(Math.round(x), Math.round(y)).setDepth(o.depth ?? 1).setRotation(o.rot ?? 0).setAlpha(o.alpha ?? 1).setScale(o.scale ?? 1).setVisible(true);
+    if (o.flash) img.setTintFill(0xffffff);
+    else img.clearTint();
+  }
+
   protected draw(): void {
     const g = this.g;
+    const fx = this.fxG;
     g.clear();
+    fx.clear();
+    this.poolUsed = 0;
+    const fr = this.frame;
     const grid = this.rooms[this.room];
+    // A scattered pick per tile (so variants don't line up in a grid).
+    const rnd = (c: number, r: number) => {
+      const v = Math.sin(c * 12.9898 + r * 78.233 + (this.room.charCodeAt(0) - 64) * 3.7) * 43758.5453;
+      return v - Math.floor(v);
+    };
+    const hv = (c: number, r: number, n: number) => Math.floor(rnd(c, r) * n);
+    /** Floor plates: three plain kinds; an oil stain only now and then. */
+    const floorV = (c: number, r: number) => (rnd(r + 17, c + 5) < 0.08 ? 3 : hv(c, r, 3));
     for (let r = 0; r < RH; r++)
       for (let c = 0; c < RW; c++) {
         const ch = grid[r][c];
         const x = OX + c * T;
         const y = OY + r * T;
         if (ch === '#') {
-          // Stacked scrap: steel plates with rust and rivets.
-          g.fillStyle(0x2a2a36).fillRect(x, y, T, T);
-          g.fillStyle(0x55607a).fillRect(x + 1, y + 1, T - 2, 6);
-          g.fillStyle(0x8a8fa8).fillRect(x + 1, y + 1, T - 2, 1);
-          g.fillStyle(0x7a4a22).fillRect(x + 2, y + 9, 5, 4).fillRect(x + 10, y + 3, 3, 2);
-          g.fillStyle(0xc8ccd8).fillRect(x + 3, y + 3, 1, 1).fillRect(x + 12, y + 11, 1, 1);
+          // Heaped scrap: a lit top, and a front face where the floor is below.
+          const face = r < RH - 1 && grid[r + 1][c] !== '#';
+          this.put(`dg_wall_${face ? 'face' : 'top'}${hv(c, r, 3)}`, x, y, { depth: 0, origin0: true });
           continue;
         }
         if (ch === '~') {
-          g.fillStyle(0x050805).fillRect(x, y, T, T);
-          if (grid[r - 1]?.[c] !== '~') g.fillStyle(0x3a2a1a).fillRect(x, y, T, 4);
+          this.put(grid[r - 1]?.[c] !== '~' ? 'dg_pit_lip' : 'dg_pit', x, y, { depth: 0, origin0: true });
           continue;
         }
-        // Floor.
-        // Rusted floor plates.
-        g.fillStyle((c + r) % 2 ? 0x4a4438 : 0x544c3e).fillRect(x, y, T, T);
-        g.fillStyle(0x3a342a).fillRect(x, y + T - 1, T, 1).fillRect(x + T - 1, y, 1, T);
-        if ((c * 7 + r * 3) % 5 === 0) g.fillStyle(0x7a4a22).fillRect(x + 4, y + 9, 3, 2).fillRect(x + 9, y + 5, 2, 2);
-        if ((c + r * 2) % 4 === 0) g.fillStyle(0x6a6458).fillRect(x + 2, y + 2, 1, 1);
         if (ch === 'o') {
-          g.fillStyle(0x1a1428).fillCircle(x + 8, y + 9, 6);
-          g.fillStyle(0x8a8fa8).fillCircle(x + 8, y + 8, 5);
-          g.fillStyle(0xc8ccd8).fillCircle(x + 7, y + 7, 2);
-        } else if (ch === 'L' || ch === 'B') {
-          g.fillStyle(0x3a2a1a).fillRect(x, y, T, T);
-          g.fillStyle(ch === 'B' ? 0x8c2030 : 0x7a5a3a).fillRect(x + 1, y + 1, T - 2, T - 2);
-          g.fillStyle(0xffe14a).fillCircle(x + 8, y + 7, 2).fillRect(x + 7, y + 8, 2, 4);
-        } else if (ch === 'k' || ch === 'K') {
+          this.put('dg_post', x, y, { depth: 0, origin0: true });
+          if (this.hook?.pull) fx.fillStyle(0xffe14a, 0.15).fillCircle(x + 8, y + 8, 10);
+          continue;
+        }
+        if (ch === 'L' || ch === 'B') {
+          this.put(ch === 'B' ? 'dg_door_boss' : 'dg_door_lock', x, y, { depth: 0, origin0: true });
+          continue;
+        }
+        this.put(`dg_floor${floorV(c, r)}`, x, y, { depth: 0, origin0: true });
+        if (ch === 'k' || ch === 'K') {
           const big = ch === 'K';
-          const bob = Math.sin(this.frame / 10) * 1.5;
-          g.fillStyle(0x1a1428).fillRect(x + 3, y + 5 + bob, big ? 12 : 10, big ? 7 : 5);
-          g.fillStyle(0xffe14a).fillCircle(x + 5, y + 8 + bob, big ? 3.5 : 2.5).fillRect(x + 5, y + 7 + bob, big ? 9 : 7, 2);
-          g.fillRect(x + (big ? 12 : 10), y + 7 + bob, 2, 4);
+          const bob = Math.sin(fr / 10) * 1.5;
+          this.put(big ? 'dg_bigkey' : 'dg_key', x + 8, y + 8 + bob, { depth: 1 });
+          fx.fillStyle(0xffe14a, 0.18 + Math.sin(fr / 8) * 0.06).fillCircle(x + 8, y + 8 + bob, big ? 11 : 8);
+          if (fr % 30 < 3) fx.fillStyle(0xffffff, 0.8).fillRect(x + 4 + ((fr / 30) % 3) * 3, y + 6 + bob, 1, 1);
         } else if (ch === 'h') {
-          g.fillStyle(0xd83a4a).fillCircle(x + 6, y + 7, 3).fillCircle(x + 10, y + 7, 3).fillTriangle(x + 3, y + 8, x + 13, y + 8, x + 8, y + 13);
+          this.put('dg_heart', x + 8, y + 8 + Math.sin(fr / 12), { depth: 1, scale: 1 + Math.sin(fr / 8) * 0.08 });
+          fx.fillStyle(0xff5a6a, 0.15).fillCircle(x + 8, y + 8, 7);
         }
       }
-    // Enemies.
+    // Warning lamps on the top wall, blinking amber.
+    for (const c of [3, 12]) {
+      if (grid[0][c] !== '#') continue;
+      const on = (fr + c * 11) % 60 < 30;
+      this.put('dg_lamp', OX + c * T + 8, OY + 10, { depth: 1, alpha: on ? 1 : 0.6 });
+      if (on) fx.fillStyle(0xf28c28, 0.22).fillCircle(OX + c * T + 8, OY + 12, 16);
+    }
+    // Enemies (beetles turn the way they walk; sprouts open to fire).
     for (const e of this.enemies) {
       if (e.hp <= 0) continue;
       const x = OX + e.x;
       const y = OY + e.y;
-      const flash = e.hurt > 0 || (e.stun > 0 && this.frame % 8 < 4);
-      if (e.kind === 'beetle') {
-        g.fillStyle(0x1a1428).fillEllipse(x, y, 13, 11);
-        g.fillStyle(flash ? 0xffffff : 0x3a78b8).fillEllipse(x, y, 11, 9);
-        g.fillStyle(0x6ab8e8).fillRect(x - 1, y - 4, 1, 8);
-      } else {
-        g.fillStyle(0x1a1428).fillCircle(x, y, 7);
-        g.fillStyle(flash ? 0xffffff : 0xb8703a).fillCircle(x, y, 6);
-        g.fillStyle(0xd83a4a).fillCircle(x, y, 2.5);
-      }
+      const flash = e.hurt > 0 || (e.stun > 0 && fr % 8 < 4);
+      g.fillStyle(0x000000, 0.3).fillEllipse(x, y + 6, 12, 4);
+      if (e.kind === 'beetle') this.put(`dg_beetle${Math.floor(fr / 6) % 2}`, x, y, { depth: 3, rot: Math.atan2(e.dir[1], e.dir[0]) + Math.PI / 2, flash });
+      else this.put(`dg_sprout${e.t % 90 > 60 ? 1 : 0}`, x, y - 2, { depth: 3, flash });
+      if (e.stun > 0) for (let i = 0; i < 2; i++) fx.fillStyle(0xffe14a, 0.8).fillCircle(x + Math.cos(fr / 6 + i * 3) * 6, y - 9, 1.2);
     }
-    // Shots and thorns.
-    for (const s of this.shots) {
-      g.fillStyle(0x1a1428).fillCircle(OX + s.x, OY + s.y, 3);
-      g.fillStyle(s.foe ? 0xffa858 : 0x5ef0c8).fillCircle(OX + s.x, OY + s.y, 2);
+    // Shots: glowing bolts (yours teal, theirs orange).
+    for (const sh of this.shots) {
+      const col = sh.foe ? 0xffa858 : 0x5ef0c8;
+      fx.fillStyle(col, 0.35).fillCircle(OX + sh.x, OY + sh.y, 5);
+      g.fillStyle(0x1a1428).fillCircle(OX + sh.x, OY + sh.y, 3);
+      g.fillStyle(col).fillCircle(OX + sh.x, OY + sh.y, 2);
+      g.fillStyle(0xffffff).fillRect(OX + sh.x - 1, OY + sh.y - 1, 1, 1);
     }
-    // Scrap's saw blades, spinning.
+    // Scrap's saw blades, spinning, with sparks.
     for (const t of this.thorns) {
-      const a = this.frame * 0.5;
-      g.fillStyle(0x1a1428).fillCircle(OX + t.x, OY + t.y, 6);
-      g.fillStyle(0xc8ccd8).fillCircle(OX + t.x, OY + t.y, 5);
-      g.fillStyle(0x55607a).fillCircle(OX + t.x, OY + t.y, 2);
-      for (let i = 0; i < 4; i++) {
-        const b = a + (i * Math.PI) / 2;
-        g.fillStyle(0xeef2fa).fillRect(OX + t.x + Math.cos(b) * 5 - 1, OY + t.y + Math.sin(b) * 5 - 1, 2, 2);
-      }
+      this.put('dg_saw', OX + t.x, OY + t.y, { depth: 5, rot: fr * 0.5 });
+      if (fr % 4 === 0) fx.fillStyle(0xffe14a, 0.9).fillRect(OX + t.x + Math.cos(fr) * 6, OY + t.y + Math.sin(fr) * 6, 1, 1);
     }
-    // Mantis (a shadow while he's in the air).
+    // Scrap (a shadow while he's in the air).
     const m = this.mantis;
     if (m && this.room === 'D') {
       const air = m.state === 'leap';
       const lift = air ? Math.sin((m.t / 55) * Math.PI) * 30 : 0;
       g.fillStyle(0x000000, 0.35).fillEllipse(OX + m.x, OY + m.y + 10, air ? 18 : 22, 7);
-      const tex = m.state === 'throw' ? 'scrap_toss' : m.guardT > 0 ? 'scrap_magnet' : 'scrap_idle';
-      const shake = m.state === 'windup' ? (this.frame % 4 < 2 ? 1 : -1) : 0;
+      const tex = m.state === 'throw' ? 'scrap_toss2' : m.state === 'windup' ? 'scrap_toss1' : m.guardT > 0 ? `scrap_magnet${(Math.floor(fr / 4) % 2) + 1}` : `scrap_idle${(Math.floor(fr / 8) % 4) + 1}`;
+      const shake = m.state === 'windup' ? (fr % 4 < 2 ? 1 : -1) : 0;
       this.mantisImg.setTexture(tex).setPosition(OX + m.x + shake, OY + m.y - 4 - lift).setFlipX(this.p.x < m.x);
-      this.mantisImg.setTint(m.hurt > 0 ? 0xff8888 : m.state === 'dizzy' ? 0xc8c8ff : 0xffffff);
-      if (m.guardT > 0) g.lineStyle(2, 0x9ad0ff, 0.8).strokeCircle(OX + m.x, OY + m.y - 4, 15 + (this.frame % 12) / 4); // magnet field
-      if (m.state === 'dizzy') for (let i = 0; i < 3; i++) g.fillStyle(0xffe14a).fillCircle(OX + m.x + Math.cos(this.frame / 8 + i * 2) * 10, OY + m.y - 22 + Math.sin(this.frame / 8 + i * 2) * 3, 1.5);
+      if (m.hurt > 0 && fr % 4 < 2) this.mantisImg.setTintFill(0xffffff);
+      else this.mantisImg.setTint(m.state === 'dizzy' ? 0xc8c8ff : 0xffffff);
+      fx.fillStyle(0xffe14a, 0.25).fillCircle(OX + m.x, OY + m.y - 6 - lift, 6);
+      if (m.guardT > 0)
+        for (let i = 0; i < 3; i++) {
+          const k = ((fr * 2 + i * 12) % 36) / 36;
+          fx.lineStyle(2, 0x9ad0ff, 0.7 * (1 - k)).strokeCircle(OX + m.x, OY + m.y - 4, 26 - k * 14);
+        }
+      if (m.state === 'dizzy') for (let i = 0; i < 3; i++) fx.fillStyle(0xffe14a).fillCircle(OX + m.x + Math.cos(fr / 8 + i * 2) * 10, OY + m.y - 22 + Math.sin(fr / 8 + i * 2) * 3, 1.5);
     } else this.mantisImg.setVisible(false);
     if (m && this.room === 'D' && !this.result) this.mantisImg.setVisible(true);
-    // Hookshot chain and head.
+    // Hookshot: a chain of links, and the claw.
     const h = this.hook;
     const p = this.p;
     if (h) {
-      g.lineStyle(1, 0xc8ccd8).lineBetween(OX + p.x, OY + p.y, OX + h.x, OY + h.y);
-      g.fillStyle(0xffe14a).fillCircle(OX + h.x, OY + h.y, 3);
+      const d = Math.hypot(h.x - p.x, h.y - p.y);
+      for (let k = 4; k < d; k += 4) {
+        const x = OX + p.x + ((h.x - p.x) * k) / d;
+        const y = OY + p.y + ((h.y - p.y) * k) / d;
+        g.fillStyle(0x1a1428).fillRect(x - 1, y - 1, 3, 3);
+        g.fillStyle(0xc8ccd8).fillRect(x - 1, y - 1, 2, 2);
+      }
+      this.put('dg_hook', OX + h.x, OY + h.y, { depth: 6, rot: Math.atan2(h.dy, h.dx) - Math.PI / 2 });
+      fx.fillStyle(0xffe14a, 0.25).fillCircle(OX + h.x, OY + h.y, 5);
     }
-    this.heroImg.setPosition(OX + p.x, OY + p.y).setRotation(Math.atan2(p.fy, p.fx) + Math.PI / 2).setVisible(!(p.invuln > 0 && this.frame % 6 < 3));
+    // UltraGuy: stepping while he moves.
+    const moved = Math.hypot(p.x - this.lastP.x, p.y - this.lastP.y) > 0.1;
+    this.lastP = { x: p.x, y: p.y };
+    if (moved) this.walkT++;
+    g.fillStyle(0x000000, 0.3).fillEllipse(OX + p.x, OY + p.y + 6, 10, 4);
+    this.heroImg
+      .setTexture(moved && Math.floor(this.walkT / 8) % 2 ? 'hop_hero1' : 'hop_hero0')
+      .setPosition(OX + p.x, OY + p.y)
+      .setRotation(Math.atan2(p.fy, p.fx) + Math.PI / 2)
+      .setVisible(!(p.invuln > 0 && fr % 6 < 3));
+    this.drawHud();
+    for (let i = this.poolUsed; i < this.pool.length; i++) this.pool[i].setVisible(false);
+  }
+
+  /** Hearts, keys (and the big key), and Scrap's health once you're in his room. */
+  private drawHud(): void {
+    const p = this.p;
+    for (let i = 0; i < MAX_HP / 2; i++) this.put(`dg_hud_heart${p.hp >= (i + 1) * 2 ? 2 : p.hp === i * 2 + 1 ? 1 : 0}`, OX + 6 + i * 9, 16, { depth: 21, scale: 1 });
+    for (let i = 0; i < this.keys; i++) this.put('dg_hud_key', OX + 60 + i * 14, 16, { depth: 21 });
+    if (this.bigKey) this.put('dg_hud_bigkey', OX + 60 + this.keys * 14 + 4, 16, { depth: 21 });
+    const m = this.mantis;
+    if (m && this.room === 'D') {
+      const g = this.g;
+      const x = OX + RW * T - 104;
+      g.fillStyle(0x1a1428).fillRect(x - 1, 11, 102, 10);
+      g.fillStyle(0x3a2030).fillRect(x, 12, 100, 8);
+      const w = Math.round((100 * Math.max(0, m.hp)) / MANTIS_HP);
+      g.fillStyle(0xb8703a).fillRect(x, 12, w, 8);
+      g.fillStyle(0xe8b07a).fillRect(x, 12, w, 2);
+      this.put('scrap_idle1', x - 12, 18, { depth: 21, scale: 0.4 });
+    }
   }
 }

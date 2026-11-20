@@ -1,7 +1,9 @@
 import Phaser from 'phaser';
-import { VIEW_W } from '../constants';
+import { VIEW_H, VIEW_W } from '../constants';
+import { pixelText } from '../pixelFont';
 import { sfx } from '../sfx';
 import { ModeScene } from './ModeScene';
+import { makePinballArt } from './pinballArt';
 
 /**
  * TIDE'S TIDE POOL: a pinball duel on an undersea table. Tide swims at the top
@@ -50,6 +52,8 @@ interface Ball {
   vx: number;
   vy: number;
   inLane: boolean;
+  /** Recent positions, for the motion trail. */
+  trail?: [number, number][];
 }
 
 interface Flipper {
@@ -76,7 +80,18 @@ export class PinballScene extends ModeScene {
   private bumpFlash = [0, 0];
   private saveT = 0;
   private g!: Phaser.GameObjects.Graphics;
+  private fxG!: Phaser.GameObjects.Graphics;
+  private hudG!: Phaser.GameObjects.Graphics;
   private tideImg!: Phaser.GameObjects.Image;
+  private bumperImgs: Phaser.GameObjects.Image[] = [];
+  private targetImgs: Phaser.GameObjects.Image[] = [];
+  private laneImgs: Phaser.GameObjects.Image[] = [];
+  private flipperImgs: Phaser.GameObjects.Image[] = [];
+  private plunger!: Phaser.GameObjects.Image;
+  private ballImgs: Phaser.GameObjects.Image[] = [];
+  private bubbles: { x: number; y: number; s: number; r: number }[] = [];
+  private bumpRings: { x: number; y: number; t: number }[] = [];
+  private panelIcons: Phaser.GameObjects.Image[] = [];
 
   constructor() {
     super('pinball');
@@ -95,11 +110,45 @@ export class PinballScene extends ModeScene {
     this.targets = [true, true, true];
     this.bumpFlash = [0, 0];
     this.saveT = 0;
-    this.g = this.add.graphics();
-    this.tideImg = this.add.image(0, 0, 'tide_idle').setDepth(5);
+    makePinballArt(this, WALLS, TW, TH);
+    this.drawFrame();
+    this.add.image(OX, OY, 'pb_table').setOrigin(0).setDepth(0);
+    this.g = this.add.graphics().setDepth(1);
+    this.fxG = this.add.graphics().setDepth(8).setBlendMode(Phaser.BlendModes.ADD);
+    this.hudG = this.add.graphics().setDepth(21);
+    this.laneImgs = [0, 1, 2].map((i) => this.add.image(OX + 70 + i * 30, OY + 22, 'pb_lane_off').setDepth(2));
+    this.targetImgs = [0, 1, 2].map(() => this.add.image(0, 0, 'pb_target_up').setOrigin(0).setDepth(2));
+    this.bumperImgs = BUMPERS.map((bp) => this.add.image(OX + bp.x, OY + bp.y, 'pb_bumper0').setDepth(3));
+    this.flipperImgs = this.flippers.map(() => this.add.image(0, 0, 'pb_flipper').setOrigin(5 / 40, 0.5).setDepth(4));
+    this.plunger = this.add.image(OX + 184, OY + 230, 'pb_plunger').setOrigin(0.5, 0).setDepth(2);
+    this.ballImgs = [];
+    this.bumpRings = [];
+    this.panelIcons = [];
+    this.bubbles = Array.from({ length: 18 }, () => ({ x: 14 + Math.random() * 160, y: Math.random() * TH, s: 0.2 + Math.random() * 0.4, r: Math.random() < 0.3 ? 2 : 1 }));
+    this.tideImg = this.add.image(0, 0, 'tide_swim1').setDepth(5);
     this.serve();
     // The table fills the screen's height, so the help and score sit beside it.
     this.help('LEFT/RIGHT\nFLIPPERS\n\nJUMP\nLAUNCH', OX / 2, 150);
+    const label = (x: number, y: number, t: string) => pixelText(this, x, y, t, { color: '#8ad0f0', stroke: '#000000' }).setOrigin(0.5, 0).setDepth(22);
+    label(OX / 2, 26, 'BALLS');
+    label(OX + TW + (VIEW_W - OX - TW) / 2, 26, 'TIDE');
+  }
+
+  /** The side panels: riveted, with a sea-glass inner bevel. */
+  private drawFrame(): void {
+    const f = this.add.graphics().setDepth(20);
+    for (const [x, w] of [[0, OX], [OX + TW, VIEW_W - OX - TW]] as const) {
+      f.fillStyle(0x061424).fillRect(x, 0, w, VIEW_H);
+      for (let y = 0; y < VIEW_H; y += 4) f.fillStyle(y % 8 ? 0x08182c : 0x0a1e36).fillRect(x, y, w, 2);
+      f.fillStyle(0x1e5a8a).fillRect(x + 4, 8, w - 8, VIEW_H - 16);
+      f.fillStyle(0x0a2440).fillRect(x + 5, 9, w - 10, VIEW_H - 18);
+      for (const [rx, ry] of [[x + 7, 11], [x + w - 9, 11], [x + 7, VIEW_H - 13], [x + w - 9, VIEW_H - 13]]) {
+        f.fillStyle(0x8ad0f0).fillRect(rx, ry, 2, 2);
+        f.fillStyle(0x04101c).fillRect(rx + 1, ry + 1, 1, 1);
+      }
+    }
+    f.fillStyle(0x04101c).fillRect(OX - 3, 0, 3, VIEW_H).fillRect(OX + TW, 0, 3, VIEW_H);
+    f.fillStyle(0x8ad0f0).fillRect(OX - 1, 0, 1, VIEW_H).fillRect(OX + TW, 0, 1, VIEW_H);
   }
 
   /** A new ball in the lane (a saved ball doesn't get another save). */
@@ -188,7 +237,19 @@ export class PinballScene extends ModeScene {
     }
     this.stepTide();
     for (let i = 0; i < this.bumpFlash.length; i++) if (this.bumpFlash[i] > 0) this.bumpFlash[i]--;
-    this.hud.setText(`BALLS\n${'o'.repeat(this.lives)}\n\nTIDE\n${'#'.repeat(this.tide.hp)}${'-'.repeat(TIDE_HP - this.tide.hp)}`).setPosition(8, 40);
+    this.hud.setText('');
+    for (const b of this.balls) {
+      b.trail = [[b.x, b.y] as [number, number], ...(b.trail ?? [])].slice(0, 5);
+    }
+    for (const bb of this.bubbles) {
+      bb.y -= bb.s;
+      bb.x += Math.sin((this.frame + bb.y) / 20) * 0.15;
+      if (bb.y < 8) Object.assign(bb, { y: TH - 30, x: 14 + Math.random() * 160 });
+    }
+    for (const r of this.bumpRings) r.t++;
+    this.bumpRings = this.bumpRings.filter((r) => r.t < 14);
+    if (this.frame % 40 === 0 && this.tide.open) this.bubbles.push({ x: this.tide.x, y: this.tide.y - 8, s: 0.6, r: 2 });
+    if (this.bubbles.length > 30) this.bubbles.splice(18, this.bubbles.length - 30);
   }
 
   private moveBall(b: Ball): void {
@@ -218,6 +279,7 @@ export class PinballScene extends ModeScene {
         b.y = bp.y + (dy / d) * (bp.r + R);
         b.vx = (dx / d) * 3.4;
         b.vy = (dy / d) * 3.4;
+        if (this.bumpFlash[i] === 0) this.bumpRings.push({ x: bp.x, y: bp.y, t: 0 });
         this.bumpFlash[i] = 8;
         sfx.bubble();
       }
@@ -294,47 +356,97 @@ export class PinballScene extends ModeScene {
 
   protected draw(): void {
     const g = this.g;
+    const f = this.fxG;
     g.clear();
-    // The table: deep water, sand at the bottom, kelp.
-    g.fillStyle(0x0c2a4a).fillRect(OX, OY, TW, TH);
-    g.fillStyle(0x12406a).fillRect(OX + 10, OY + 10, 168, 150);
-    g.fillStyle(0xc8a060).fillRect(OX, OY + 210, TW, TH - 210);
-    for (let i = 0; i < 6; i++) {
-      const x = OX + 20 + i * 28;
-      g.fillStyle(0x2e7a34, 0.6).fillRect(x + Math.sin((this.frame + i * 30) / 30) * 2, OY + 150, 3, 50);
+    f.clear();
+    const fr = this.frame;
+    // Kelp swaying along the walls, over the painted table.
+    for (const [x, h] of [[18, 46], [24, 34], [168, 40], [174, 30]] as const) {
+      for (let y = 0; y < h; y += 2) {
+        const sway = Math.sin((fr + y * 3 + x * 7) / 26) * (y / h) * 3;
+        g.fillStyle(y % 6 < 3 ? 0x2e7a34 : 0x3a9a44).fillRect(OX + x + sway, OY + 196 - y, 2, 2);
+      }
     }
-    // Walls.
-    g.lineStyle(3, 0x6ab8e8);
-    for (const [x1, y1, x2, y2] of WALLS) g.lineBetween(OX + x1, OY + y1, OX + x2, OY + y2);
+    // Rising bubbles.
+    for (const bb of this.bubbles) {
+      g.lineStyle(1, 0x9ad8ff, 0.7).strokeCircle(OX + bb.x, OY + bb.y, bb.r);
+      g.fillStyle(0xffffff, 0.8).fillRect(OX + bb.x - bb.r * 0.5, OY + bb.y - bb.r * 0.5, 1, 1);
+    }
     // Lanes, targets, bumpers.
     this.lanes.forEach((lit, i) => {
-      g.fillStyle(lit ? 0xffe14a : 0x3a5a7a).fillCircle(OX + 70 + i * 30, OY + 22, 4);
+      const on = lit || (this.lanes.filter(Boolean).length === 2 && !lit && fr % 20 < 10);
+      this.laneImgs[i].setTexture(lit ? 'pb_lane_on' : 'pb_lane_off').setAlpha(on || lit ? 1 : 0.85);
+      if (lit) f.fillStyle(0xffe14a, 0.35).fillCircle(OX + 70 + i * 30, OY + 22, 8);
     });
     this.targets.forEach((up, i) => {
-      if (up) g.fillStyle(0xd83a4a).fillRect(OX + 11, OY + 64 + i * 22, 4, 12);
-      else g.fillStyle(0x3a2030).fillRect(OX + 11, OY + 74 + i * 22, 4, 2);
+      this.targetImgs[i].setTexture(up ? 'pb_target_up' : 'pb_target_down').setPosition(OX + 10, OY + (up ? 64 : 74) + i * 22);
+      if (!up) f.fillStyle(0xff5a5a, 0.4).fillRect(OX + 20, OY + 66 + i * 22, 6, 8);
     });
     BUMPERS.forEach((bp, i) => {
-      g.fillStyle(0x1a1428).fillCircle(OX + bp.x, OY + bp.y, bp.r + 1);
-      g.fillStyle(this.bumpFlash[i] ? 0xffffff : 0xff8aa8).fillCircle(OX + bp.x, OY + bp.y, bp.r);
-      g.fillStyle(0xd83a4a).fillCircle(OX + bp.x, OY + bp.y, bp.r - 4);
+      this.bumperImgs[i].setTexture(this.bumpFlash[i] ? 'pb_bumper1' : 'pb_bumper0').setScale(this.bumpFlash[i] > 4 ? 1.12 : 1);
+      if (this.bumpFlash[i]) f.fillStyle(0xff8aa8, 0.4).fillCircle(OX + bp.x, OY + bp.y, bp.r + 6);
     });
-    // Tide.
-    const t = this.tide;
-    this.tideImg.setPosition(OX + t.x, OY + t.y).setTexture(t.open ? 'tide_open' : 'tide_idle');
-    this.tideImg.setAlpha(t.hurtT > 0 && this.frame % 6 < 3 ? 0.3 : 1).setTint(t.open ? 0xffffff : 0xb0c0d0);
-    if (t.open) g.lineStyle(1, 0xffe14a, 0.7).strokeCircle(OX + t.x, OY + t.y, 15 + (this.frame % 20) / 5);
-    // Flippers and balls.
-    g.lineStyle(5, 0xf28c28);
-    for (const f of this.flippers) {
-      const [x1, y1, x2, y2] = this.flipperSeg(f);
-      g.lineBetween(OX + x1, OY + y1, OX + x2, OY + y2);
+    for (const r of this.bumpRings) {
+      const k = r.t / 14;
+      f.lineStyle(2 - k, 0xffd0e0, 1 - k).strokeCircle(OX + r.x, OY + r.y, 10 + k * 12);
     }
-    for (const f of this.flippers) g.fillStyle(0xffe14a).fillCircle(OX + f.px, OY + f.py, 3);
-    for (const b of this.balls) {
-      g.fillStyle(0x1a1428).fillCircle(OX + b.x, OY + b.y, R + 1);
-      g.fillStyle(0xc8ccd8).fillCircle(OX + b.x, OY + b.y, R);
-      g.fillStyle(0xffffff).fillRect(OX + b.x - 2, OY + b.y - 2, 2, 2);
+    // The ball saver lamp.
+    if (this.saveT > 0 && (this.saveT > 90 || fr % 10 < 5)) {
+      g.fillStyle(0xffe14a).fillRect(OX + 91, OY + 213, 18, 5);
+      f.fillStyle(0xffe14a, 0.35).fillRect(OX + 86, OY + 209, 28, 13);
+    }
+    // Tide: swims when shut (dim, safe), jaws open (lit, hittable), flashes when hit.
+    const t = this.tide;
+    const frame = t.open ? `tide_open${(Math.floor(fr / 10) % 2) + 1}` : `tide_swim${(Math.floor(fr / 8) % 4) + 1}`;
+    this.tideImg.setPosition(OX + t.x, OY + t.y + 6).setTexture(frame).setFlipX(Math.cos(t.t / 90) < 0);
+    if (t.hurtT > 0 && fr % 6 < 3) this.tideImg.setTintFill(0xffffff);
+    else this.tideImg.setTint(t.open ? 0xffffff : 0x8aa0c0);
+    if (t.open) {
+      f.lineStyle(1, 0xffe14a, 0.6).strokeCircle(OX + t.x, OY + t.y, 16 + (fr % 20) / 4);
+      f.fillStyle(0x5ef0c8, 0.18).fillCircle(OX + t.x, OY + t.y, 20);
+    }
+    // Flippers.
+    this.flippers.forEach((fl, i) => {
+      const ang = fl.side === 1 ? fl.a : Math.PI - fl.a;
+      this.flipperImgs[i].setPosition(OX + fl.px, OY + fl.py).setRotation(ang).setFlipY(fl.side === -1);
+    });
+    // The plunger draws back while a ball waits in the lane.
+    const waiting = this.balls.some((b) => b.inLane && b.y > 200);
+    this.plunger.setY(OY + 226 + (waiting ? 2 + Math.sin(fr / 10) * 2 : 0));
+    // Balls, with a faint trail when they're moving fast.
+    while (this.ballImgs.length < this.balls.length) this.ballImgs.push(this.add.image(0, 0, 'pb_ball').setDepth(6));
+    this.ballImgs.forEach((img, i) => {
+      const b = this.balls[i];
+      img.setVisible(!!b);
+      if (!b) return;
+      img.setPosition(Math.round(OX + b.x), Math.round(OY + b.y));
+      if (Math.hypot(b.vx, b.vy) > 2.5)
+        (b.trail ?? []).forEach(([x, y], k) => {
+          if (k > 0) f.fillStyle(0x9ad8ff, 0.22 - k * 0.04).fillCircle(OX + x, OY + y, R - k * 0.5);
+        });
+    });
+    // Light rippling over the water.
+    for (let i = 0; i < 6; i++) {
+      const x = OX + 20 + ((i * 53 + fr * 0.3) % 160);
+      const y = OY + 20 + ((i * 37) % 150) + Math.sin((fr + i * 40) / 30) * 6;
+      f.fillStyle(0x6ab8e8, 0.06).fillEllipse(x, y, 30, 8);
+    }
+    this.drawPanels();
+  }
+
+  /** Balls left (little chrome balls) and Tide's shell (five pips) beside the table. */
+  private drawPanels(): void {
+    while (this.panelIcons.length < BALLS) this.panelIcons.push(this.add.image(0, 0, 'pb_ball').setDepth(22));
+    this.panelIcons.forEach((img, i) => img.setPosition(OX / 2 - 12 + i * 12, 46).setVisible(i < this.lives));
+    const g = this.hudG;
+    g.clear();
+    const rx = OX + TW + (VIEW_W - OX - TW) / 2;
+    for (let i = 0; i < TIDE_HP; i++) {
+      const y = 44 + i * 12;
+      const on = i < this.tide.hp;
+      g.fillStyle(0x04101c).fillRect(rx - 8, y, 16, 9);
+      g.fillStyle(on ? 0x2aa088 : 0x14304a).fillRect(rx - 7, y + 1, 14, 7);
+      if (on) g.fillStyle(0x8af0d0).fillRect(rx - 7, y + 1, 14, 2);
     }
   }
 }
