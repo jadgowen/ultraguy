@@ -2577,6 +2577,7 @@ export class GameScene extends Phaser.Scene {
     const b = this.boss;
     if (!(b instanceof Miniboss) || b.state !== 'fight' || !overlaps(box, b)) return false;
     b.hit(ARENA_ONLY.press!.hit, true);
+    b.crushed();
     this.shake(6);
     sfx.titanCrush();
     this.hitStop = WEAK_HIT_STOP;

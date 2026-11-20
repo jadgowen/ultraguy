@@ -22,6 +22,7 @@ import { mantisFrames } from './mantisArt.mjs';
 import { tideFrames } from './tideArt.mjs';
 import { scrapFrames } from './scrapArt.mjs';
 import { guardianFrames } from './guardianArt.mjs';
+import { miniFrames } from './miniArt.mjs';
 
 // Palette characters ('.' is transparent):
 const PALETTE = {
@@ -1443,37 +1444,6 @@ const CHARACTER_FRAMES = {
 
 // --- minibosses (one per boss stage, mid-stage) ---------------------------------
 
-/** PRESS TITAN (Foundry): a hydraulic walker with a press plate on its back. */
-function pressTitan(attack, broken = false) {
-  const plate = attack ? 0 : 3;
-  // Hammer arms hang at its sides (raised to strike when attacking); shot off,
-  // only sparking stumps are left.
-  const hy = attack ? 6 : 14;
-  const hammer = (x) => [
-    [x + 2, 14, 3, hy, 'g'], [x + 2, 14, 1, hy, 'G'],
-    [x, 12 + hy, 8, 9, 'K'], [x + 1, 13 + hy, 6, 7, 'G'], [x + 1, 13 + hy, 6, 1, 'W'], [x + 1, 17 + hy, 6, 1, 'g'], [x + 1, 19 + hy, 6, 1, 'g'],
-    [x + 3, 15 + hy, 2, 2, 'Y'],
-  ];
-  const arms = broken
-    ? [[0, 13, 6, 5, 'K'], [38, 13, 6, 5, 'K'], [1, 14, 4, 3, 'g'], [39, 14, 4, 3, 'g'], [2, 17, 1, 2, 'Y'], [41, 17, 1, 2, 'Y']]
-    : [...hammer(0), ...hammer(36)];
-  return boxes(44, 40, [
-    [8, 30, 8, 7, 'g'], [28, 30, 8, 7, 'g'], [5, 36, 14, 4, 'G'], [25, 36, 14, 4, 'G'],
-    [10, 26, 4, 6, 'w'], [30, 26, 4, 6, 'w'],
-    [4, 10, 36, 18, 'O'], [4, 24, 36, 4, 'o'], [4, 10, 36, 2, 'Y'],
-    [6, 22, 4, 2, 'd'], [14, 22, 4, 2, 'd'], [22, 22, 4, 2, 'd'], [30, 22, 4, 2, 'd'],
-    [12, 13, 20, 7, 'd'], [17, 15, 10, 3, attack ? 'R' : 'Y'],
-    [19, plate + 4, 6, 10 - plate, 'g'], [0, plate, 44, 6, 'G'], [0, plate, 44, 1, 'w'],
-    // detail: rivets, hydraulic lines, a pressure gauge, hazard stripes on the plate
-    ...[6, 12, 18, 24, 30, 36].map((x) => [x, 12, 2, 1, 'y']),
-    [2, 13, 2, 12, 'G'], [40, 13, 2, 12, 'G'], [2, 13, 2, 1, 'w'], [40, 13, 2, 1, 'w'],
-    [33, 15, 5, 5, 'W'], [33, 15, 5, 1, 'w'], [35, 16, 1, 2, attack ? 'R' : 'd'],
-    ...[2, 10, 18, 26, 34].map((x) => [x, plate + 2, 4, 2, 'Y']),
-    ...[6, 14, 22, 30, 38].map((x) => [x, plate + 2, 4, 2, 'd']),
-    ...arms,
-  ]);
-}
-
 /** BRIAR TOAD (Canopy): a thorny frog that hops and spits seeds. */
 function briarToad(attack) {
   const mouth = attack ? [[30, 14, 14, 8, 'r'], [32, 16, 11, 4, 'R'], [33, 19, 8, 2, 'P']] : [[32, 17, 10, 2, 'e']];
@@ -1487,39 +1457,6 @@ function briarToad(attack) {
     [12, 10, 4, 2, 'N'], [20, 12, 4, 2, 'N'], [15, 16, 3, 2, 'N'], [24, 9, 3, 2, 'N'],
     [34, 3, 1, 1, 'W'], [14, 22, 18, 1, 'E'], [14, 25, 18, 1, 'E'],
     [0, 31, 3, 1, 'e'], [5, 31, 3, 1, 'e'], [29, 31, 3, 1, 'e'], [34, 31, 3, 1, 'e'],
-  ]);
-}
-
-/** TUSK MAMMOTH (Glacier): an armored mammoth that charges across the ice. */
-function tuskMammoth(attack, broken = false) {
-  const trunk = attack ? [[43, 0, 4, 14, 'b']] : [[43, 12, 4, 16, 'b']];
-  // Shot off, the tusks are jagged stumps.
-  const tusks = broken ? [[36, 20, 4, 3, 'W'], [39, 21, 1, 1, 'w'], [36, 22, 4, 1, 'w']] : [[36, 20, 12, 3, 'W'], [36, 22, 12, 1, 'w']];
-  return boxes(48, 36, [
-    [8, 26, 8, 10, 'b'], [28, 26, 8, 10, 'b'],
-    [6, 6, 32, 22, 'B'], [6, 22, 32, 6, 'b'], [6, 6, 32, 2, 'c'],
-    [10, 2, 4, 6, 'C'], [18, 0, 4, 8, 'C'], [26, 2, 4, 6, 'C'],
-    [30, 4, 16, 20, 'B'], [30, 4, 16, 2, 'c'], [36, 9, 4, 4, attack ? 'R' : 'Y'],
-    ...trunk,
-    ...tusks,
-    // detail: shaggy fur strokes, a riveted armor plate, tusk shading, eye glint
-    ...[9, 14, 19, 24, 29].map((x) => [x, 11, 1, 9, 'b']),
-    [10, 7, 20, 3, 'G'], [10, 7, 20, 1, 'w'], ...[12, 18, 24].map((x) => [x, 8, 1, 1, 'd']),
-    [37, 9, 1, 1, 'W'],
-  ]);
-}
-
-/** STORM KITE (Stratos): a flying wing that drops lightning. */
-function stormKite(attack) {
-  const rod = attack ? 'W' : 'Y';
-  return boxes(44, 28, [
-    [0, 9, 44, 6, 'U'], [0, 13, 7, 4, 'u'], [37, 13, 7, 4, 'u'], [0, 9, 44, 1, 'C'],
-    [6, 15, 2, 7, rod], [36, 15, 2, 7, rod],
-    [14, 3, 16, 18, 'S'], [14, 3, 16, 2, 's'], [20, 21, 4, 7, 's'],
-    [18, 8, 8, 7, 'W'], [20, 10, 4, 4, attack ? 'R' : 'd'],
-    // detail: lightning stripes on the wings, tail streamers, rivets
-    [3, 11, 3, 1, 'Y'], [6, 12, 3, 1, 'Y'], [9, 11, 3, 1, 'Y'], [32, 11, 3, 1, 'Y'], [35, 12, 3, 1, 'Y'], [38, 11, 3, 1, 'Y'],
-    [16, 22, 2, 6, 'u'], [26, 22, 2, 6, 'u'], [16, 5, 1, 1, 'w'], [27, 5, 1, 1, 'w'],
   ]);
 }
 
@@ -1568,22 +1505,6 @@ function crusher(attack) {
   ]);
 }
 
-/** ANGLER (Reef): a deep-sea fish with a glowing lure. */
-function angler(attack) {
-  const mouth = attack ? [[30, 14, 14, 12, 'd'], [31, 14, 2, 3, 'W'], [36, 14, 2, 3, 'W'], [31, 23, 2, 3, 'W'], [36, 23, 2, 3, 'W']] : [[32, 18, 12, 5, 'd'], [33, 18, 2, 2, 'W'], [38, 18, 2, 2, 'W']];
-  return boxes(44, 32, [
-    [0, 10, 7, 14, 'b'], [0, 10, 3, 14, 'C'],
-    [4, 8, 34, 20, 'S'], [10, 20, 24, 8, 's'], [14, 4, 10, 5, 'b'],
-    [26, 1, 2, 9, 'b'], [26, 1, 8, 2, 'b'], [32, 0, 6, 6, attack ? 'W' : 'Y'],
-    [28, 11, 5, 5, 'W'], [30, 12, 2, 3, 'd'],
-    ...mouth,
-    // detail: glowing spots, fin rays, lure halo
-    [10, 14, 2, 2, 'C'], [16, 12, 2, 2, 'C'], [22, 15, 2, 2, 'C'], [12, 22, 2, 2, 'C'],
-    [1, 13, 4, 1, 'b'], [1, 17, 4, 1, 'b'], [1, 21, 4, 1, 'b'],
-    [31, 0, 1, 1, 'C'], [38, 0, 1, 1, 'C'], [31, 5, 1, 1, 'C'], [38, 5, 1, 1, 'C'],
-  ]);
-}
-
 /** Teleporter capsule for the boss rematch room. */
 function capsule(on) {
   const glass = on ? 'C' : 'g';
@@ -1593,8 +1514,9 @@ function capsule(on) {
   ]);
 }
 
-const MINI_ART = { press: pressTitan, press_b: (a) => pressTitan(a, true), mammoth_b: (a) => tuskMammoth(a, true), toad: briarToad, mammoth: tuskMammoth, kite: stormKite, dynamo, crab: cinderCrab, crusher, angler };
-const MINI_SIZE = { press: [44, 40], press_b: [44, 40], mammoth_b: [48, 36], toad: [44, 32], mammoth: [48, 36], kite: [44, 28], dynamo: [40, 40], crab: [46, 30], crusher: [48, 34], angler: [44, 32] };
+// (The Press Titan, Tusk Mammoth, Storm Kite and Angler are drawn in art/miniArt.mjs.)
+const MINI_ART = { toad: briarToad, dynamo, crab: cinderCrab, crusher };
+const MINI_SIZE = { toad: [44, 32], dynamo: [40, 40], crab: [46, 30], crusher: [48, 34] };
 for (const [k, fn] of Object.entries(MINI_ART)) {
   P[`${k}Idle`] = fn(false);
   P[`${k}Attack`] = fn(true);
@@ -1743,14 +1665,14 @@ const molten = anvilFrames();
 for (const [name, bmp] of Object.entries(molten.frames)) rendered.push({ name, bmp });
 // Mantis, Frostline, Gale and Tide share one generated anchors file.
 const shared = {};
-for (const art of [mantisFrames(), frostlineFrames(), galeFrames(), tideFrames(), scrapFrames(), guardianFrames()]) {
+for (const art of [mantisFrames(), frostlineFrames(), galeFrames(), tideFrames(), scrapFrames(), guardianFrames(), miniFrames()]) {
   for (const [name, bmp] of Object.entries(art.frames)) rendered.push({ name, bmp });
   Object.assign(shared, art.anchors);
 }
 write(
   'src/entities/bosses/bossAnchors.ts',
   Buffer.from(
-    '// Generated by art/sprites.mjs (art/mantisArt.mjs, frostlineArt, galeArt, tideArt, scrapArt, guardianArt): glow points on each\n' +
+    '// Generated by art/sprites.mjs (art/mantisArt.mjs, frostlineArt, galeArt, tideArt, scrapArt, guardianArt, miniArt): glow points on each\n' +
       '// frame, as offsets from the sprite\'s bottom-center, facing right.\n' +
       'export type Spot = [number, number];\n' +
       'export interface BossAnchor { eye?: Spot; core?: Spot; tip?: Spot; hand?: Spot; mouth?: Spot; lights?: Spot[]; up?: Spot }\n' +

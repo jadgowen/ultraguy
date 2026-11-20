@@ -3,7 +3,9 @@ import type { MiniKind, Point } from '../../level/Level';
 import { sfx } from '../../sfx';
 import type { GameScene } from '../../scenes/GameScene';
 import type { WeaponId } from '../../weapons';
+import { BOSS_ANCHORS } from './bossAnchors';
 import { Boss, Room } from './Boss';
+import { BossFx } from './bossFx';
 
 /** Moves a miniboss can use. Each kind picks a few. */
 type Move = 'hop' | 'stomp' | 'volley' | 'lob' | 'charge' | 'rain' | 'ring' | 'roll' | 'swoop' | 'dash' | 'spread' | 'slam';
@@ -63,6 +65,12 @@ export const MINIBOSSES: Record<MiniKind, MiniDef> = {
 };
 
 
+/** Eye glow color per miniboss. */
+const EYE_COLOR: Partial<Record<MiniKind, number>> = { press: 0xff5a5a, mammoth: 0x9ee8ff, kite: 0x9ee8ff, angler: 0xffe14a };
+
+/** The minibosses drawn on the shaded rig, with a frame for each move. */
+const ANIMATED = new Set<MiniKind>(['press', 'mammoth', 'kite', 'angler']);
+
 /** One class for the stages' minibosses: a small set of moves, picked at random without repeats. */
 export class Miniboss extends Boss {
   readonly def: MiniDef;
@@ -80,6 +88,13 @@ export class Miniboss extends Boss {
   enraged = false;
   private strike: { x: number; t: number } | null = null;
   private strikeT = 0;
+  /** The redrawn four (art/miniArt.mjs) get animation frames and the effects layer. */
+  private readonly fx: BossFx | null = null;
+  private anim = 0;
+  /** Steps left in the landing squash, the skid after a charge, the flattening under a press. */
+  private landT = 0;
+  private skidT = 0;
+  private squashT = 0;
 
   constructor(g: GameScene, readonly mini: MiniKind, at: Point, room: Room) {
     const def = MINIBOSSES[mini];
@@ -89,6 +104,12 @@ export class Miniboss extends Boss {
     // Fliers hover at chest height (low enough to hit with a jumping shot).
     this.homeY = room.floor - def.h - 52;
     this.partHp = MINI_PARTS[mini as MiniKind]?.hp ?? 0;
+    if (ANIMATED.has(mini)) this.fx = new BossFx(g);
+  }
+
+  /** A press just came down on it: flatten for a moment. */
+  crushed(): void {
+    this.squashT = 16;
   }
 
   get part(): PartDef | undefined {
@@ -184,10 +205,15 @@ export class Miniboss extends Boss {
       return;
     }
     if (this.sinkT > 0) {
+      this.anim++;
       this.stepSink();
       return;
     }
     super.step();
+    this.anim++;
+    if (this.landT > 0) this.landT--;
+    if (this.skidT > 0) this.skidT--;
+    if (this.squashT > 0) this.squashT--;
     if (this.partInvuln > 0) this.partInvuln--;
     if (this.state !== 'fight') return;
     if (this.arenaOnly && !this.hinted) {
@@ -270,7 +296,15 @@ export class Miniboss extends Boss {
       // Jump at the player; 'stomp' sends shockwaves both ways on landing.
       case 'hop':
       case 'stomp': {
-        if (this.t === 1) {
+        // The Titan crouches before it jumps (the tell).
+        const crouch = this.mini === 'press' ? 12 : 0;
+        if (this.t <= crouch) {
+          this.vx = 0;
+          this.facePlayer();
+          this.physics();
+          break;
+        }
+        if (this.t === crouch + 1) {
           this.facePlayer();
           const big = this.move === 'stomp';
           this.vx = Phaser.Math.Clamp((p.cx - this.cx) / (big ? 50 : 30), -2.4, 2.4);
@@ -279,8 +313,9 @@ export class Miniboss extends Boss {
         }
         const r = this.physics();
         if (r.wall) this.vx = 0;
-        if (r.landed && this.t > 2) {
+        if (r.landed && this.t > crouch + 2) {
           this.vx = 0;
+          this.landT = 10;
           this.g.shake(this.move === 'stomp' ? 5 : 2);
           sfx.land();
           if (this.move === 'stomp' && !(this.mini === 'press' && this.broken)) {
@@ -349,6 +384,7 @@ export class Miniboss extends Boss {
             this.g.shake(5);
             sfx.land();
             this.vx = 0;
+            this.skidT = 14;
             // Phase 2 on thin ice: the slam shakes two more slabs loose somewhere in the arena.
             if (thin && fast && !gapAhead) {
               const slabs = this.g.level.thinIce.filter((t) => t.c * T >= this.room.left && t.c * T < this.room.right && this.g.level.tileAt(t.c, t.r) !== 0);
@@ -500,7 +536,45 @@ export class Miniboss extends Boss {
 
   private lurePos(): { x: number; y: number } {
     const bob = Math.sin(this.t * 0.15) * 2;
+    const a = this.anchor(this.frame())?.hand;
+    if (a) return { x: this.cx + a[0] * this.facing, y: this.bottom + a[1] + bob * 0.5 };
     return { x: this.facing > 0 ? this.x + this.w + 5 : this.x - 5, y: this.y - 5 + bob };
+  }
+
+  private anchor(frame: string) {
+    return BOSS_ANCHORS[`${this.mini}_${frame}`];
+  }
+
+  /** The frame for right now (see art/miniArt.mjs). */
+  private frame(): string {
+    const m = this.move;
+    const t = this.t;
+    switch (this.mini) {
+      case 'press':
+        if (this.squashT > 0) return 'squash';
+        if (m === 'stomp' || m === 'hop') {
+          if (t <= 12) return 'crouch';
+          if (!this.grounded) return 'jump';
+        }
+        if (this.landT > 0) return 'land';
+        if (m === 'volley' && t % 16 < 6) return 'shoot';
+        return Math.floor(this.anim / 18) % 2 ? 'idle2' : 'idle1';
+      case 'mammoth':
+        if (this.sinkT > 0 || (!this.grounded && this.state === 'fight' && this.vy > 0 && m === 'idle')) return 'fall';
+        if (m === 'charge') return t < (this.phase2 ? 20 : 32) ? 'windup' : Math.floor(this.anim / 5) % 2 ? 'run2' : 'run1';
+        if (this.skidT > 0) return 'skid';
+        return Math.floor(this.anim / 20) % 2 ? 'idle2' : 'idle1';
+      case 'kite':
+        if (m === 'rain') return 'charge';
+        if (m === 'swoop') return 'dive';
+        return ['fly1', 'fly2', 'fly3', 'fly2'][Math.floor(this.anim / 6) % 4];
+      case 'angler':
+        if (m === 'dash') return t < 30 ? 'gape' : 'dash';
+        if ((m === 'volley' && t % 16 < 6) || (m === 'ring' && t > 14 && t < 30)) return 'spit';
+        return ['swim1', 'swim2', 'swim3', 'swim2'][Math.floor(this.anim / 8) % 4];
+      default:
+        return this.pose();
+    }
   }
 
   /** Lights it carries into the dark: the Angler's lure (dims and flickers just before it lunges). */
@@ -513,6 +587,28 @@ export class Miniboss extends Boss {
 
   render(): void {
     super.render();
+    if (this.fx) {
+      const frame = this.posing ? this.introFrame() : this.frame();
+      const windup = this.mini === 'mammoth' && this.move === 'charge' && this.t < (this.phase2 ? 20 : 32);
+      this.sprite.setTexture(`${this.mini}_${frame}`).setX(Math.round(this.cx) + (windup ? (this.t % 4 < 2 ? 1 : -1) : 0));
+      const a = this.anchor(frame) ?? {};
+      const kiteCharge = this.mini === 'kite' && (this.move === 'rain' || (this.enraged && this.anim % 40 < 6));
+      const tips = a.lights ?? [];
+      this.fx.update({
+        x: Math.round(this.cx),
+        bottom: Math.round(this.bottom),
+        facing: this.facing,
+        floor: this.def.flies ? this.room.floor : Math.max(this.bottom, this.room.floor),
+        eye: a.eye,
+        eyeColor: EYE_COLOR[this.mini] ?? 0xffe14a,
+        heat: 0,
+        arcs: kiteCharge && a.eye ? tips.map((tip) => ({ a: a.eye!, b: tip, chance: 0.6, color: 0xffe14a })) : [],
+        visible: this.sprite.visible && this.state !== 'dying' && this.sinkT === 0,
+      });
+      // Snow kicked up by the Mammoth's charge; sparks off the Titan's landing.
+      if (this.mini === 'mammoth' && frame.startsWith('run') && this.anim % 5 === 0) this.g.burst(this.cx - this.facing * 14, this.bottom - 2, 'shard', 1);
+      if (this.mini === 'mammoth' && frame === 'skid' && this.anim % 3 === 0) this.g.burst(this.cx + this.facing * 16, this.bottom - 2, 'shard', 1);
+    }
     if (this.mini !== 'angler') return;
     if (!this.lureImg) {
       if (!this.g.textures.exists('lure_glow')) {
@@ -531,7 +627,13 @@ export class Miniboss extends Boss {
     this.lureImg.setPosition(Math.round(l.x), Math.round(l.y)).setVisible(this.state !== 'dying' && (!windup || this.t % 6 < 3));
   }
 
+  /** The frame struck while the health bar fills. */
+  private introFrame(): string {
+    return { press: 'shoot', mammoth: 'windup', kite: 'charge', angler: 'gape' }[this.mini as 'press'] ?? this.frame();
+  }
+
   destroy(): void {
+    this.fx?.destroy();
     this.lureImg?.destroy();
     super.destroy();
   }

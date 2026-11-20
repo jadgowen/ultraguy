@@ -85,6 +85,12 @@ matter, and four set pieces with no boss at all.
 | Scrapyard | COMPACTOR ESCAPE | a wall of grinding steel (`compactor`) chases you through junk: slide under the pipes, jump the rest |
 | Reef | the ANGLER's dark trench | pitch dark; its lure is the only other light, and it dims and flickers just before it lunges |
 
+The four minibosses are drawn on the same shaded rig as the bosses (`art/miniArt.mjs`), with a frame for each
+move: the Press Titan crouches before it stomps, tucks its pistons in the air and flattens when a press lands
+on it; the Tusk Mammoth lowers its head and trembles before a charge, gallops kicking up snow, skids, and
+flails as it falls through the ice; the Storm Kite flaps, and crackles with current as it calls down rain; the
+Angler's jaw gapes before it lunges, its lure on the end of its stalk.
+
 The minibosses fight back differently as the fight goes on (`src/entities/bosses/Miniboss.ts`). The Press
 Titan and the Tusk Mammoth can only be beaten by their arenas (`ARENA_ONLY`; a hint says how at the start).
 At half health each one's fight changes: the Titan's presses speed up, the Mammoth is enraged, the Kite's
