@@ -157,9 +157,10 @@ notched at each end, until you're inside. The armor-part rooms hide a 1-UP too.
 **Energy bars.** Life, the equipped weapon's ammo and the boss each get a shaded metal bar with a badge under it
 (helmet, weapon gem, boss skull); units you just lost flash and then drain away, and low life pulses red.
 
-**Lives.** You start each stage with 2 extra lives (shown under the health bars); 1-UPs add one (up to 9).
+**Lives.** You start each stage with 2 extra lives (shown in the pause menu, with your bolts); 1-UPs add one (up to 9).
 Dying with lives left sends you to the last checkpoint; with none left it's GAME OVER and back to the stage
-select (or the fortress map).
+select (or the fortress map). Until the intro stage is beaten, GAME OVER or EXIT STAGE there goes back to the title
+instead, so it can't be skipped.
 
 **Bolts and Rivet's shop.** Beaten enemies drop bolts (big ones now and then), and bolt caches hide in the
 crawlspaces and armor-part rooms. Press Q (L1) on the stage select to visit RIVET'S PARTS & PROVISIONS:

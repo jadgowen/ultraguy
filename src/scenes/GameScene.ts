@@ -192,14 +192,10 @@ export class GameScene extends Phaser.Scene {
   private cacheItems: { box: Box; sprite: Phaser.GameObjects.Image; taken: boolean; key: number }[] = [];
   /** The Bolt Magnet (bought at Rivet's): pickups fly to you. */
   private magnet = false;
-  private boltIcon!: Phaser.GameObjects.Image;
-  private boltText!: PixelText;
   /** Bolts held (mirrors the save, so the HUD needn't read it every frame). */
   private boltCount = 0;
   /** Counts down after the last life is lost, then back to the select screen. */
   private gameOverT = 0;
-  private livesIcon!: Phaser.GameObjects.Image;
-  private livesText!: PixelText;
   /** Rematch room: capsules, which are done, and a teleport in progress. */
   private capsules: { box: Box; sprite: Phaser.GameObjects.Image; kind: BossKind; done: boolean; bonus: boolean }[] = [];
   private teleport: { t: number; to: 'arena' | 'hub'; kind?: BossKind; back?: Point } | null = null;
@@ -529,14 +525,6 @@ export class GameScene extends Phaser.Scene {
       .setDepth(60);
     this.makePip();
     this.pauseLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(70).setVisible(false);
-    this.boltIcon = this.add.image(10, 112, 'nut').setOrigin(0, 0).setScrollFactor(0).setDepth(60);
-    this.boltText = pixelText(this, 24, 111, '', { fontFamily: 'monospace', fontSize: '8px', color: '#c8ccd8', stroke: '#000000', strokeThickness: 2 })
-      .setScrollFactor(0)
-      .setDepth(60);
-    this.livesIcon = this.add.image(8, 96, 'oneup').setOrigin(0, 0).setScrollFactor(0).setDepth(60);
-    this.livesText = pixelText(this, 24, 98, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0', stroke: '#000000', strokeThickness: 2 })
-      .setScrollFactor(0)
-      .setDepth(60);
     this.weaponLabel = pixelText(this, 12, 80, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0', stroke: '#000000', strokeThickness: 2 })
       .setScrollFactor(0)
       .setDepth(60)
@@ -2332,6 +2320,8 @@ export class GameScene extends Phaser.Scene {
   /** Where to go after leaving this stage. */
   private exitScene(cleared: boolean): string {
     if (this.stageId === 'dojo') return 'title';
+    // Leaving the intro before it's ever been beaten starts the game over (no skipping it).
+    if (this.stageId === 'intro' && !cleared && !loadSave().cleared.includes('intro')) return 'title';
     if (this.stageId === 'finale') return cleared ? 'ending' : 'fortress';
     if (getStage(this.stageId).theme === 'fortress') return 'fortress';
     return 'select';
@@ -2393,12 +2383,6 @@ export class GameScene extends Phaser.Scene {
     const bossHp = this.boss && this.boss.state !== 'dying' ? this.boss.barHp : -1;
     const ammo = p.weapon === 'buster' ? -1 : p.ammo[p.weapon];
     const bossMax = this.boss?.maxHp ?? 0;
-    const showBolts = this.stageId !== 'dojo';
-    this.boltIcon.setVisible(showBolts);
-    this.boltText.setText(showBolts ? String(this.boltCount) : '');
-    const lives = this.stageId === 'dojo' ? -1 : visit.lives;
-    this.livesIcon.setVisible(lives >= 0);
-    this.livesText.setText(lives >= 0 ? `x${lives}` : '');
     const trails = [this.stepTrail('hp', hp), this.stepTrail(`ammo_${p.weapon}`, ammo), this.stepTrail('boss', bossHp)];
     // Low life pulses (so the bar needs redrawing as it beats).
     const low = hp > 0 && hp <= p.maxHp / 4 ? Math.floor(this.fxFrame / 8) % 2 : 0;
@@ -2680,6 +2664,13 @@ export class GameScene extends Phaser.Scene {
     PART_ORDER.forEach((id, i) => {
       layer.add(this.add.image(VIEW_W / 2 - 27 + i * 18, top + 32, `part_${id}`).setAlpha(p.has(id) ? 1 : 0.2));
     });
+    // Tries left (left of the parts) and bolts (right of them); the dojo has neither.
+    if (this.stageId !== 'dojo') {
+      layer.add(this.add.image(left + 12, top + 32, 'oneup').setOrigin(0, 0.5));
+      layer.add(pixelText(this, left + 28, top + 28, `x${visit.lives}`, style));
+      layer.add(this.add.image(left + 150, top + 32, 'nut').setOrigin(0, 0.5));
+      layer.add(pixelText(this, left + 164, top + 28, String(this.boltCount), { ...style, color: '#c8ccd8' }));
+    }
     const bars = this.add.graphics();
     layer.add(bars);
     this.unlocked.forEach((id, i) => {
@@ -2715,7 +2706,7 @@ export class GameScene extends Phaser.Scene {
     layer.add(pixelText(this, left + 12, exitY, `${onExit ? '>' : ' '} EXIT STAGE`, { ...style, color: onExit ? '#ff9a7a' : '#8a8fa8' }));
     const ammoFull = this.unlocked.every((w) => WEAPONS[w].cost === 0 || p.ammo[w] >= p.maxAmmo);
     const hint = onExit
-      ? 'Z / X to leave the stage'
+      ? this.exitScene(false) === 'title' && this.stageId === 'intro' ? 'Z / X to quit to the title' : 'Z / X to leave the stage'
       : onW
         ? this.exMode ? 'no W-tanks in an EX rematch' : wtanks === 0 ? "none: buy them at Rivet's" : ammoFull ? 'weapons are already full' : 'Z / X to refill every weapon'
       : onTank
