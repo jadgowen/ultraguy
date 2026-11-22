@@ -190,7 +190,7 @@ const STILL = ['STILL STANDING? GOOD.', 'THAT LITTLE ROBOT OF YOURS IS SOMETHING
 
 /** The reel at the end: every stage, a boss shot from each (public/assets/finale/shots). */
 const REEL: { shot: string; title: string; line: string }[] = [
-  { shot: 'intro', title: 'DOWNTOWN', line: 'A HOT DOG STAND, A CITY STREET, AND THE FIRST JUMP.' },
+  { shot: 'intro', title: 'DOWNTOWN  -  BLACK JARED', line: 'A HOT DOG STAND, A CITY STREET, AND THE FIRST JUMP.' },
   { shot: 'foundry', title: 'FOUNDRY  -  ANVIL', line: 'MIND THE PRESSES.' },
   { shot: 'canopy', title: 'CANOPY  -  MANTIS', line: 'BOUNCE HIGH. THE BRAMBLES ARE COMING.' },
   { shot: 'glacier', title: 'GLACIER  -  FROSTLINE', line: "THE ICE WOULDN'T HOLD. YOU DID." },
@@ -257,6 +257,8 @@ export class CreatorScene extends Phaser.Scene {
   private reelCaption: Phaser.GameObjects.Container | null = null;
   private winL!: Phaser.GameObjects.Image;
   private winR!: Phaser.GameObjects.Image;
+  /** The USES tab over the weapon list. */
+  private usesTab!: Phaser.GameObjects.Image;
   private pipLook!: { shell: PipShell; paint: PipPaint };
   /** The hero's pose ('idle' bobs through idle1-4; 'hurt' for a moment). */
   private pose: 'idle' | 'hurt' = 'idle';
@@ -289,6 +291,9 @@ export class CreatorScene extends Phaser.Scene {
       new Image().src = FINALE_ART(t.backdrop);
       new Image().src = FINALE_ART('hotdog.png');
     }
+    // The reel's shots load now (they're needed at the very end, the first one right away).
+    for (const r of REEL) if (!this.textures.exists(`reel_${r.shot}`)) this.load.image(`reel_${r.shot}`, FINALE_ART(`shots/${r.shot}.png`));
+    this.load.start();
 
     this.gfx = this.add.graphics().setDepth(44);
     this.dim = this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x05040c, 1).setOrigin(0).setDepth(5).setAlpha(0);
@@ -302,6 +307,7 @@ export class CreatorScene extends Phaser.Scene {
     this.topName = pixelText(this, 22, 8, '', { color: '#ffe14a' }).setDepth(41);
     this.topText = pixelText(this, 22, 19, '', { color: '#fff1e0' }).setDepth(41).setMaxWidth(380);
     this.winL = this.add.image(4, 186, rpgWindow(this, 150, 50)).setOrigin(0).setDepth(39).setVisible(false);
+    this.usesTab = this.add.image(116, 180, rpgWindow(this, 40, 14)).setDepth(40).setVisible(false);
     this.winR = this.add.image(158, 186, rpgWindow(this, 265, 50)).setOrigin(0).setDepth(39).setVisible(false);
     this.omenText = pixelText(this, VIEW_W / 2, VIEW_H / 2, '', { color: '#ffffff' }).setOrigin(0.5).setDepth(60).setAlign('center');
     // (The camera stays transparent: the painted layer is behind the canvas.)
@@ -484,9 +490,15 @@ export class CreatorScene extends Phaser.Scene {
     return ['FIGHT', 'WEAPON', 'GUARD', 'ITEM'];
   }
 
-  /** The weapon list: CHARGE first, then each weapon with its energy left and what a use costs. */
+  /** The weapon list: CHARGE first, then each weapon (its uses are drawn in a column beside it). */
   private weaponOptions(): string[] {
-    return ['CHARGE', ...(Object.keys(this.we) as WeaponId[]).map((w) => `${WEAPONS[w].name} ${this.we[w]} -${WEAPONS[w].cost * 2}`)];
+    return ['CHARGE', ...(Object.keys(this.we) as WeaponId[]).map((w) => WEAPONS[w].name)];
+  }
+
+  /** A weapon's uses: how many casts it has left, out of a full tank. */
+  private uses(w: WeaponId): [number, number] {
+    const cost = WEAPONS[w].cost * 2;
+    return [Math.floor((this.we[w] ?? 0) / cost), Math.floor(WE_MAX / cost)];
   }
 
   private openMenu(): void {
@@ -967,7 +979,7 @@ export class CreatorScene extends Phaser.Scene {
     if (t === 1) {
       const r = REEL[i];
       this.reelImg?.destroy();
-      this.reelImg = this.textures.exists(`reel_${r.shot}`) ? this.add.image(VIEW_W / 2, 94, `reel_${r.shot}`).setScale(0.72).setDepth(50) : null;
+      this.reelImg = null;
       // The shot sits in a window like the battle's, the caption in another under it.
       this.reelFrame ??= this.add.image(VIEW_W / 2, 94, rpgWindow(this, 318, 182)).setDepth(49);
       this.reelCaption?.destroy();
@@ -976,6 +988,9 @@ export class CreatorScene extends Phaser.Scene {
       const line = pixelText(this, 0, 2, r.line, { color: '#fff1e0' }).setOrigin(0.5, 0);
       this.reelCaption = this.add.container(VIEW_W / 2, 210, [box, title, line]).setDepth(50);
     }
+    // (If the shot's still loading, it appears the moment it lands.)
+    const key = `reel_${REEL[i].shot}`;
+    if (!this.reelImg && this.textures.exists(key)) this.reelImg = this.add.image(VIEW_W / 2, 94, key).setScale(0.72).setDepth(50);
     const a = t < 40 ? t / 40 : t > per - 40 ? (per - t) / 40 : 1;
     this.reelImg?.setAlpha(a);
     this.reelFrame?.setAlpha(i === 0 ? Math.min(1, t / 40) : 1);
@@ -1080,6 +1095,7 @@ export class CreatorScene extends Phaser.Scene {
     const battle = !(this.phase === 'omen' || this.phase === 'tear' || this.phase === 'reel');
     this.winL.setVisible(battle);
     this.winR.setVisible(battle);
+    this.usesTab.setVisible(battle && this.menu?.kind === 'weapon');
     if (!battle) return;
     // The party.
     const bob = Math.floor(this.frame / 14) % 4;
@@ -1119,9 +1135,20 @@ export class CreatorScene extends Phaser.Scene {
       const first = Math.max(0, m.sel >= rows ? top : 0);
       m.options.slice(first, first + rows).forEach((o, k) => {
         const i = first + k;
-        this.menuTexts.push(pixelText(this, 24, wy + 7 + k * 10, o, { color: i === m.sel ? '#ffe14a' : '#fff1e0' }).setDepth(43));
+        const w = m.kind === 'weapon' && i > 0 ? (Object.keys(this.we) as WeaponId[])[i - 1] : null;
+        const out = w ? this.uses(w)[0] === 0 : false;
+        this.menuTexts.push(pixelText(this, 24, wy + 7 + k * 10, o, { color: out ? '#55607a' : i === m.sel ? '#ffe14a' : '#fff1e0' }).setDepth(43));
+        // Uses left / uses in a full tank, right-aligned in their own column.
+        if (w) {
+          const [left, total] = this.uses(w);
+          this.menuTexts.push(pixelText(this, 136, wy + 7 + k * 10, `${left}/${total}`, { color: out ? '#55607a' : '#9ee8ff' }).setOrigin(1, 0).setDepth(43));
+        }
       });
       this.menuTexts.push(pixelText(this, 13, wy + 7 + (m.sel - first) * 10, '>', { color: '#5ef0c8' }).setDepth(43));
+      // The column's heading, on a tab over the window's edge.
+      if (m.kind === 'weapon') {
+        this.menuTexts.push(pixelText(this, 116, wy - 9, 'USES', { color: '#ffe14a' }).setOrigin(0.5, 0).setDepth(43));
+      }
       if (first > 0) this.menuTexts.push(pixelText(this, 140, wy + 5, '^', { color: '#8a8fa8' }).setDepth(43));
       if (first + rows < m.options.length) this.menuTexts.push(pixelText(this, 140, wy + 38, 'v', { color: '#8a8fa8' }).setDepth(43));
     }
