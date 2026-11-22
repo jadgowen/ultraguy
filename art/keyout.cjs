@@ -35,6 +35,27 @@ for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
     const g = out[i + 1];
     out[i] = Math.min(out[i], g + 40); out[i + 2] = Math.min(out[i + 2], g + 40);
   }
+  // Despill: magenta cast anywhere in the figure (glass reflecting the background, fringes,
+  // specks in tight pockets). Magenta-hued pixels (red and blue about equal, both well over
+  // green) go back to a neutral, slightly cool grey; Mantis's pink (red well over blue) and
+  // Jared's violet veins (blue well over red) aren't touched. Close to the background they
+  // fade out too.
+  {
+    const r = out[i], g = out[i + 1], b = out[i + 2];
+    const cast = Math.min(r, b) - g;
+    if (cast > 45 && Math.abs(r - b) < 45) {
+      let near = false;
+      for (let dy = -2; dy <= 2 && !near; dy++) for (let dx = -2; dx <= 2; dx++) {
+        const nx = x + dx, ny = y + dy;
+        if (nx >= 0 && ny >= 0 && nx < w && ny < h && bg[ny * w + nx]) { near = true; break; }
+      }
+      const lum = (r + g + b) / 3;
+      out[i] = Math.round(Math.min(255, lum * 0.9));
+      out[i + 1] = Math.round(Math.min(255, lum * 0.95));
+      out[i + 2] = Math.round(Math.min(255, lum * 1.08));
+      if (near) out[i + 3] = Math.min(out[i + 3], Math.max(0, 255 - cast * 2));
+    }
+  }
   if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
 }
 const cw = x1 - x0 + 1, ch = y1 - y0 + 1, crop = Buffer.alloc(cw * ch * 4);

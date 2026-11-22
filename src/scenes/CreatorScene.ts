@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { playMusic, stopMusic } from '../audio';
+import { nowPlaying, playMusic, stopMusic } from '../audio';
 import { STEP_MS, VIEW_H, VIEW_W } from '../constants';
 import { Controls } from '../input';
 import { PipPaint, PipShell, pipTexture } from '../pip';
@@ -73,8 +73,8 @@ const TIERS: Tier[] = [
     art: 'chimera.png',
     backdrop: 'bg_storm.jpg',
     box: [128, 196, 188],
-    hp: 1500,
-    speed: 0.0045,
+    hp: 900,
+    speed: 0.0032,
     weak: ['spark', 'flame'],
     music: 'ascension',
     intro: [C(CREATOR, 'YOU BEAT THEM ONE AT A TIME.'), C(CREATOR, "LET'S SEE YOU FACE THEM TOGETHER.")],
@@ -91,8 +91,8 @@ const TIERS: Tier[] = [
     art: 'idol.png',
     backdrop: 'bg_forge.jpg',
     box: [132, 196, 192],
-    hp: 1800,
-    speed: 0.0042,
+    hp: 1100,
+    speed: 0.003,
     weak: ['bubble', 'quake'],
     music: 'ascension',
     intro: [C(CREATOR, 'FIRE, ICE, WIND AND WATER. VERY POETIC.'), C(CREATOR, 'NOW THE MACHINES.')],
@@ -109,8 +109,8 @@ const TIERS: Tier[] = [
     art: 'jared.png',
     backdrop: 'bg_store.jpg',
     box: [128, 200, 194],
-    hp: 1500,
-    speed: 0.005,
+    hp: 900,
+    speed: 0.0035,
     weak: ['flame', 'saw'],
     music: 'ascension',
     intro: [
@@ -131,8 +131,8 @@ const TIERS: Tier[] = [
     art: 'creator.png',
     backdrop: 'bg_void.jpg',
     box: [132, 204, 200],
-    hp: 3000,
-    speed: 0.0048,
+    hp: 1800,
+    speed: 0.0034,
     weak: [],
     music: 'creator',
     intro: [
@@ -238,7 +238,6 @@ export class CreatorScene extends Phaser.Scene {
   private topName!: ReturnType<typeof pixelText>;
   private texts: ReturnType<typeof pixelText>[] = [];
   private menuTexts: ReturnType<typeof pixelText>[] = [];
-  private banner!: ReturnType<typeof pixelText>;
   private omenText!: ReturnType<typeof pixelText>;
   private effects: { x: number; y: number; vx: number; vy: number; life: number; color: number; size: number }[] = [];
   private reelImg: Phaser.GameObjects.Image | null = null;
@@ -286,7 +285,6 @@ export class CreatorScene extends Phaser.Scene {
     this.topText = pixelText(this, 22, 19, '', { color: '#fff1e0' }).setDepth(41).setMaxWidth(380);
     this.winL = this.add.image(4, 186, rpgWindow(this, 150, 50)).setOrigin(0).setDepth(39).setVisible(false);
     this.winR = this.add.image(158, 186, rpgWindow(this, 265, 50)).setOrigin(0).setDepth(39).setVisible(false);
-    this.banner = pixelText(this, VIEW_W / 2, 100, '', { fontSize: '16px', color: '#fff1e0', stroke: '#000000' }).setOrigin(0.5).setDepth(45);
     this.omenText = pixelText(this, VIEW_W / 2, VIEW_H / 2, '', { color: '#ffffff' }).setOrigin(0.5).setDepth(60).setAlign('center');
     // (The camera stays transparent: the painted layer is behind the canvas.)
     this.cameras.main.setBackgroundColor('rgba(0,0,0,0)');
@@ -375,7 +373,8 @@ export class CreatorScene extends Phaser.Scene {
     this.paint.setDim(0);
     this.paint.setBackdrop(FINALE_ART(t.backdrop));
     this.paint.setBoss(FINALE_ART(t.art), t.box[0], t.box[1], t.box[2]);
-    if (i > 0 && TIERS[i - 1].music !== t.music) playMusic(this, t.music);
+    // Keep the music going between forms; switch only when the track changes (or if nothing's on).
+    if (nowPlaying() !== t.music) playMusic(this, t.music);
     this.heroImg.setVisible(true);
     this.pipImg.setVisible(true);
     this.phase = 'fight';
@@ -428,11 +427,11 @@ export class CreatorScene extends Phaser.Scene {
     }
     // Gauges fill (hero's runs backward while reversed, freezes while frozen, crawls while slowed).
     if (!this.menu) {
-      const rate = this.status.has('freeze') ? 0 : this.status.has('slow') ? 0.004 : 0.009;
+      const rate = this.status.has('freeze') ? 0 : this.status.has('slow') ? 0.0028 : 0.0063;
       this.hero.atb = this.status.has('reverse') ? Math.max(0, this.hero.atb - 0.006) : Math.min(1, this.hero.atb + rate);
       if (this.hero.atb >= 1) this.openMenu();
     }
-    this.pip.atb = Math.min(1, this.pip.atb + 0.0065);
+    this.pip.atb = Math.min(1, this.pip.atb + 0.0045);
     if (this.pip.atb >= 1) this.pipActs();
     this.bossAtb += tier.speed * (this.tier === 3 && this.bossHp < tier.hp / 3 ? 0.8 : 1);
     if (this.bossAtb >= 1) {
@@ -440,11 +439,10 @@ export class CreatorScene extends Phaser.Scene {
       this.bossActs();
     }
     for (const d of this.dogs) {
-      d.atb += 0.004;
+      d.atb += 0.0028;
       if (d.atb >= 1) {
         d.atb = 0;
-        this.banner.setText('HOTDOG').setColor('#e86a50');
-        this.time.delayedCall(500, () => this.banner.setText(''));
+        this.showName('HOTDOG', 'enemy');
         this.hurtHero(30, 0xe86a50);
       }
     }
@@ -572,7 +570,7 @@ export class CreatorScene extends Phaser.Scene {
       sfx.chargeShot?.();
     }
     dmg = Math.round(dmg * buff);
-    if (label) this.showName(label);
+    if (label) this.showName(label, 'ally');
     const target = dog >= 0 ? this.dogs[dog] : null;
     const tx = target ? target.img.x : TIERS[this.tier].box[0];
     const ty = target ? target.img.y - 6 : TIERS[this.tier].box[1] - TIERS[this.tier].box[2] * 0.5;
@@ -642,7 +640,7 @@ export class CreatorScene extends Phaser.Scene {
     if (low) {
       const heal = 200;
       this.hero.hp = Math.min(HERO_MAX, this.hero.hp + heal);
-      this.showName('PIP: REPAIR');
+      this.showName('REPAIR', 'ally');
       this.burst(352, 140, 0x5ef0c8, 16);
       this.popText(`${heal}`, 352, 120, '#5ef0c8');
       this.clearStatus('burn');
@@ -652,7 +650,7 @@ export class CreatorScene extends Phaser.Scene {
     }
     if (this.pendingBig && !this.barrier) {
       this.barrier = true;
-      this.showName('PIP: BARRIER');
+      this.showName('BARRIER', 'ally');
       sfx.charge?.(1);
       return;
     }
@@ -704,7 +702,7 @@ export class CreatorScene extends Phaser.Scene {
   /** Say its memory (tier 4), show its name, then do it. */
   private cast(a: Attack, then?: () => void): void {
     const go = () => {
-      this.showName(a.name);
+      this.showName(a.name, 'enemy');
       this.time.delayedCall(450, () => {
         this.doAttack(a);
         then?.();
@@ -822,7 +820,7 @@ export class CreatorScene extends Phaser.Scene {
     for (const d of [...this.dogs]) this.killDog(d);
     this.paint.setDim(0);
     this.status.clear();
-    stopMusic(this.tier === 3 ? 2500 : 0);
+    if (this.tier === TIERS.length - 1) stopMusic(2500);
   }
 
   private stepFall(): void {
@@ -842,7 +840,6 @@ export class CreatorScene extends Phaser.Scene {
     if (this.tier < TIERS.length - 1) {
       this.hero.atb = Math.max(this.hero.atb, 0.5);
       this.startTier(this.tier + 1);
-      if (this.tier === 3) playMusic(this, 'creator');
       return;
     }
     // The end.
@@ -886,9 +883,20 @@ export class CreatorScene extends Phaser.Scene {
 
   // --- effects --------------------------------------------------------------------------
 
-  private showName(name: string): void {
-    this.banner.setText(name).setColor('#fff1e0').setY(100);
-    this.time.delayedCall(900, () => this.banner.text === name && this.banner.setText(''));
+  /**
+   * What's being cast, in a little window at the top (FF style): the enemy's in
+   * white, yours and Pip's in teal. It pops in, holds, and fades.
+   */
+  private popup: Phaser.GameObjects.Container | null = null;
+  private showName(name: string, who: 'enemy' | 'ally'): void {
+    this.popup?.destroy();
+    const w = Math.max(80, name.length * 6 + 28);
+    const box = this.add.image(0, 0, rpgWindow(this, w, 20));
+    const text = pixelText(this, 0, -4, name, { color: who === 'enemy' ? '#fff1e0' : '#5ef0c8' }).setOrigin(0.5, 0);
+    const c = this.add.container(VIEW_W / 2, 66, [box, text]).setDepth(45).setScale(0.6, 0.2).setAlpha(0);
+    this.popup = c;
+    this.tweens.add({ targets: c, scaleX: 1, scaleY: 1, alpha: 1, duration: 120, ease: 'Back.easeOut' });
+    this.tweens.add({ targets: c, alpha: 0, delay: 1300, duration: 250, onComplete: () => (c.destroy(), this.popup === c && (this.popup = null)) });
   }
 
   private popText(text: string, x: number, y: number, color: string): void {
