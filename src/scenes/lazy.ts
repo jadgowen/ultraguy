@@ -19,6 +19,7 @@ const LOADERS: Record<string, () => Promise<new () => Phaser.Scene>> = {
   dungeon: () => import('./DungeonScene').then((m) => m.DungeonScene),
   arena: () => import('./ArenaScene').then((m) => m.ArenaScene),
   trench: () => import('./TrenchScene').then((m) => m.TrenchScene),
+  creator: () => import('./CreatorScene').then((m) => m.CreatorScene),
 };
 
 const pending = new Map<string, Promise<void>>();

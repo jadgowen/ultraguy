@@ -1,0 +1,234 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<title>THE CREATOR design mockups</title>
+<style>
+  body { margin: 0; background: #0b0d1a; color: #fff1e0; font: 14px/1.4 ui-monospace, Menlo, monospace; }
+  h1 { font-size: 18px; color: #f28c28; margin: 16px 20px 4px; }
+  p.lead { margin: 0 20px 12px; color: #8a8fa8; max-width: 1000px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(420px, 1fr)); gap: 14px; padding: 0 20px 24px; }
+  .card { background: #141626; border: 2px solid #3a3f66; border-radius: 6px; padding: 12px; }
+  .card h2 { margin: 0; font-size: 15px; color: #5ef0c8; }
+  .card .tag { color: #8a8fa8; font-size: 12px; margin: 2px 0 8px; }
+  canvas { image-rendering: pixelated; border-radius: 3px; display: block; }
+  .row { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 8px; }
+  .row div { font-size: 11px; color: #8a8fa8; text-align: center; }
+</style>
+</head>
+<body>
+<h1>THE CREATOR: design mockups</h1>
+<p class="lead">The final form: a huge floating head, from the reference photo (short tousled dark hair receding at
+the temples, blue-grey rectangular glasses, a full dark beard with red in it
+and grey under the lip, a broad face). Drawn at 96x104 on the bosses' shaded
+style, shown 4x. Each card animates: blinking, talking, and the glasses' glint. The bottom card shows the size in
+the battle (427x240) beside the party.</p>
+<div class="grid" id="grid"></div>
+<script src="kit.js"></script>
+<script>
+const W = 96, H = 104, S = 4;
+const PAL = {
+  K: '#1a1428', W: '#ffffff', x: '#120e1e',
+  // hair: dark brown, a bit tousled
+  A: '#7a5a42', a: '#5a3e2c', H: '#3e2a1e', h2: '#2a1c14',
+  // skin (fair, a little ruddy)
+  S: '#ffe4d2', s: '#f4c6ac', T: '#e2a48a', t: '#c4806c', u: '#9a5e56', P: '#e8928a', p: '#cc7270',
+  // beard: dark brown with red in it, grey at the chin
+  B: '#8a5c3e', b: '#6a4430', N: '#4e3022', n: '#36201a', g: '#a89a90', q: '#7a6a62',
+  // brows, eyes
+  O: '#3a281c', E: '#3a5a7a', e2: '#1e2a36', w: '#e8e4ec',
+  // glasses: blue-grey translucent frames, screen glow reflected in the lenses
+  F: '#8a9ac0', f: '#5a6a92', G: '#3a4668', L: '#8a7aff', l: '#5a5ad8',
+  // menace glow, mouth
+  R: '#ff5050', Y: '#ffe14a', M: '#5a2030', m: '#2a1018', Z: '#f4f0f0',
+};
+
+/** Shade a region like a lit ball: light from the upper left (or from below, for the menacing look). */
+function shaded(b, inside, cx, cy, rx, ry, ramp, below = false) {
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!inside(x + 0.5, y + 0.5)) continue;
+    const nx = (x + 0.5 - cx) / rx, ny = (y + 0.5 - cy) / ry;
+    const lx = below ? 0.1 : -0.55, ly = below ? 0.75 : -0.6;
+    const k = -(nx * lx + ny * ly) + 0.25 * (1 - Math.min(1, nx * nx + ny * ny));
+    const i = k > 0.62 ? 0 : k > 0.22 ? 1 : k > -0.2 ? 2 : k > -0.55 ? 3 : 4;
+    b.px(x, y, ramp[Math.min(i, ramp.length - 1)]);
+  }
+}
+
+/** A squarer oval than an ellipse (n > 2): broad, not round. */
+const superEllipse = (cx, cy, rx, ry, n) => (x, y) => Math.abs((x - cx) / rx) ** n + Math.abs((y - cy) / ry) ** n <= 1;
+
+function head(P) {
+  const b = new Buf(W, H, PAL);
+  const below = P.style === 'menace';
+  const skin = below ? ['T', 't', 't', 'u', 'u'] : ['S', 's', 's', 'T', 't'];
+  const beard = below ? ['b', 'N', 'n', 'n', 'x'] : ['B', 'b', 'N', 'n', 'n'];
+  const hair = below ? ['a', 'H', 'h2', 'h2', 'x'] : ['A', 'a', 'H', 'h2', 'h2'];
+  const cx = 48;
+  const hash = (x, y) => Math.abs(Math.sin(x * 12.9898 + y * 78.233) * 43758.5453) % 1;
+  // Ears.
+  for (const ex of [17, 79]) shaded(b, ellipse(ex, 54, 5, 8), ex, 54, 6, 9, skin, below);
+  // The face: broad, a squared-off oval, a high forehead.
+  const face = superEllipse(cx, 54, 31, 40, 2.6);
+  shaded(b, face, cx, 48, 31, 42, skin, below);
+  // Hair: short, dark, tousled on top, receding at the temples.
+  // A high forehead: the hairline sits at the top in the middle, recedes at the temples,
+  // then drops down the sides (short hair over the ears).
+  const hairline = (x) => {
+    const d = Math.abs(x - cx);
+    return d < 7 ? 19 : d < 15 ? 19 - (d - 7) * 0.5 : d < 23 ? 15 + (d - 15) * 1.6 : 27.8 + (d - 23) * 2.6;
+  };
+  const hairShape = (x, y) => superEllipse(cx, 52, 33, 44, 2.4)(x, y) && y < hairline(x) && y < 46;
+  shaded(b, hairShape, cx - 6, 14, 33, 20, hair, below);
+  // The beard: full and long, from the sideburns down past the jaw.
+  const line = (x) => 66 - 12 * ((x - cx) / 30) ** 2;
+  const beardShape = (x, y) => {
+    const lower = (superEllipse(cx, 64, 33, 36, 2.4)(x, y) || superEllipse(cx, 88, 26, 14, 2.2)(x, y)) && y > line(x);
+    const side = (x < 24 || x > 72) && y > 44 && face(x, y);
+    return lower || side;
+  };
+  shaded(b, beardShape, cx, 72, 30, 28, beard, below);
+  // Texture: wiry light strands; grey in the patch under the lip and at the chin.
+  for (let y = 44; y < H; y++) for (let x = 0; x < W; x++) {
+    if (!beardShape(x + 0.5, y + 0.5)) continue;
+    const r = hash(x, y);
+    if (r < 0.035 && beardShape(x + 0.5, y + 1.5)) { b.px(x, y, beard[0]); b.px(x, y + 1, beard[1]); }
+    else if (r > 0.985 - (y > 86 ? 0.03 : 0)) b.px(x, y, below ? 'q' : 'g');
+  }
+  for (let x = 25; x < 72; x += 2) if (hash(x, 1) > 0.35) b.px(x, 102 - Math.round(((x - cx) / 24) ** 2 * 8), beard[2]);
+  // The nose: broad, a round tip, nostrils.
+  shaded(b, superEllipse(cx, 61, 7, 6, 2.2), cx - 2, 58, 7, 6, skin, below);
+  // Its shadow side and underside, so it stands out from the face.
+  b.line([[cx + 2, 50], [cx + 3, 56], [cx + 6, 59], [cx + 6, 63]], 't');
+  b.line([[cx - 5, 64], [cx - 2, 66], [cx + 2, 66], [cx + 5, 64]], 'u');
+  b.px(cx - 3, 58, 'S'); b.px(cx - 2, 58, 'S'); b.px(cx - 3, 59, 'S');
+  b.px(cx - 4, 65, 'u'); b.px(cx + 4, 65, 'u'); b.px(cx - 3, 65, 't'); b.px(cx + 3, 65, 't');
+  // The mustache: thick, over the lip, curving down into the beard.
+  const stache = (x, y) => Math.abs(x - cx) < 14 && y > 66 + ((x - cx) / 14) ** 2 && y < 71.5 + ((x - cx) / 14) ** 2 * 4;
+  shaded(b, stache, cx, 67, 14, 5, below ? ['n', 'x', 'x', 'x', 'x'] : ['b', 'N', 'n', 'n', 'x'], below);
+  // The mouth: a straight, set line with the lower lip under it; open when he talks.
+  if (P.talk > 0) {
+    const open = 1 + Math.round(P.talk * 4);
+    for (let y = 72; y < 72 + open; y++) for (let x = cx - 6 + (y - 72); x <= cx + 6 - (y - 72); x++) b.px(x, y, y === 72 ? 'm' : 'M');
+    if (open > 2) b.rect(cx - 3, 72, 7, 1, 'Z');
+  } else {
+    const curl = P.style === 'smile' ? 1 : 0;
+    b.line([[cx - 6, 72 - curl], [cx - 4, 72], [cx + 4, 72], [cx + 6, 72 - curl]], below ? 'x' : 'm');
+    if (!below) { b.line([[cx - 4, 73], [cx + 4, 73]], 'P'); b.line([[cx - 3, 74], [cx + 3, 74]], 'p'); }
+  }
+  // The grey patch under the lip.
+  for (let y = 76; y < 84; y++) for (let x = cx - 4; x <= cx + 4; x++) if (ellipse(cx, 79.5, 4, 4)(x + 0.5, y + 0.5) && (x + y) % 3 === 0) b.px(x, y, below ? 'q' : 'q');
+  // Brows: thick and dark, nearly straight.
+  const tilt = below ? 2 : 0;
+  for (const [x0, x1, sg] of [[26, 42, 1], [54, 70, -1]]) {
+    for (const dy of [0, 1, 2]) b.line([[x0, 41 + dy - tilt * sg + (dy === 2 ? 0 : 0)], [x1, 40 + dy + tilt * sg]], dy === 2 ? 'H' : 'O');
+  }
+  // Eyes: open and steady (a blink now and then), or burning red.
+  for (const ex of [35, 61]) {
+    if (below) {
+      b.rect(ex - 4, 48, 8, 3, 'R');
+      b.rect(ex - 2, 49, 4, 1, 'Y');
+    } else if (P.blink) {
+      b.line([[ex - 4, 49], [ex + 4, 49]], 'e2');
+    } else {
+      b.rect(ex - 4, 48, 9, 3, 'w');
+      b.rect(ex - 1, 47, 3, 4, 'E');
+      b.px(ex, 48, 'e2'); b.px(ex, 49, 'e2');
+      b.line([[ex - 4, 47], [ex + 4, 47]], 'e2');
+      b.line([[ex - 3, 51], [ex + 3, 51]], 't');
+    }
+  }
+  // Glasses: blue-grey translucent rectangles, clear lenses.
+  for (const lx of [23, 51]) {
+    const r = rrect(lx, 43, lx + 22, 56, 2);
+    const inner = rrect(lx + 2, 45, lx + 20, 54, 1);
+    for (let y = 42; y < 58; y++) for (let x = lx - 1; x < lx + 24; x++) {
+      if (!r(x + 0.5, y + 0.5) || inner(x + 0.5, y + 0.5)) continue;
+      b.px(x, y, y < 45 ? 'F' : y > 54 ? 'G' : 'f');
+    }
+  }
+  b.rect(45, 45, 6, 2, 'f');
+  b.rect(18, 46, 5, 2, 'G'); b.rect(73, 46, 5, 2, 'G');
+  if (P.glint >= 0 && P.glint < 1) {
+    const gx = 24 + P.glint * 52;
+    for (let i = 0; i < 8; i++) { b.px(gx + i - 4, 54 - i, 'W'); b.px(gx + i - 3, 54 - i, 'W'); }
+  }
+  b.outline();
+  return b;
+}
+
+function poseAt(style, f) {
+  const talking = style !== 'smile' ? Math.max(0, Math.sin(f * 0.35)) * (Math.floor(f / 80) % 2) : 0;
+  return { style, f, talk: talking, blink: f % 150 > 144, glint: ((f % 220) - 150) / 30 };
+}
+
+const designs = [
+  { name: 'A. THE CREATOR (warm)', tag: 'Lit from above: the grin from the photo. For his monologue and the 33% phase.', style: 'smile' },
+  { name: 'B. THE CREATOR (speaking)', tag: 'Same face, mouth animating while lines type out; the glint crosses his glasses now and then.', style: 'talk' },
+  { name: 'C. THE CREATOR (menacing)', tag: 'Lit from below by the CRT glow, brows down, lenses burning red. For the opening of tier 4.', style: 'menace' },
+];
+const grid = document.getElementById('grid');
+const draws = [];
+for (const d of designs) {
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = `<h2>${d.name}</h2><div class="tag">${d.tag}</div>`;
+  const big = document.createElement('canvas'); big.width = W * S; big.height = H * S; card.appendChild(big);
+  grid.appendChild(card);
+  const ctx = big.getContext('2d');
+  draws.push((f) => {
+    ctx.clearRect(0, 0, big.width, big.height);
+    const bg = ctx.createRadialGradient(big.width / 2, big.height * 0.6, 20, big.width / 2, big.height * 0.6, big.width * 0.7);
+    bg.addColorStop(0, d.style === 'menace' ? '#3a1420' : '#1c2a44');
+    bg.addColorStop(1, '#0a0b14');
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, big.width, big.height);
+    const y = Math.sin(f * 0.04) * 2 * S;
+    head(poseAt(d.style, f)).draw(ctx, 0, Math.round(y), S);
+    if (d.style === 'menace') glowAt(ctx, big.width / 2, big.height + 20, 260, '90,240,200', 0.18);
+  });
+}
+// In the battle: the head over the void, the party below right (FF style).
+{
+  const card = document.createElement('div');
+  card.className = 'card';
+  card.style.gridColumn = '1 / -1';
+  card.innerHTML = `<h2>In the battle (427x240, shown 2x)</h2><div class="tag">The head floats on the left over a void of relics; UltraGuy and Pip stand on the right, FF6 style.</div>`;
+  const cv = document.createElement('canvas'); cv.width = 427 * 2; cv.height = 240 * 2; card.appendChild(cv);
+  grid.appendChild(card);
+  const ctx = cv.getContext('2d');
+  const hero = new Image(); hero.src = '/assets/hero.png';
+  let meta = null; fetch('/assets/hero.json').then((r) => r.json()).then((j) => (meta = j)).catch(() => {});
+  draws.push((f) => {
+    ctx.fillStyle = '#07070e'; ctx.fillRect(0, 0, cv.width, cv.height);
+    // Floating relics: CRTs and cartridges drifting.
+    for (let i = 0; i < 14; i++) {
+      const x = ((i * 71 + f * (0.2 + (i % 3) * 0.1)) % 460) * 2 - 40;
+      const yy = (30 + ((i * 47) % 170)) * 2 + Math.sin(f * 0.03 + i) * 6;
+      ctx.fillStyle = i % 2 ? '#1c1f36' : '#2a2140';
+      if (i % 3 === 0) { ctx.fillRect(x, yy, 28, 22); ctx.fillStyle = '#3a6a8a'; ctx.fillRect(x + 4, yy + 4, 20, 13); }
+      else { ctx.fillRect(x, yy, 20, 26); ctx.fillStyle = '#55607a'; ctx.fillRect(x + 3, yy + 3, 14, 8); }
+    }
+    glowAt(ctx, 150 * 2, 140 * 2, 220, '90,240,200', 0.12);
+    head(poseAt('talk', f)).draw(ctx, 40 * 2, 30 * 2 + Math.round(Math.sin(f * 0.04) * 4), 2);
+    // Party, on the right.
+    if (meta && hero.complete) {
+      const fr = meta.frames?.idle_s ?? meta.frames?.idle ?? Object.values(meta.frames ?? {})[0];
+      if (fr && fr.frame) ctx.drawImage(hero, fr.frame.x, fr.frame.y, fr.frame.w, fr.frame.h, 330 * 2, 130 * 2, fr.frame.w * 2, fr.frame.h * 2);
+    } else {
+      ctx.fillStyle = '#f28c28'; ctx.fillRect(330 * 2, 130 * 2, 24 * 2, 30 * 2);
+    }
+    ctx.fillStyle = '#5ef0c8'; ctx.beginPath(); ctx.arc(365 * 2, 112 * 2, 7 * 2, 0, Math.PI * 2); ctx.fill();
+    // The battle window.
+    ctx.fillStyle = 'rgba(10,12,24,0.92)'; ctx.fillRect(8 * 2, 184 * 2, 411 * 2, 50 * 2);
+    ctx.strokeStyle = '#5ef0c8'; ctx.lineWidth = 2; ctx.strokeRect(8 * 2, 184 * 2, 411 * 2, 50 * 2);
+    ctx.fillStyle = '#fff1e0'; ctx.font = '16px ui-monospace, monospace';
+    ctx.fillText('THE CREATOR', 18 * 2, 200 * 2);
+    ctx.fillText('ULTRAGUY  HP 28/28  [====ATB====]', 190 * 2, 200 * 2);
+    ctx.fillText('PIP       HP 14/14  [====ATB==  ]', 190 * 2, 216 * 2);
+  });
+}
+let f = 0;
+(function loop() { f++; for (const d of draws) d(f); requestAnimationFrame(loop); })();
+</script>
+</body>
+</html>

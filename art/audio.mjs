@@ -320,6 +320,58 @@ for (const [name, [mood, ms]] of Object.entries(JINGLES)) {
   );
 }
 
+// Finale: the painted final battle against the creator. Epic orchestral, NOT chiptune.
+const STYLE_FINALE = 'cinematic epic orchestral score, full symphony orchestra, high production value, original composition, no chiptune, no 8-bit';
+const retry = async (fn) => { try { return await fn(); } catch (e) { console.log(`(retrying after: ${e.message}) `); return fn(); } };
+const FINALE = {
+  ascension: ['Driving epic orchestral and rock battle theme for a multi-phase final boss in a 1990s Japanese RPG, pipe-organ stabs, pounding timpani, wordless choir pads, distorted electric guitars, full soaring strings, relentless, dark and heroic, seamless loop', 150000],
+  memories: ['Gentle nostalgic bittersweet piano and music-box piece with soft warm strings, reflective and tender, the feeling of looking back on a long adventure at the end of a game, slow tempo, seamless loop', 120000],
+};
+for (const [name, [mood, ms]] of Object.entries(FINALE)) {
+  await job('music', name, () =>
+    retry(() => post('/music', { prompt: `${mood}. ${STYLE_FINALE}.`, music_length_ms: ms, force_instrumental: true, model_id: 'music_v1' })),
+  );
+}
+// The creator's final form: choir chanting original Latin-style lyrics (written for this game).
+// Uses a music_v1 composition_plan so the lyrics go in section lines; takes differ only by seed.
+const CREATOR_LYRICS = ['CONDITOR, CONDITOR, LUDUS SINE FINE.', 'MEMORIA PUERI, LUX IN TENEBRIS.', 'CREATURA SURGIT, CONDITOR CADIT.'];
+const creatorPlan = (lines) => ({
+  positive_global_styles: ['epic operatic orchestral', 'apocalyptic final boss battle', 'full mixed choir chanting in Latin', 'distorted electric guitars', 'pounding timpani', 'pipe organ', 'cinematic, huge'],
+  negative_global_styles: ['chiptune', '8-bit', 'pop vocals', 'solo singer', 'rap', 'lo-fi'],
+  sections: [
+    { section_name: 'Intro', positive_local_styles: ['ominous pipe organ', 'low strings', 'rising timpani rolls'], negative_local_styles: ['vocals'], duration_ms: 20000, lines: [] },
+    { section_name: 'Chant', positive_local_styles: ['massive choir chant', 'full orchestra', 'distorted guitars', 'driving tempo'], negative_local_styles: [], duration_ms: 40000, lines: lines.slice(0, 2) },
+    { section_name: 'Battle', positive_local_styles: ['relentless orchestral rock', 'organ stabs', 'choir shouts', 'brass'], negative_local_styles: [], duration_ms: 40000, lines: lines.slice(1, 3) },
+    { section_name: 'Choir alone', positive_local_styles: ['quiet a cappella choir only', 'sacred, haunting', 'reverberant cathedral'], negative_local_styles: ['drums', 'guitars', 'orchestra'], duration_ms: 25000, lines: lines.slice(0, 2) },
+    { section_name: 'Climax', positive_local_styles: ['huge climax', 'full choir fortissimo', 'full orchestra and guitars', 'thundering timpani and organ'], negative_local_styles: [], duration_ms: 40000, lines },
+    { section_name: 'Finale', positive_local_styles: ['final sustained choir chord', 'organ', 'timpani hits'], negative_local_styles: [], duration_ms: 15000, lines: lines.slice(2) },
+  ],
+});
+const CREATOR_WORDLESS = ['Ahh ohh, ahh ohh, ahh ohh ahh.', 'Ohh ahh, ohh ahh, ohh ahh ohh.', 'Ahh ohh ahh, ohh ahh ohh.'];
+const CREATOR_TAKES = { creator: 101, creator_b: 202, creator_c: 303 };
+let creatorWordless = false;
+for (const [name, seed] of Object.entries(CREATOR_TAKES)) {
+  await job('music', name, async () => {
+    if (!creatorWordless) {
+      try {
+        return await retry(() => post('/music', { composition_plan: creatorPlan(CREATOR_LYRICS), seed, model_id: 'music_v1' }));
+      } catch (e) {
+        console.log(`(lyrics rejected: ${e.message}; falling back to wordless choir) `);
+        creatorWordless = true;
+      }
+    }
+    return retry(() => post('/music', { composition_plan: creatorPlan(CREATOR_WORDLESS), seed, model_id: 'music_v1' }));
+  });
+}
+// creator_a is the same take as creator (kept so all three alternates are listed).
+if (wanted('creator_a') || wanted('creator')) {
+  const src = join(OUT, 'music_creator.mp3');
+  if (existsSync(src)) {
+    writeFileSync(join(OUT, 'music_creator_a.mp3'), readFileSync(src));
+    manifest.music.creator_a = 'music_creator_a.mp3';
+  }
+}
+
 for (const [name, [voice, text]] of Object.entries(VOICE)) {
   await job('voice', name, () => post(`/text-to-speech/${voice}`, { text, model_id: 'eleven_multilingual_v2' }));
 }

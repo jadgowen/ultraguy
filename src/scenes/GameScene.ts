@@ -201,7 +201,7 @@ export class GameScene extends Phaser.Scene {
   /** Counts down after the last life is lost, then back to the select screen. */
   private gameOverT = 0;
   /** Rematch room: capsules, which are done, and a teleport in progress. */
-  private capsules: { box: Box; sprite: Phaser.GameObjects.Image; kind: BossKind; done: boolean }[] = [];
+  private capsules: { box: Box; sprite: Phaser.GameObjects.Image; kind: BossKind; done: boolean; icon: Phaser.GameObjects.Image }[] = [];
   /**
    * The teleport beam running right now (stage start, respawn, the Boss Hall's
    * capsules), and what to do when it's done. Play waits for it.
@@ -216,8 +216,10 @@ export class GameScene extends Phaser.Scene {
   /** Upgrade capsule (armor part) in this stage, and the pickup sequence timer. */
   private upgradeItem: { box: Box; sprite: Phaser.GameObjects.Image; icon: Phaser.GameObjects.Image; taken: boolean } | null = null;
   private partGetT = 0;
-  private weaponLabel!: PixelText;
-  private weaponLabelT = 0;
+  /** The small title card that slides in at the top (pickups, weapon names, events). */
+  private card: { c: Phaser.GameObjects.Container; t: number; life: number } | null = null;
+  /** The title-card stripe behind the big centered banner (READY, STAGE CLEAR, YOU GOT...). */
+  private bannerBack!: Phaser.GameObjects.Graphics;
   private bossDeathT = 0;
   /** Weapons earned so far (from the save). */
   private unlocked: WeaponId[] = ['buster'];
@@ -342,7 +344,7 @@ export class GameScene extends Phaser.Scene {
     this.hallArenaStage = null;
     this.hubSpot = null;
     this.hitStop = 0;
-    this.weaponLabelT = 0;
+    this.card = null;
     this.upgradeItem = null;
     this.partGetT = 0;
     this.bossDeathT = 0;
@@ -518,13 +520,10 @@ export class GameScene extends Phaser.Scene {
       .forEach((t, i) => {
         const kind = REMATCH_ORDER[i % REMATCH_ORDER.length];
         const sprite = this.add.image(t.x, t.y, 'capsule_on').setOrigin(0.5, 1).setDepth(3);
-        this.capsules.push({ box: { x: t.x - 8, y: t.y - 28, w: 16, h: 28 }, sprite, kind, done: false });
-        pixelText(this, t.x, t.y - 38, BOSS_NAMES[kind] ?? '', { fontFamily: 'monospace', fontSize: '7px', color: '#c8ccd8' }).setOrigin(0.5).setDepth(3);
+        // Over each capsule, its boss in miniature (no labels): greyed once beaten.
+        const icon = this.add.image(t.x, t.y - 31, `${kind}_idle`).setOrigin(0.5, 1).setScale(0.5).setDepth(3);
+        this.capsules.push({ box: { x: t.x - 8, y: t.y - 28, w: 16, h: 28 }, sprite, kind, done: false, icon });
       });
-    if (this.capsules.length) {
-      const hub = this.level.playerStart;
-      pixelText(this, hub.x + 140, hub.y - 120, 'UP in a capsule to rematch a boss', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' }).setOrigin(0.5).setDepth(3);
-    }
     this.goalSprite?.setVisible(!this.capsules.length);
     // Upgrade capsule: holds this stage's armor part until it's found.
     const up = this.level.upgrade;
@@ -547,10 +546,7 @@ export class GameScene extends Phaser.Scene {
       .setDepth(60);
     this.makePip();
     this.pauseLayer = this.add.container(0, 0).setScrollFactor(0).setDepth(70).setVisible(false);
-    this.weaponLabel = pixelText(this, 12, 80, '', { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0', stroke: '#000000', strokeThickness: 2 })
-      .setScrollFactor(0)
-      .setDepth(60)
-      .setVisible(false);
+    this.bannerBack = this.add.graphics().setScrollFactor(0).setDepth(59);
 
     playMusic(this, stageMusic(stage));
     // Back from a special-mode boss fight: either carry on to the reward, or
@@ -710,7 +706,7 @@ export class GameScene extends Phaser.Scene {
     }
     this.tileFx?.step(++this.fxFrame, { x: this.camX, y: this.camY, w: VIEW_W, h: VIEW_H });  // tiles keep living through cards and intros
     this.stepIceCracks();
-    if (this.weaponLabelT > 0 && --this.weaponLabelT === 0) this.weaponLabel.setVisible(false);
+    this.stepCard();
 
     if (this.clearTimer > 0) {
       this.stepEffects();
@@ -856,6 +852,7 @@ export class GameScene extends Phaser.Scene {
 
     const cam = this.cameras.main;
     cam.setScroll(Math.round(this.camX), Math.round(this.camY));
+    this.drawBannerBack();
     for (const b of this.bgLayers) b.sprite.tilePositionX = Math.round(this.camX * b.factor);
     this.drawHud();
   }
@@ -1604,7 +1601,7 @@ export class GameScene extends Phaser.Scene {
     };
     this.boss = createBoss(kind, this, at, this.bossRoom);
     this.beginBossIntro(this.boss);
-    playMusic(this, kind === 'overlord' ? 'finalboss' : 'boss');
+    playMusic(this, kind === 'overlord' || kind === 'shade' ? 'finalboss' : 'boss');
   }
 
   // --- boss intro ---------------------------------------------------------------
@@ -1716,6 +1713,7 @@ export class GameScene extends Phaser.Scene {
         if (!won.has(i)) return;
         c.done = true;
         c.sprite.setTexture('capsule_off');
+        c.icon.setTint(0x55607a).setAlpha(0.7);
       });
       const c = this.capsules[r.step];
       if (c) this.checkpoint = { x: c.box.x + c.box.w / 2, y: c.box.y + c.box.h };
@@ -2067,7 +2065,7 @@ export class GameScene extends Phaser.Scene {
       this.shake(8);
       sfx.die();
       // A stage boss down: the victory jingle (it carries on through the weapon get).
-      if (!(boss instanceof Miniboss) && boss.kind !== 'overlord') playJingle(this, 'jingle_victory');
+      if (!(boss instanceof Miniboss) && boss.kind !== 'overlord' && !(boss.kind === 'shade' && this.stageId === 'finale')) playJingle(this, 'jingle_victory');
       boss.sprite.setVisible(false);
     } else if (t === 170) {
       boss.destroy();
@@ -2075,6 +2073,13 @@ export class GameScene extends Phaser.Scene {
       this.bossDeathT = 0;
       this.drawShadeRing(null);
       // The final boss has a second phase: Shade drops in once the machine is gone.
+      // The Throne: Shade is gone, and something else is waiting (the creator battle).
+      if (this.stageId === 'finale' && boss.kind === 'shade' && !this.exMode) {
+        this.bossDefeated = true;
+        stopMusic(1200);
+        pixelateOut(this, 1400, () => startScene(this, 'creator'));
+        return;
+      }
       if (boss.kind === 'overlord' && this.level.boss && this.bossRoom) {
         this.boss = createBoss('shade', this, this.level.boss, this.bossRoom);
         this.beginBossIntro(this.boss);
@@ -2095,6 +2100,7 @@ export class GameScene extends Phaser.Scene {
         if (c) {
           c.done = true;
           c.sprite.setTexture('capsule_off');
+          c.icon.setTint(0x55607a).setAlpha(0.7);
         }
         this.player.heal(10);
         this.beamToHub();
@@ -2843,9 +2849,51 @@ export class GameScene extends Phaser.Scene {
     return true;
   }
 
-  private flashLabel(text: string): void {
-    this.weaponLabel.setText(text).setVisible(true);
-    this.weaponLabelT = 70;
+  /**
+   * A small title card: a dark slanted stripe edged in teal with chevrons, the
+   * text centered, sliding in from the right, holding, and sliding off left.
+   */
+  private flashLabel(text: string, accent = 0x5ef0c8): void {
+    this.card?.c.destroy();
+    const w = Math.max(120, text.length * 6 + 64);
+    const h = 18;
+    const x0 = (VIEW_W - w) / 2;
+    const y = 30;
+    const g = this.add.graphics();
+    g.fillStyle(0x1a1428, 0.92).fillPoints([{ x: x0 + 8, y }, { x: x0 + w, y }, { x: x0 + w - 8, y: y + h }, { x: x0, y: y + h }], true);
+    g.fillStyle(accent).fillRect(x0 + 6, y, w - 6, 1).fillRect(x0, y + h - 1, w - 6, 1);
+    for (let i = 0; i < 2; i++) {
+      g.fillPoints([{ x: x0 + 12 + i * 6, y: y + 4 }, { x: x0 + 15 + i * 6, y: y + 4 }, { x: x0 + 12 + i * 6, y: y + h - 4 }, { x: x0 + 9 + i * 6, y: y + h - 4 }], true);
+      g.fillPoints([{ x: x0 + w - 15 - i * 6, y: y + 4 }, { x: x0 + w - 12 - i * 6, y: y + 4 }, { x: x0 + w - 15 - i * 6, y: y + h - 4 }, { x: x0 + w - 18 - i * 6, y: y + h - 4 }], true);
+    }
+    const t = pixelText(this, VIEW_W / 2, y + 5, text, { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0' }).setOrigin(0.5, 0);
+    const c = this.add.container(VIEW_W, 0, [g, t]).setScrollFactor(0).setDepth(58);
+    this.card = { c, t: 0, life: 90 };
+  }
+
+  private stepCard(): void {
+    const k = this.card;
+    if (!k) return;
+    k.t++;
+    const ease = (v: number) => 1 - (1 - Math.min(1, Math.max(0, v))) ** 3;
+    k.c.x = k.t < 12 ? VIEW_W * (1 - ease(k.t / 12)) : k.t > k.life - 12 ? -VIEW_W * ease((k.t - (k.life - 12)) / 12) : 0;
+    if (k.t >= k.life) {
+      k.c.destroy();
+      this.card = null;
+    }
+  }
+
+  /** Behind the big banner: a full-width stripe, edged in gold, sized to what it says. */
+  private drawBannerBack(): void {
+    const g = this.bannerBack.clear();
+    const b = this.banner;
+    if (!b.visible || !b.text.trim()) return;
+    const r = b.getBounds();
+    const top = Math.round(r.y - 8);
+    const h = Math.round(r.height + 16);
+    g.fillStyle(0x1a1428, 0.86).fillRect(0, top, VIEW_W, h);
+    g.fillStyle(0xf28c28).fillRect(0, top, VIEW_W, 2).fillRect(0, top + h - 2, VIEW_W, 2);
+    g.fillStyle(0xf28c28, 0.5).fillRect(0, top + 3, VIEW_W, 1).fillRect(0, top + h - 4, VIEW_W, 1);
   }
 
   /**

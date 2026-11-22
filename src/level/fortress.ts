@@ -270,8 +270,9 @@ export const FINALE: StageData = {
   name: 'THRONE',
   tagline: 'THE LAST DOOR',
   theme: 'fortress',
-  boss: 'overlord',
-  bossName: 'OVERLORD',
+  // Just Shade now: when it falls, the creator battle begins (CreatorScene).
+  boss: 'shade',
+  bossName: 'SHADE',
   layout: ['AB|XY'],
   screens: {
     A: [...rows(CEIL, 6), ...rows(SKY, 6), '..P.............', FLOOR, FLOOR],
@@ -319,12 +320,13 @@ export const GAUNTLET: StageData = {
   name: 'BOSS HALL',
   tagline: 'ALL EIGHT, ONE MORE TIME',
   theme: 'fortress',
-  layout: ['ABC', ...rematchRows],
+  layout: ['AB', ...rematchRows],
   rematchArenas: ARENA_SOURCES.map(({ kind, stage }, i) => ({ kind, stage: stage.id, row: i + 1 })),
   screens: {
-    A: [CEIL, CEIL, ...rows(SKY, 10), '.P...T..T..T..T.', FLOOR, FLOOR],
-    B: [CEIL, CEIL, ...rows(SKY, 10), '.T..T..T..T.....', FLOOR, FLOOR],
-    C: [CEIL, CEIL, ...rows(SKY, 10), '.............*.#', FLOOR, FLOOR],
+    // One room, all eight in view: four capsules on the floor and four on floating
+    // ledges between them (a short hop up), zigzagging left to right; the exit at the end.
+    A: [CEIL, CEIL, ...rows(SKY, 8), '.......T.....T..', '......CCC...CCC.', '.P..T.....T.....', FLOOR, FLOOR],
+    B: [CEIL, CEIL, ...rows('...............#', 8), '...T.....T.....#', '..CCC...CCC....#', 'T.....T......*.#', FLOOR, FLOOR],
     ...rematchScreens,
   },
 };

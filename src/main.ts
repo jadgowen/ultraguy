@@ -25,7 +25,9 @@ const game = new Phaser.Game({
   height: VIEW_H,
   pixelArt: true, // nearest-neighbor scaling keeps pixels crisp
   roundPixels: true,
-  backgroundColor: '#000000',
+  // Transparent, so the finale's painted art (a web layer behind the canvas, at full
+  // resolution) shows through; the page behind is black, so everything else looks the same.
+  transparent: true,
   input: { gamepad: true },
   // Stretch to fill the window (exact on 16:9; letterboxed otherwise).
   scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },

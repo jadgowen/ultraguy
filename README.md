@@ -15,7 +15,20 @@ Title -> save select (3 slots; X twice erases one) -> intro stage (DOWNTOWN, bos
 Each boss gives a weapon; weaknesses form a loop. Beat all 8 and the FORTRESS opens in the middle of
 boss select: three fortress stages, each ending with a guardian boss (GATEKEEPER,
 ABYSS EYE, SPIRE WARDEN; no weapon reward), the BOSS HALL (eight teleporters for harder boss
-refights), then the final boss (OVERLORD, then SHADE).
+refights), then the THRONE: SHADE, and then THE CREATOR.
+
+**The finale** (`src/scenes/CreatorScene.ts`, design notes in `docs/final-boss.md`). When Shade explodes, text
+types out on black ("...the one who made you"), the screen tears like a broken cartridge, and an ATB party battle
+begins in the style of the 16-bit JRPG finales: UltraGuy (FIGHT, WEAPON with the boss weapons, CHARGE, ITEM, GUARD)
+and Pip (on its own: repairs, a barrier before announced attacks, zaps, and a revive every time UltraGuy falls,
+so it can't be lost) against four forms in one battle, the arena changing with each: the Elemental Chimera in a
+four-weather storm, the Iron Idol in a forge void, Black Jared supersized (and his hotdogs) in a warped convenience
+store, and THE CREATOR in the void, casting a spell for each minigame with a memory before it. His last words,
+then a reel of every stage's boss fight, then the cast roll. The forms and backdrops are painted (Krea:
+`art/krea.py`; picks cut out by `art/keyout.cjs`; the CRTs around the creator show real boss-fight shots,
+`art/crt.cjs`) and shown at full screen resolution in a web layer behind the transparent canvas
+(`src/scenes/paintLayer.ts`). Music: ASCENSION (tiers 1-3), THE CREATOR (choir, Latin-style lyrics; takes b and c
+kept as `creator_b`/`creator_c`), MEMORIES (the reel).
 
 **Arcade** (ARCADE on the title menu, `src/scenes/ArcadeScene.ts`, list in `src/arcade.ts`): replay any
 boss's game you've won in the story (all eight stage games and the Gatekeeper's boxing), plus the
@@ -80,7 +93,8 @@ with no life lost (losses don't cost lives, since GAME OVER would mean the whole
 two losses they offer ONE MORE TRY or PUSH PAST (no bolts; they leave, and you settle it at the end of
 the stage). EX rematches start at the boss door, past the challenge.
 
-**Boss Hall.** The eight capsules are platform refights, each in a copy of that boss's own stage arena
+**Boss Hall.** One room with all eight capsules in view (four on the floor, four on ledges between them), each
+with its boss in miniature over it (greyed once beaten). The capsules are platform refights, each in a copy of that boss's own stage arena
 (platforms, belts, springs, water, spikes and all, drawn in the fortress's tiles; `rematchArenas` in
 `fortress.ts`, one layout row each, and arenaFx runs that stage's room effects), a notch harder than in
 their stages (`tier` 1 in `Boss.ts`: about 20% less damage taken, 20% shorter pauses, and their EX
@@ -258,6 +272,10 @@ Four armor parts are hidden in boss stages, each in an upgrade capsule:
 - ARMOR (Stratos, on a ledge only a double jump reaches): a quarter less damage.
 - HELMET (Glacier, behind frozen blocks that Flame Burst melts): life and weapon energy go from 28 to 36.
 Saves from before parts existed that had beaten a boss get all four.
+
+**Title cards.** Event text isn't plain text: pickups, weapon names and events slide in as a small card at the
+top (a dark slanted stripe edged in teal with chevrons, `flashLabel`), and the big callouts (READY, YOU GOT...,
+STAGE CLEAR, HOLD ON!) sit on a full-width stripe edged in gold.
 
 **Teleport beam** (`src/scenes/beam.ts`). UltraGuy beams in after READY (starting a stage, after a
 death) and in and out of the Boss Hall's arenas: a streak of light in his colors drops from the top of
