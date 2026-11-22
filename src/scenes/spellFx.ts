@@ -1,5 +1,4 @@
 import Phaser from 'phaser';
-import type { WeaponId } from '../weapons';
 
 /**
  * UltraGuy's weapons as spells in the finale, drawn like a 16-bit JRPG's magic:
@@ -29,16 +28,20 @@ const rnd = (a: number, b: number) => {
 const ease = (v: number) => 1 - (1 - Math.min(1, Math.max(0, v))) ** 3;
 const flashAt = (k: number, at = HIT_AT) => Math.max(0, 1 - Math.abs(k - at) * 12);
 
-/** Draw `w`'s spell at progress k over the targets. */
-export function drawSpell(add: G, solid: G, w: WeaponId, k: number, targets: SpellTarget[], frame: number): void {
+/** Draw spell `fx` (a weapon's, or an enemy attack's) at progress k over the targets. */
+export function drawSpell(add: G, solid: G, fx: string, k: number, targets: SpellTarget[], frame: number): void {
+  // Screen-wide spells are drawn once, around the first target.
+  if (WIDE[fx]) return void WIDE[fx](add, solid, targets, k, frame);
   targets.forEach((t, i) => {
     // Hit-all spells land on each target a beat apart.
     const kk = Math.min(1, Math.max(0, k * (1 + targets.length * 0.08) - i * 0.08));
-    SPELLS[w]?.(add, solid, t, kk, i, frame);
+    SPELLS[fx]?.(add, solid, t, kk, i, frame);
   });
 }
 
-const SPELLS: Partial<Record<WeaponId, (a: G, s: G, t: SpellTarget, k: number, i: number, f: number) => void>> = {
+type Drawer = (a: G, s: G, t: SpellTarget, k: number, i: number, f: number) => void;
+
+const SPELLS: Record<string, Drawer> = {
   // Ice spikes close in from all sides and lock into a crystal, then it shatters.
   frost(a, _s, t, k, i) {
     const close = ease(k / HIT_AT);
@@ -247,6 +250,208 @@ const SPELLS: Partial<Record<WeaponId, (a: G, s: G, t: SpellTarget, k: number, i
   },
 };
 
+const ENEMY_SPELLS: Record<string, Drawer> = {
+  // Magnetic field lines bending in around it, red and silver, tightening.
+  magnet(a, _s, t, k, i, f) {
+    const pull = ease(k / HIT_AT);
+    for (let n = 0; n < 8; n++) {
+      const side = n % 2 ? 1 : -1;
+      const r = 70 - pull * 46 + n * 3;
+      a.lineStyle(2, n % 4 < 2 ? 0xe83a3a : 0xc8ccd8, 0.8).beginPath();
+      for (let u = 0; u <= 20; u++) {
+        const ang = Math.PI * (u / 20) - Math.PI / 2;
+        const x = t.x + side * Math.cos(ang) * r * 0.6, y = t.y + Math.sin(ang) * r;
+        u === 0 ? a.moveTo(x, y) : a.lineTo(x, y);
+      }
+      a.strokePath();
+    }
+    for (let n = 0; n < 14; n++) {
+      const e = (k * 2 + rnd(n, i)) % 1;
+      const ang = rnd(i, n) * Math.PI * 2;
+      a.fillStyle(0xc8ccd8, 1 - e).fillRect(t.x + Math.cos(ang) * 80 * (1 - e), t.y + Math.sin(ang) * 60 * (1 - e), 3, 2);
+    }
+    if (k > HIT_AT) a.fillStyle(0xe83a3a, 0.3 * (1 - k) / (1 - HIT_AT)).fillCircle(t.x, t.y, 28 + f % 4);
+    hitFlash(a, t, k, 0xe83a3a);
+  },
+  // Ketchup and mustard rain down in globs and splat.
+  splat(a, _s, t, k, i) {
+    for (let n = 0; n < 18; n++) {
+      const start = rnd(n, i) * 0.5;
+      const p = (k - start) / 0.25;
+      if (p < 0) continue;
+      const col = n % 2 ? 0xd8281a : 0xf8d020;
+      const x = t.x + (rnd(i, n) - 0.5) * 70;
+      if (p < 1) a.fillStyle(col, 1).fillCircle(x, t.y - 90 + p * 90, 4);
+      else {
+        const e = Math.min(1, (p - 1) * 2);
+        a.fillStyle(col, 1 - e * 0.6).fillEllipse(x, t.y + 4, 10 + e * 12, 5 + e * 3);
+        for (let d = 0; d < 4; d++) a.fillStyle(col, 1 - e).fillRect(x + (d - 1.5) * 6 * e * 2, t.y - e * 10 * rnd(d, n), 2, 2);
+      }
+    }
+    hitFlash(a, t, k, 0xf8d020);
+  },
+  // Green relish: goo bubbles up around it and drips.
+  relish(a, _s, t, k, i) {
+    for (let n = 0; n < 16; n++) {
+      const e = (k * 1.4 + rnd(n, i)) % 1;
+      const x = t.x + (rnd(n, 3) - 0.5) * 50;
+      a.fillStyle(n % 3 ? 0x6cc04a : 0xa8e070, (1 - e) * 0.9).fillCircle(x, t.y + 20 - e * 50, 3 + rnd(i, n) * 4);
+    }
+    a.fillStyle(0x3a8a2e, 0.4 * Math.min(1, k * 3)).fillEllipse(t.x, t.y + 22, 60, 12);
+    hitFlash(a, t, k, 0x6cc04a);
+  },
+  // Hotdogs streak across at it, one after another.
+  rush(a, _s, t, k, _i) {
+    for (let n = 0; n < 5; n++) {
+      const p = (k - n * 0.1) / 0.3;
+      if (p < 0 || p > 1.4) continue;
+      const x = Phaser.Math.Linear(60, t.x, Math.min(1, p)), y = t.y - 10 + (n - 2) * 8;
+      a.fillStyle(0xf0c880, 0.9).fillEllipse(x, y, 22, 8);
+      a.fillStyle(0xc84a3a, 1).fillEllipse(x, y, 18, 4);
+      a.lineStyle(2, 0xffffff, 0.5 * (1 - p)).lineBetween(x - 40, y, x - 12, y);
+    }
+    hitFlash(a, t, k, 0xe86a50);
+  },
+  // A ball bounces in a zigzag between the walls and into it.
+  ball(a, _s, t, k, _i, f) {
+    const pts: { x: number; y: number }[] = [];
+    for (let u = 0; u <= 30; u++) {
+      const p = Math.min(k / HIT_AT, 1) * (u / 30);
+      const x = Phaser.Math.Linear(40, t.x, p);
+      const y = t.y - 60 + Math.abs(((p * 3) % 2) - 1) * 80;
+      pts.push({ x, y });
+    }
+    a.lineStyle(2, 0xf28c28, 0.6).strokePoints(pts);
+    const head = pts[pts.length - 1];
+    a.fillStyle(0xffffff, 1).fillCircle(head.x, head.y, 4);
+    for (let n = 0; n < 6; n++) a.fillStyle([0xd83a3a, 0xf28c28, 0xf8e040, 0x6cc04a, 0x4a8ae8, 0x8c4ad8][n], 0.8).fillRect(20 + n * 14, 30 + (f % 2), 12, 5);
+    hitFlash(a, t, k, 0xf28c28);
+  },
+  // A slapshot: the puck streaks in with ice spray.
+  puck(a, _s, t, k) {
+    const p = ease(k / HIT_AT);
+    const x = Phaser.Math.Linear(70, t.x, p), y = Phaser.Math.Linear(t.y + 30, t.y, p);
+    if (k < HIT_AT) {
+      a.lineStyle(6, 0x9ee8ff, 0.3).lineBetween(70, t.y + 30, x, y);
+      a.fillStyle(0x1a1428, 1).fillEllipse(x, y, 12, 6);
+      a.fillStyle(0x9ee8ff, 1).fillEllipse(x, y - 1, 12, 2);
+    }
+    for (let n = 0; n < 12; n++) a.fillStyle(0xe6f8ff, 0.7).fillRect(x - n * 6, y + (rnd(n, 1) - 0.5) * 8, 2, 2);
+    hitFlash(a, t, k, 0x9ee8ff);
+  },
+  // A sparkle of gold: Coach Jared in your corner.
+  blessing(a, _s, t, k, i) {
+    for (let n = 0; n < 20; n++) {
+      const e = (k * 1.5 + rnd(n, i)) % 1;
+      const ang = rnd(i, n) * Math.PI * 2;
+      a.fillStyle(n % 2 ? 0xffe14a : 0xffffff, 1 - e).fillRect(t.x + Math.cos(ang) * (10 + e * 30), t.y + 20 - e * 60, 2, 2);
+    }
+    a.lineStyle(2, 0xffe14a, 0.6).strokeEllipse(t.x, t.y + 22, 40 + Math.sin(k * 10) * 4, 10);
+  },
+  // A bomb's fuse fizzing as it lands on you.
+  fuse(a, _s, t, k, _i, f) {
+    const y = Phaser.Math.Linear(t.y - 80, t.y - 10, ease(k / HIT_AT));
+    a.fillStyle(0x3a3a48, 1).fillCircle(t.x, y, 8);
+    a.fillStyle(0x8a8fa8, 1).fillCircle(t.x - 3, y - 3, 2);
+    for (let n = 0; n < 6; n++) a.fillStyle(n % 2 ? 0xffe14a : 0xff7a2a, 1).fillRect(t.x + 6 + (rnd(n, f) - 0.5) * 8, y - 10 + (rnd(f, n) - 0.5) * 8, 2, 2);
+    if (k > HIT_AT) a.lineStyle(2, 0xff7a2a, 1 - k).strokeCircle(t.x, t.y - 10, (k - HIT_AT) * 80);
+  },
+  // A frag: a crosshair locks on, then a blast.
+  crosshair(a, _s, t, k) {
+    const lock = ease(k / HIT_AT);
+    const r = 60 - lock * 44;
+    a.lineStyle(2, 0xd83a4a, 0.9).strokeCircle(t.x, t.y, r);
+    a.lineBetween(t.x - r - 8, t.y, t.x - r + 6, t.y).lineBetween(t.x + r - 6, t.y, t.x + r + 8, t.y);
+    a.lineBetween(t.x, t.y - r - 8, t.x, t.y - r + 6).lineBetween(t.x, t.y + r - 6, t.x, t.y + r + 8);
+    hitFlash(a, t, k, 0xff5050, 1.3);
+  },
+};
+Object.assign(SPELLS, ENEMY_SPELLS);
+
+/** Spells that fill the screen (they ignore where the targets are, mostly). */
+const WIDE: Record<string, (a: G, s: G, ts: SpellTarget[], k: number, f: number) => void> = {
+  // All four elements at once: snow, wind, rain and fire swirling across everything.
+  storm(a, _s, ts, k, f) {
+    for (let n = 0; n < 80; n++) {
+      const col = [0x9ae8ff, 0xd8ffe0, 0x6ab8e8, 0xff7a2a][n % 4];
+      const ang = (n / 80) * Math.PI * 2 + k * 6 + (n % 4) * 0.4;
+      const r = 40 + ((n * 37) % 160) * (0.5 + k * 0.6);
+      a.fillStyle(col, 0.8).fillRect(260 + Math.cos(ang) * r, 110 + Math.sin(ang) * r * 0.45, 3, 3);
+    }
+    for (const t of ts) hitFlash(a, t, k, 0xffffff, 1.6);
+    if (f % 6 < 2 && k > 0.4 && k < 0.8) a.fillStyle(0xffffff, 0.15).fillRect(0, 0, 427, 240);
+  },
+  // Meltdown: the core goes critical, a white-hot sphere swells over the screen.
+  nuke(a, _s, ts, k) {
+    const grow = ease(k / HIT_AT);
+    const cx = 128, cy = 96;
+    a.fillStyle(0xfff4a0, 0.25).fillCircle(cx, cy, 30 + grow * 220);
+    a.fillStyle(0xffffff, 0.35).fillCircle(cx, cy, 20 + grow * 120);
+    for (let r = 0; r < 3; r++) a.lineStyle(3, 0xffe14a, Math.max(0, 1 - k)).strokeCircle(cx, cy, ((k * 2 + r / 3) % 1) * 300);
+    for (const t of ts) hitFlash(a, t, k, 0xfff4a0, 1.5);
+  },
+  // The Works: condiments rain everywhere while fire rolls in underneath.
+  works(a, s, ts, k, f) {
+    for (const t of ts) {
+      SPELLS.splat(a, s, t, k, 0, f);
+      SPELLS.flame(a, s, t, k, 1, f);
+    }
+  },
+  // Squadrons of tiny ships strafe the party, lasers raking across.
+  squadron(a, _s, ts, k, f) {
+    for (let n = 0; n < 8; n++) {
+      const p = (k * 1.6 - n * 0.08) % 1.2;
+      const x = -20 + p * 480, y = 30 + n * 14 + Math.sin(p * 6 + n) * 6;
+      a.fillStyle(0xff5050, 1).fillTriangle(x, y, x - 8, y - 4, x - 8, y + 4);
+      if ((f + n) % 6 < 3 && x > 200) for (const t of ts) a.lineStyle(1, 0xffe14a, 0.7).lineBetween(x, y, t.x + (rnd(n, f) - 0.5) * 20, t.y);
+    }
+    for (const t of ts) hitFlash(a, t, k, 0xff5050);
+  },
+  // Race day: speed lines tear across the screen and your gauges run backward.
+  speed(a, _s, ts, k) {
+    for (let n = 0; n < 30; n++) {
+      const y = rnd(n, 2) * 180 + 10;
+      const x = ((rnd(n, 5) * 427 - k * 1400 * (0.6 + rnd(n, 7))) % 427 + 427) % 427;
+      a.lineStyle(2, n % 3 ? 0xf8e040 : 0xffffff, 0.6).lineBetween(x, y, x + 50 + rnd(n, 9) * 60, y);
+    }
+    for (const t of ts) hitFlash(a, t, k, 0xf8e040);
+  },
+  // Junk maze: walls slide in from the edges and box you in.
+  grid(a, _s, ts, k) {
+    const close = ease(k / HIT_AT);
+    for (const t of ts) {
+      for (let n = 0; n < 4; n++) {
+        const d = 120 - close * 90 + n * 8;
+        a.lineStyle(2, 0xc8ccd8, 0.7 - n * 0.12).strokeRect(t.x - d, t.y - d * 0.7, d * 2, d * 1.4);
+      }
+      hitFlash(a, t, k, 0xc8ccd8);
+    }
+  },
+  // Trench descent: deep water rises over the screen, the light going out.
+  abyss(a, _s, ts, k, f) {
+    const rise = ease(k / HIT_AT);
+    for (let y = 240 - rise * 240; y < 240; y += 6) a.fillStyle(0x0a1a3a, 0.08).fillRect(0, y + Math.sin(y * 0.1 + f * 0.1) * 3, 427, 6);
+    for (let n = 0; n < 16; n++) a.fillStyle(0x9ad8ff, 0.6).fillCircle(rnd(n, 1) * 427, 240 - ((k * 300 + rnd(1, n) * 240) % 240), 2);
+    for (const t of ts) hitFlash(a, t, k, 0x3a78b8);
+  },
+  // Insert coin: a giant coin spins down and slams the floor, a shockwave across everything.
+  coin(a, _s, ts, k, f) {
+    const p = ease(k / HIT_AT);
+    const cx = 300, cy = Phaser.Math.Linear(-40, 150, p);
+    const w = Math.abs(Math.cos(f * 0.25)) * 34 + 4;
+    if (k < HIT_AT + 0.05) {
+      a.fillStyle(0xffe14a, 1).fillEllipse(cx, cy, w, 38);
+      a.fillStyle(0xfff4c0, 1).fillEllipse(cx - w * 0.15, cy - 4, w * 0.4, 22);
+    }
+    if (k > HIT_AT) {
+      const e = (k - HIT_AT) / (1 - HIT_AT);
+      a.lineStyle(4, 0xffe14a, 1 - e).strokeEllipse(cx, 170, e * 700, e * 120);
+      a.fillStyle(0xffffff, 0.5 * (1 - e)).fillRect(0, 0, 427, 240);
+    }
+    for (const t of ts) hitFlash(a, t, k, 0xffe14a, 1.5);
+  },
+};
+
 /** The bright bloom at the moment of the hit. */
 function hitFlash(a: G, t: SpellTarget, k: number, color: number, big = 1): void {
   const c = flashAt(k);
@@ -256,14 +461,14 @@ function hitFlash(a: G, t: SpellTarget, k: number, color: number, big = 1): void
 }
 
 /** UltraGuy gathering power before a spell: rings closing in and motes rising, in its color. */
-export function drawCast(a: G, x: number, y: number, k: number, color: number, frame: number): void {
+export function drawCast(a: G, x: number, y: number, k: number, color: number, frame: number, size = 1): void {
   for (let r = 0; r < 3; r++) {
-    const rr = 40 * (1 - ((k * 1.5 + r / 3) % 1));
+    const rr = 40 * size * (1 - ((k * 1.5 + r / 3) % 1));
     a.lineStyle(2, color, 0.8).strokeCircle(x, y, rr);
   }
   for (let n = 0; n < 12; n++) {
     const e = (k * 2 + rnd(n, 1)) % 1;
-    a.fillStyle(n % 2 ? 0xffffff : color, 1 - e).fillRect(x + (rnd(n, 2) - 0.5) * 34, y + 20 - e * 50, 2, 2);
+    a.fillStyle(n % 2 ? 0xffffff : color, 1 - e).fillRect(x + (rnd(n, 2) - 0.5) * 34 * size, y + 20 * size - e * 50 * size, 2, 2);
   }
-  a.fillStyle(color, 0.25 + Math.sin(frame * 0.5) * 0.1).fillCircle(x, y, 18);
+  a.fillStyle(color, 0.25 + Math.sin(frame * 0.5) * 0.1).fillCircle(x, y, 18 * size);
 }

@@ -43,6 +43,8 @@ interface Attack {
   memory?: string;
   /** Something special this attack does (handled by name in doAttack). */
   special?: 'summon' | 'rush' | 'bomb' | 'coach' | 'reverse';
+  /** Its spell's look (see spellFx.ts). */
+  fx?: string;
 }
 interface Line {
   who: string;
@@ -76,18 +78,18 @@ const TIERS: Tier[] = [
     short: 'CHIMERA',
     art: 'chimera.png',
     backdrop: 'bg_storm.jpg',
-    box: [124, 190, 160],
+    box: [124, 181, 144],
     hp: 900,
     speed: 0.0032,
     weak: ['spark', 'flame'],
     music: 'ascension',
     intro: [C(CREATOR, 'YOU BEAT THEM ONE AT A TIME.'), C(CREATOR, "LET'S SEE YOU FACE THEM TOGETHER.")],
     attacks: [
-      { name: 'BLIZZARD', power: 70, target: 'both', color: 0x9ae8ff, status: ['freeze', 120] },
-      { name: 'CYCLONE', power: 60, target: 'one', color: 0xd8ffe0, special: 'reverse' },
-      { name: 'BUBBLE PRISON', power: 50, target: 'hero', color: 0x6ab8e8, status: ['slow', 360] },
-      { name: 'FLAME BURST', power: 80, target: 'one', color: 0xff7a2a, status: ['burn', 300] },
-      { name: 'ELEMENTAL STORM', power: 190, target: 'both', color: 0xffffff, big: true },
+      { name: 'BLIZZARD', fx: 'frost', power: 70, target: 'both', color: 0x9ae8ff, status: ['freeze', 120] },
+      { name: 'CYCLONE', fx: 'cyclone', power: 60, target: 'one', color: 0xd8ffe0, special: 'reverse' },
+      { name: 'BUBBLE PRISON', fx: 'bubble', power: 50, target: 'hero', color: 0x6ab8e8, status: ['slow', 360] },
+      { name: 'FLAME BURST', fx: 'flame', power: 80, target: 'one', color: 0xff7a2a, status: ['burn', 300] },
+      { name: 'ELEMENTAL STORM', fx: 'storm', power: 190, target: 'both', color: 0xffffff, big: true },
     ],
   },
   {
@@ -95,18 +97,18 @@ const TIERS: Tier[] = [
     short: 'IRON IDOL',
     art: 'idol.png',
     backdrop: 'bg_forge.jpg',
-    box: [128, 190, 164],
+    box: [128, 181, 148],
     hp: 1100,
     speed: 0.003,
     weak: ['bubble', 'quake'],
     music: 'ascension',
     intro: [C(CREATOR, 'FIRE, ICE, WIND AND WATER. VERY POETIC.'), C(CREATOR, 'NOW THE MACHINES.')],
     attacks: [
-      { name: 'QUAKE HAMMER', power: 110, target: 'both', color: 0xc8a070 },
-      { name: 'SPARK CHAIN', power: 45, target: 'one', hits: 3, color: 0xf8e040 },
-      { name: 'MAGNETIZE', power: 40, target: 'hero', color: 0xe83a3a, status: ['magnet', 2] },
-      { name: 'THORN STORM', power: 22, target: 'one', hits: 6, color: 0x6cc04a },
-      { name: 'MELTDOWN', power: 230, target: 'both', color: 0xfff4a0, big: true },
+      { name: 'QUAKE HAMMER', fx: 'quake', power: 110, target: 'both', color: 0xc8a070 },
+      { name: 'SPARK CHAIN', fx: 'spark', power: 45, target: 'one', hits: 3, color: 0xf8e040 },
+      { name: 'MAGNETIZE', fx: 'magnet', power: 40, target: 'hero', color: 0xe83a3a, status: ['magnet', 2] },
+      { name: 'THORN STORM', fx: 'thorn', power: 22, target: 'one', hits: 6, color: 0x6cc04a },
+      { name: 'MELTDOWN', fx: 'nuke', power: 230, target: 'both', color: 0xfff4a0, big: true },
     ],
   },
   {
@@ -114,7 +116,7 @@ const TIERS: Tier[] = [
     short: 'BLACK JARED',
     art: 'jared.png',
     backdrop: 'bg_store.jpg',
-    box: [118, 192, 164],
+    box: [118, 181, 146],
     hp: 900,
     speed: 0.0035,
     weak: ['flame', 'saw'],
@@ -125,11 +127,11 @@ const TIERS: Tier[] = [
       { who: 'BLACK JARED', text: 'TWO FOR THREE DOLLARS, BABY!! YOU WANT MUSTARD ON THAT?!', color: '#6cc04a' },
     ],
     attacks: [
-      { name: 'CONDIMENT BARRAGE', power: 70, target: 'both', color: 0xf8d020 },
-      { name: 'RELISH', power: 40, target: 'hero', color: 0x6cc04a, status: ['poison', 420] },
+      { name: 'CONDIMENT BARRAGE', fx: 'splat', power: 70, target: 'both', color: 0xf8d020 },
+      { name: 'RELISH', fx: 'relish', power: 40, target: 'hero', color: 0x6cc04a, status: ['poison', 420] },
       { name: 'TWO FOR ONE', power: 0, target: 'hero', color: 0xe86a50, special: 'summon' },
-      { name: 'LUNCH RUSH', power: 55, target: 'one', color: 0xc84a3a, special: 'rush' },
-      { name: 'THE WORKS', power: 210, target: 'both', color: 0xff5050, big: true },
+      { name: 'LUNCH RUSH', fx: 'rush', power: 55, target: 'one', color: 0xc84a3a, special: 'rush' },
+      { name: 'THE WORKS', fx: 'works', power: 210, target: 'both', color: 0xff5050, big: true },
     ],
   },
   {
@@ -137,7 +139,7 @@ const TIERS: Tier[] = [
     short: CREATOR,
     art: 'creator.png',
     backdrop: 'bg_void.jpg',
-    box: [128, 196, 172],
+    box: [128, 180, 154],
     hp: 1800,
     speed: 0.0034,
     weak: [],
@@ -148,19 +150,19 @@ const TIERS: Tier[] = [
       C(CREATOR, 'NOT TO STOP YOU. TO REMEMBER.'),
     ],
     attacks: [
-      { name: 'BRICK BREAKER', power: 40, target: 'one', hits: 4, color: 0xf28c28, memory: 'MY FIRST HIGH SCORE WAS A PADDLE AND A WALL OF BRICKS. I PLAYED UNTIL THE TV WAS WARM TO THE TOUCH.' },
-      { name: 'LILY PADS', power: 130, target: 'one', color: 0x6cc04a, memory: 'CROSSING THE ROAD WAS THE HARDEST THING IN THE WORLD. I STILL LOOK BOTH WAYS FOR LOGS.' },
-      { name: 'FACE OFF', power: 150, target: 'hero', color: 0x9ee8ff, memory: 'TWO PLAYERS, ONE COUCH. WHOEVER LOST HAD TO GET THE SNACKS.' },
-      { name: 'HIGH SKIES', power: 24, target: 'one', hits: 7, color: 0xa8e070, memory: 'I LEARNED TO DODGE BEFORE I LEARNED LONG DIVISION.' },
-      { name: 'RACE DAY', power: 60, target: 'both', color: 0xf8e040, special: 'reverse', memory: "I DIDN'T HAVE A BIKE THAT FAST. SO I MADE ONE." },
-      { name: 'SHORT FUSE', power: 0, target: 'hero', color: 0xff7a2a, special: 'bomb', memory: 'BOMBS, BRICKS, AND YOUR BEST FRIEND SITTING THREE FEET AWAY. PURE DIPLOMACY.' },
-      { name: 'JUNK MAZE', power: 50, target: 'hero', color: 0xc8ccd8, status: ['slow', 360], memory: 'SOME OF MY BEST AFTERNOONS WERE SPENT LOST, WITH A SWORD AND ONE MORE KEY TO FIND.' },
-      { name: 'TRENCH DESCENT', power: 70, target: 'both', color: 0x3a78b8, status: ['dark', 600], memory: "THE DARK PARTS SCARED ME MOST. THAT'S HOW I KNEW THEY WERE GOOD." },
-      { name: 'TITLE BOUT', power: 0, target: 'hero', color: 0x8c4ad8, special: 'coach', memory: "EVERY CHAMP NEEDS SOMEONE IN THE CORNER. GO ON. I'LL ALLOW IT." },
-      { name: 'DOGFIGHT', power: 20, target: 'one', hits: 8, color: 0xff5050, memory: 'ONE QUARTER. ONE MORE TRY. ONE MORE QUARTER.' },
-      { name: 'ULTRA ARENA', power: 200, target: 'one', color: 0xd83a4a, memory: 'FIRST ONE TO TEN FRAGS. I NEVER ONCE GOT TO TEN.' },
+      { name: 'BRICK BREAKER', fx: 'ball', power: 40, target: 'one', hits: 4, color: 0xf28c28, memory: 'MY FIRST HIGH SCORE WAS A PADDLE AND A WALL OF BRICKS. I PLAYED UNTIL THE TV WAS WARM TO THE TOUCH.' },
+      { name: 'LILY PADS', fx: 'bubble', power: 130, target: 'one', color: 0x6cc04a, memory: 'CROSSING THE ROAD WAS THE HARDEST THING IN THE WORLD. I STILL LOOK BOTH WAYS FOR LOGS.' },
+      { name: 'FACE OFF', fx: 'puck', power: 150, target: 'hero', color: 0x9ee8ff, memory: 'TWO PLAYERS, ONE COUCH. WHOEVER LOST HAD TO GET THE SNACKS.' },
+      { name: 'HIGH SKIES', fx: 'squadron', power: 24, target: 'one', hits: 7, color: 0xa8e070, memory: 'I LEARNED TO DODGE BEFORE I LEARNED LONG DIVISION.' },
+      { name: 'RACE DAY', fx: 'speed', power: 60, target: 'both', color: 0xf8e040, special: 'reverse', memory: "I DIDN'T HAVE A BIKE THAT FAST. SO I MADE ONE." },
+      { name: 'SHORT FUSE', fx: 'fuse', power: 0, target: 'hero', color: 0xff7a2a, special: 'bomb', memory: 'BOMBS, BRICKS, AND YOUR BEST FRIEND SITTING THREE FEET AWAY. PURE DIPLOMACY.' },
+      { name: 'JUNK MAZE', fx: 'grid', power: 50, target: 'hero', color: 0xc8ccd8, status: ['slow', 360], memory: 'SOME OF MY BEST AFTERNOONS WERE SPENT LOST, WITH A SWORD AND ONE MORE KEY TO FIND.' },
+      { name: 'TRENCH DESCENT', fx: 'abyss', power: 70, target: 'both', color: 0x3a78b8, status: ['dark', 600], memory: "THE DARK PARTS SCARED ME MOST. THAT'S HOW I KNEW THEY WERE GOOD." },
+      { name: 'TITLE BOUT', fx: 'blessing', power: 0, target: 'hero', color: 0x8c4ad8, special: 'coach', memory: "EVERY CHAMP NEEDS SOMEONE IN THE CORNER. GO ON. I'LL ALLOW IT." },
+      { name: 'DOGFIGHT', fx: 'squadron', power: 20, target: 'one', hits: 8, color: 0xff5050, memory: 'ONE QUARTER. ONE MORE TRY. ONE MORE QUARTER.' },
+      { name: 'ULTRA ARENA', fx: 'crosshair', power: 200, target: 'one', color: 0xd83a4a, memory: 'FIRST ONE TO TEN FRAGS. I NEVER ONCE GOT TO TEN.' },
       {
-        name: 'INSERT COIN', power: 360, target: 'both', color: 0xffffff, big: true,
+        name: 'INSERT COIN', fx: 'coin', power: 360, target: 'both', color: 0xffffff, big: true,
         memory: 'THOSE GAMES WERE BUILT BY PEOPLE WHO DIDN\'T KNOW WHAT GAMES COULD BE YET. THEY FIGURED IT OUT FOR ALL OF US.',
       },
     ],
@@ -301,8 +303,8 @@ export class CreatorScene extends Phaser.Scene {
     this.spellAdd = this.add.graphics().setDepth(29).setBlendMode(Phaser.BlendModes.ADD);
     this.fx = this.add.graphics().setDepth(30).setBlendMode(Phaser.BlendModes.ADD);
     this.pose = 'idle';
-    this.heroImg = this.add.image(352, 172, heroTexture('buster'), heroFrames(this).idle).setOrigin(0.5, 1).setScale(1.5).setFlipX(true).setDepth(10).setVisible(false);
-    this.pipImg = this.add.image(390, 136, pipTexture(this, this.pipLook.shell, this.pipLook.paint, 0)).setScale(1.5).setDepth(10).setVisible(false);
+    this.heroImg = this.add.image(352, 172, heroTexture('buster'), heroFrames(this).idle).setOrigin(0.5, 1).setScale(1.25).setFlipX(true).setDepth(10).setVisible(false);
+    this.pipImg = this.add.image(390, 136, pipTexture(this, this.pipLook.shell, this.pipLook.paint, 0)).setScale(1.25).setDepth(10).setVisible(false);
     this.topBox = this.add.image(VIEW_W / 2, 22, rpgWindow(this, 400, 36)).setDepth(40).setVisible(false);
     this.topName = pixelText(this, 22, 8, '', { color: '#ffe14a' }).setDepth(41);
     this.topText = pixelText(this, 22, 19, '', { color: '#fff1e0' }).setDepth(41).setMaxWidth(380);
@@ -626,7 +628,7 @@ export class CreatorScene extends Phaser.Scene {
       ? [{ x: bossAt.x, y: bossAt.y, dog: null }, ...this.dogs.map((d) => ({ x: d.x, y: d.y - 16, dog: d }))]
       : [{ x: target ? target.x : bossAt.x, y: target ? target.y - 16 : bossAt.y, dog: target }];
     this.spell = {
-      w, color, t: 0, targets: hits, landed: hits.map(() => false),
+      fx: w, color, t: 0, cast: CAST_FRAMES, from: { x: this.heroImg.x, y: this.heroImg.y - 18, size: 1 }, targets: hits, landed: hits.map(() => false), each: true,
       land: (k) => {
         const a = hits[k];
         if (miss) return void this.popText('MISS', a.x, a.y - 10, '#8a8fa8');
@@ -640,7 +642,20 @@ export class CreatorScene extends Phaser.Scene {
   }
 
   /** The weapon being cast (gathering, then the spell over its targets), or null. */
-  private spell: { w: WeaponId; color: number; t: number; targets: { x: number; y: number }[]; landed: boolean[]; land: (k: number) => void } | null = null;
+  private spell: {
+    fx: string;
+    color: number;
+    t: number;
+    /** Steps gathering power first, and where (UltraGuy, or the boss). */
+    cast: number;
+    from: { x: number; y: number; size: number };
+    targets: { x: number; y: number }[];
+    landed: boolean[];
+    /** Hit each target on its own (UltraGuy's spells), or once for the lot (the enemy's). */
+    each: boolean;
+    land: (k: number) => void;
+    done?: () => void;
+  } | null = null;
   /** The arena darkens while a spell plays (it's drawn under the party). */
   private dim!: Phaser.GameObjects.Rectangle;
   private spellAdd!: Phaser.GameObjects.Graphics;
@@ -650,11 +665,12 @@ export class CreatorScene extends Phaser.Scene {
   private stepSpell(): void {
     const sp = this.spell!;
     sp.t++;
-    const k = (sp.t - CAST_FRAMES) / SPELL_FRAMES;
+    const k = (sp.t - sp.cast) / SPELL_FRAMES;
     if (sp.t === 1) sfx.charge?.(2);
-    if (sp.t === CAST_FRAMES) sfx.chargeShot?.();
+    if (sp.t === sp.cast) sfx.chargeShot?.();
     if (k >= 0) {
       sp.targets.forEach((_, i) => {
+        if (!sp.each && i > 0) return;
         // Each target's hit time, matching drawSpell's stagger.
         const at = (HIT_AT + i * 0.08) / (1 + sp.targets.length * 0.08);
         if (!sp.landed[i] && k >= at) {
@@ -663,7 +679,10 @@ export class CreatorScene extends Phaser.Scene {
         }
       });
     }
-    if (k >= 1.15) this.spell = null;
+    if (k >= 1.15) {
+      this.spell = null;
+      sp.done?.();
+    }
   }
 
   private drawSpellLayer(): void {
@@ -671,12 +690,12 @@ export class CreatorScene extends Phaser.Scene {
     const s = this.spellSolid.clear();
     const sp = this.spell;
     // The darkness fades in for the cast and out after.
-    const target = sp ? (sp.t < CAST_FRAMES ? (sp.t / CAST_FRAMES) * 0.55 : (sp.t - CAST_FRAMES) / SPELL_FRAMES > 1 ? 0.55 * (1 - ((sp.t - CAST_FRAMES) / SPELL_FRAMES - 1) / 0.15) : 0.55) : 0;
+    const target = sp ? (sp.t < sp.cast ? (sp.t / sp.cast) * 0.55 : (sp.t - sp.cast) / SPELL_FRAMES > 1 ? 0.55 * (1 - ((sp.t - sp.cast) / SPELL_FRAMES - 1) / 0.15) : 0.55) : 0;
     this.dim.setAlpha(Math.max(0, target));
     if (!sp) return;
-    if (sp.t < CAST_FRAMES + 10) drawCast(a, this.heroImg.x, this.heroImg.y - 22, sp.t / CAST_FRAMES, sp.color, this.frame);
-    const k = (sp.t - CAST_FRAMES) / SPELL_FRAMES;
-    if (k >= 0 && k <= 1) drawSpell(a, s, sp.w, k, sp.targets, this.frame);
+    if (sp.t < sp.cast + 10) drawCast(a, sp.from.x, sp.from.y, sp.t / sp.cast, sp.color, this.frame, sp.from.size);
+    const k = (sp.t - sp.cast) / SPELL_FRAMES;
+    if (k >= 0 && k <= 1) drawSpell(a, s, sp.fx, k, sp.targets, this.frame);
   }
 
   /** A weapon landing: a ring, a burst, a colored flash, a shake, and a beat of freeze. */
@@ -806,16 +825,33 @@ export class CreatorScene extends Phaser.Scene {
   private cast(a: Attack, then?: () => void): void {
     const go = () => {
       this.showName(a.name, 'enemy', TIERS[this.tier].short);
-      this.time.delayedCall(450, () => {
-        this.doAttack(a);
-        then?.();
-      });
+      // Calling in hotdogs isn't a spell.
+      if (!a.fx) {
+        this.time.delayedCall(450, () => {
+          this.doAttack(a);
+          then?.();
+        });
+        return;
+      }
+      // The rest are cast like UltraGuy's: the form gathers power, the arena darkens,
+      // the spell plays over whoever it's aimed at, and it lands at the spell's moment.
+      const who: 'hero' | 'pip' | 'both' = a.target === 'one' ? (Math.random() < 0.6 ? 'hero' : 'pip') : a.target;
+      const targets = [...(who !== 'pip' ? [HERO_AT] : []), ...(who !== 'hero' ? [PIP_AT] : [])];
+      const t = TIERS[this.tier];
+      this.paint.shakeBoss(2, ENEMY_CAST);
+      this.paint.flashBoss();
+      this.spell = {
+        fx: a.fx, color: a.color, t: 0, cast: ENEMY_CAST, from: { x: t.box[0], y: t.box[1] - t.box[2] * 0.55, size: 2.2 }, targets, landed: targets.map(() => false), each: false,
+        land: () => this.doAttack(a, who),
+        done: then,
+      };
     };
     if (a.memory && !a.big) this.say([C(CREATOR, a.memory)], go);
     else go();
   }
 
-  private doAttack(a: Attack): void {
+  /** `who`: whom a single-target attack was aimed at (decided when it was cast). */
+  private doAttack(a: Attack, who?: 'hero' | 'pip' | 'both'): void {
     this.paint.shakeBoss(3, 10);
     if (a.special === 'summon') {
       for (let i = 0; i < 2 && this.dogs.length < 3; i++) this.addDog();
@@ -845,9 +881,9 @@ export class CreatorScene extends Phaser.Scene {
     const hits = a.hits ?? 1;
     for (let i = 0; i < hits; i++) {
       this.time.delayedCall(i * 120, () => {
-        const who = a.target === 'one' ? (Math.random() < 0.6 ? 'hero' : 'pip') : a.target;
-        if (who === 'hero' || who === 'both') this.hurtHero(a.power, a.color);
-        if (who === 'pip' || who === 'both') this.hurtPip(a.power, a.color);
+        const at = who ?? (a.target === 'one' ? (Math.random() < 0.6 ? 'hero' : 'pip') : a.target);
+        if (at === 'hero' || at === 'both') this.hurtHero(a.power, a.color);
+        if (at === 'pip' || at === 'both') this.hurtPip(a.power, a.color);
       });
     }
     if (a.status) this.status.set(a.status[0], a.status[1]);
@@ -905,7 +941,7 @@ export class CreatorScene extends Phaser.Scene {
     if (slot < 0) return;
     const [x, y] = DOG_SLOTS[slot];
     const id = `dog${this.dogSerial++}`;
-    this.paint.addMinion(id, FINALE_ART('hotdog.png'), x, y, 44);
+    this.paint.addMinion(id, FINALE_ART('hotdog.png'), x, y, 38);
     this.dogs.push({ id, slot, x, y, hp: 120, atb: Math.random() * 0.4 });
   }
 
@@ -1177,13 +1213,17 @@ interface Dog {
 
 /** Where hotdogs stand: in a ragged line at Jared's feet, between him and the party. */
 const DOG_SLOTS: [number, number][] = [
-  [178, 200],
-  [204, 194],
-  [228, 202],
+  [176, 181],
+  [200, 176],
+  [224, 182],
 ];
 
-/** Steps UltraGuy gathers power before a spell goes off. */
+/** Steps UltraGuy gathers power before a spell goes off (and a boss before its own). */
 const CAST_FRAMES = 36;
+const ENEMY_CAST = 30;
+/** Where the party stands, for spells aimed at them (game units). */
+const HERO_AT = { x: 352, y: 150 };
+const PIP_AT = { x: 390, y: 136 };
 
 /** The weapons that hit everything on the field. */
 const AOE = new Set<WeaponId>(['spark', 'quake', 'cyclone']);
