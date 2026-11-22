@@ -12,10 +12,17 @@ ELEVENLABS_API_KEY=your-key npm run audio   # generate music + sound effects (op
 
 ## Game flow
 Title -> save select (3 slots; X twice erases one) -> intro stage (DOWNTOWN, boss BLACK JARED) on a new game -> boss select (8 bosses, 3x3 grid).
-Each boss gives a weapon; weaknesses form a loop. Beat all 8 and FORTRESS opens on the title menu
-(and the middle of boss select): three fortress stages, each ending with a guardian boss (GATEKEEPER,
+Each boss gives a weapon; weaknesses form a loop. Beat all 8 and the FORTRESS opens in the middle of
+boss select: three fortress stages, each ending with a guardian boss (GATEKEEPER,
 ABYSS EYE, SPIRE WARDEN; no weapon reward), the BOSS HALL (eight teleporters for harder boss
 refights), then the final boss (OVERLORD, then SHADE).
+
+**Arcade** (ARCADE on the title menu, `src/scenes/ArcadeScene.ts`, list in `src/arcade.ts`): replay any
+boss's game you've won in the story (all eight stage games and the Gatekeeper's boxing), plus the
+Overlord's armada (the alien shooter) once you've beaten the game. Ones you haven't won show as ???
+with where to win them. A game played from here comes back here (`ret.kind: 'arcade'`). Wins are kept
+in the save (`arcade`); saves from before it are seeded from progress (clearing the Boss Hall or the
+finale meant you'd beaten all eight).
 
 **Look.** The regular stage enemies are drawn on the shaded rig too (`art/enemyArt.mjs`; the walker and lava slug
 keep their original art). Every minigame now has art of its own (`*Art.ts` beside each scene). Menus share a
@@ -63,8 +70,8 @@ challenges you to their own game. Some fights change the game entirely; each is 
 | Scrapyard challenge | Scrap | top-down junk maze: four rooms, keys, a hookshot that swings you across shafts; Scrap's magnet field turns shots until you stun him (scrap-heap walls with lit tops and front faces, rusted floor plates, magnet posts, shutters, blinking warning lamps, beetles and turret sprouts, a chained claw hookshot, a heart-and-key status bar; art in `dungeonArt.ts`) | `DungeonScene.ts` |
 | Reef challenge | Tide | trench descent: dive head-first down a winding deep-sea trench (darker the deeper you go; your lamp and flares light the way) past jellyfish, sea mines and urchins, grabbing air bubbles, while Tide hunts you: his body loops through the dark, then his lights glow where he'll strike, lunging across from the side (aimed where you'd be if you kept cruising, so brake or dive out of it) or surging up from below. Reach the vent at the bottom and he jams in it behind you (art in `trenchArt.ts`; the old pinball table, `PinballScene.ts`, is no longer on a capsule) | `TrenchScene.ts` |
 | Caldera challenge | Magma | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
-| Fortress Gate + Boss Hall bonus | Gatekeeper | behind-the-back boxing (his only fight), three rounds, Coach Jared in your corner (both fighters drawn on the shaded rig in `art/boxArt.mjs`; the arena, with its crowd, lighting rig, banner, ropes and mat, in `boxingArt.ts`; sweeping spotlights, camera flashes and punch sparks). A punch that lands bursts with light, flashes him white then red, jolts the screen and throws off its damage; a blocked one only clanks grey with BLOCK. Knockdown counts are a big outlined number in the ring (yellow for him, red for you) called out by the announcer (`box_count1`..`box_count10`; his count starts after "Down he goes!") | `BoxingScene.ts` |
-| Boss Hall bonus (after beating the game) | Overlord | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
+| Fortress Gate + Arcade | Gatekeeper | behind-the-back boxing (his only fight), three rounds, Coach Jared in your corner (both fighters drawn on the shaded rig in `art/boxArt.mjs`; the arena, with its crowd, lighting rig, banner, ropes and mat, in `boxingArt.ts`; sweeping spotlights, camera flashes and punch sparks). A punch that lands bursts with light, flashes him white then red, jolts the screen and throws off its damage; a blocked one only clanks grey with BLOCK. Knockdown counts are a big outlined number in the ring (yellow for him, red for you) called out by the announcer (`box_count1`..`box_count10`; his count starts after "Down he goes!") | `BoxingScene.ts` |
+| Arcade (after beating the game) | Overlord | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
 
 The games share `ModeScene.ts`. **Stage challenges:** walk up to the boss and they say their piece
 (Anvil's and Volt's lines were rewritten for a first meeting), then the warp. Win and you carry on
@@ -73,11 +80,13 @@ with no life lost (losses don't cost lives, since GAME OVER would mean the whole
 two losses they offer ONE MORE TRY or PUSH PAST (no bolts; they leave, and you settle it at the end of
 the stage). EX rematches start at the boss door, past the challenge.
 
-**Boss Hall.** The eight capsules are platform refights in the room below, a notch harder than in
+**Boss Hall.** The eight capsules are platform refights, each in a copy of that boss's own stage arena
+(platforms, belts, springs, water, spikes and all, drawn in the fortress's tiles; `rematchArenas` in
+`fortress.ts`, one layout row each, and arenaFx runs that stage's room effects), a notch harder than in
 their stages (`tier` 1 in `Boss.ts`: about 20% less damage taken, 20% shorter pauses, and their EX
-attack; EX itself is tier 2). The exit opens once all eight are beaten. The two bonus capsules
-(Gatekeeper's boxing, the Overlord's armada) are their own games: win and you're back in front of
-the capsule (the Hall remembers which are done); lose and you retry from the last checkpoint.
+attack; EX itself is tier 2). You beam out of the hall and into the arena, and back again after the
+fight. The exit opens once all eight are beaten. (The bonus minigame capsules are gone: those games
+are in the ARCADE.)
 
 Every hidden part is guarded, and each guardian is fought in a turn-based RPG battle (`RpgScene.ts`,
 guardians in `src/scenes/rpgGuardians.ts`): FIGHT, SPELL, GUARD, ITEM (your E-tanks), RUN. Spells are
@@ -249,6 +258,14 @@ Four armor parts are hidden in boss stages, each in an upgrade capsule:
 - ARMOR (Stratos, on a ledge only a double jump reaches): a quarter less damage.
 - HELMET (Glacier, behind frozen blocks that Flame Burst melts): life and weapon energy go from 28 to 36.
 Saves from before parts existed that had beaten a boss get all four.
+
+**Teleport beam** (`src/scenes/beam.ts`). UltraGuy beams in after READY (starting a stage, after a
+death) and in and out of the Boss Hall's arenas: a streak of light in his colors drops from the top of
+the screen, hits with a flash and sparks, and he forms out of it (a white silhouette growing up from
+the ground, then flickering into his colors). Beaming out is the reverse. Play waits while it runs.
+
+**Boss hits.** After a hit a boss can't be hurt for 34 steps (44 after a weakness hit), exactly as long
+as it flashes, so rapid fire can't stack hits (`HIT_INVULN` / `WEAK_INVULN` in `Boss.ts`).
 
 **EX rematches.** Once the game is beaten, press X (FIRE) on stage select to switch to EX. An EX rematch
 starts at the boss door with no E-tanks. The boss takes about 40% less damage, waits less between attacks,

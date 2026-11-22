@@ -120,6 +120,13 @@ export interface StageData {
    * (in reading order) becomes `kind`, so the layouts don't need redrawing.
    */
   signature?: { kind: EnemyKind; from: EnemyKind; every: number }[];
+  /**
+   * Boss Hall: each rematch's arena, a copy of the boss's own stage arena on a
+   * layout row of its own (`row`), so its platforms, belts, water and the
+   * rest work as they do there. `stage` is where it came from (for what the
+   * room does by itself, see arenaFx).
+   */
+  rematchArenas?: { kind: BossKind; stage: StageId; row: number }[];
 }
 
 /** A moving cloud: its top-left travels between (x0, y0) and (x1, y1). */
@@ -318,6 +325,8 @@ export class Level {
   miniboss: Point | null = null;
   /** Where the stage's boss challenges you to their game ('A'). */
   challenge: Point | null = null;
+  /** Every boss marker ('X'): the Boss Hall has one per rematch arena. */
+  readonly bossSpots: Point[] = [];
   readonly tanks: Point[] = [];
   /** Hidden extra lives ('+') and bolt caches ('$'). */
   readonly oneUps: Point[] = [];
@@ -446,7 +455,10 @@ export class Level {
         const t = TILE_CHARS[ch] ?? Tile.Empty;
         if (!(ch in TILE_CHARS) && ch !== '.') this.markerCells.push({ c: gc, r: gr });
         if (ch === '=' || ch === '-' || ch === 'v' || ch === ':') this.moverChars.set(gr * this.cols + gc, ch);
-        if (ch === 'X') this.boss = { x: cx, y: bottom };
+        if (ch === 'X') {
+          this.boss = { x: cx, y: bottom };
+          this.bossSpots.push(this.boss);
+        }
         else if (ch === 'B') {
           this.bossTestStart = { x: cx, y: bottom };
           this.checkpoints.push({ x: cx, y: bottom });

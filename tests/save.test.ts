@@ -10,7 +10,7 @@ const useSlot = (slot: number) =>
 
 describe('save data', () => {
   it('starts fresh: just the Ultra Gun, nothing cleared', () => {
-    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [], boughtSkins: [], jukebox: false, heard: [], pipOwned: [], pipOff: [], pipShell: 'round', pipPaint: 'teal', pipTrail: 'none', pipMet: false });
+    expect(loadSave()).toEqual({ weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [], boughtSkins: [], jukebox: false, heard: [], pipOwned: [], pipOff: [], pipShell: 'round', pipPaint: 'teal', pipTrail: 'none', pipMet: false, arcade: [] });
   });
 
   it('records cleared stages and weapons once, in weapon order', () => {
@@ -173,5 +173,18 @@ describe('Pip', () => {
     expect(s.pipOff).toEqual([]);
     expect(s.pipShell).toBe('saucer');
     clearStage('foundry', 'quake');
+  });
+});
+
+describe('arcade', () => {
+  it('seeds old saves from progress, then records wins', async () => {
+    const { loadSave, recordArcadeWin } = await import('../src/save');
+    const { arcadeUnlocked } = await import('../src/arcade');
+    localStorage.setItem('ultraguy-save-v1', JSON.stringify({ cleared: ['intro', 'powerplant', 'fortress1'] }));
+    expect(loadSave().arcade.sort()).toEqual(['boxing', 'race']);
+    recordArcadeWin('hop');
+    expect(loadSave().arcade.sort()).toEqual(['boxing', 'hop', 'race']);
+    localStorage.setItem('ultraguy-save-v1', JSON.stringify({ cleared: ['intro', 'finale'] }));
+    expect(arcadeUnlocked(loadSave()).size).toBe(10);
   });
 });

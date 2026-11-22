@@ -129,11 +129,22 @@ describe('fortress', () => {
     expect(FORTRESS_ORDER).toEqual(['fortress1', 'fortress2', 'fortress3', 'gauntlet', 'finale']);
   });
 
-  it('the boss hall has one teleporter per stage boss, two bonus ones, and a hidden exit', () => {
+  it('the boss hall has one teleporter per stage boss (no bonus games now) and a hidden exit', () => {
     const L = new Level(getStage('gauntlet'));
-    expect(L.teleporters.length).toBe(ALL_BOSS_STAGES.length + 2);
+    expect(L.teleporters.length).toBe(ALL_BOSS_STAGES.length);
     expect(L.goal).not.toBeNull();
     expect(L.boss).not.toBeNull();
+  });
+
+  it("the boss hall has each stage boss's own arena, one per row", () => {
+    const hall = getStage('gauntlet');
+    const L = new Level(hall);
+    const arenas = hall.rematchArenas ?? [];
+    expect(arenas.map((a) => a.kind).sort()).toEqual(ALL_BOSS_STAGES.map((id) => BOSS_STAGES[id].boss).sort());
+    for (const a of arenas) {
+      expect(BOSS_STAGES[a.stage as keyof typeof BOSS_STAGES].boss, a.kind).toBe(a.kind);
+      expect(L.bossSpots.filter((s) => Math.floor((s.y - 1) / 240) === a.row).length, a.kind).toBe(1);
+    }
   });
 
   it('each of the three fortress stages ends with its own guardian boss and no weapon', () => {

@@ -1,4 +1,12 @@
-import type { StageData } from './Level';
+import type { BossKind, StageData } from './Level';
+import { CALDERA } from './caldera';
+import { CANOPY } from './canopy';
+import { FOUNDRY } from './foundry';
+import { GLACIER } from './glacier';
+import { POWERPLANT } from './powerplant';
+import { REEF } from './reef';
+import { SCRAPYARD } from './scrapyard';
+import { STRATOS } from './stratos';
 import { bossArena, bossHall, bossRoom, rows, SKY, water } from './rooms';
 
 /** The quiet hallway before the boss room (see bossHall). */
@@ -273,29 +281,50 @@ export const FINALE: StageData = {
   },
 };
 
-const rematchRoom = bossRoom();
+/**
+ * The Boss Hall's rematch arenas: each boss's own arena from their stage,
+ * drawn in the fortress's tiles. One per layout row under the hall, each its
+ * own screens (lowercase ids).
+ */
+const ARENA_SOURCES: { kind: BossKind; stage: StageData }[] = [
+  { kind: 'anvil', stage: FOUNDRY },
+  { kind: 'mantis', stage: CANOPY },
+  { kind: 'frostline', stage: GLACIER },
+  { kind: 'gale', stage: STRATOS },
+  { kind: 'volt', stage: POWERPLANT },
+  { kind: 'magma', stage: CALDERA },
+  { kind: 'scrap', stage: SCRAPYARD },
+  { kind: 'tide', stage: REEF },
+];
+const ARENA_IDS = 'abcdefghijklmnop';
+const rematchScreens: Record<string, string[]> = {};
+const rematchRows: string[] = [];
+ARENA_SOURCES.forEach(({ stage }, i) => {
+  const [l, r] = [ARENA_IDS[i * 2], ARENA_IDS[i * 2 + 1]];
+  rematchScreens[l] = stage.screens.X;
+  rematchScreens[r] = stage.screens.Y;
+  rematchRows.push(l + r);
+});
 
 /**
  * BOSS HALL: before the throne, eight teleporter capsules ('T'), one per
  * stage boss. Press UP in a capsule to refight that boss; the exit capsule
  * opens once all eight are beaten. They're fought in the room below, a notch
  * harder than in their stages (their own games come mid-stage now, in each
- * stage's challenge room). Past them, two bonus capsules:
- * the Gatekeeper's boxing match, and once the game is beaten, the Overlord's
- * armada.
+ * stage's challenge room). (The minigames are replayed from the title's
+ * ARCADE now, not here.)
  */
 export const GAUNTLET: StageData = {
   id: 'gauntlet',
   name: 'BOSS HALL',
   tagline: 'ALL EIGHT, ONE MORE TIME',
   theme: 'fortress',
-  layout: ['ABC', 'XY.'],
+  layout: ['ABC', ...rematchRows],
+  rematchArenas: ARENA_SOURCES.map(({ kind, stage }, i) => ({ kind, stage: stage.id, row: i + 1 })),
   screens: {
     A: [CEIL, CEIL, ...rows(SKY, 10), '.P...T..T..T..T.', FLOOR, FLOOR],
     B: [CEIL, CEIL, ...rows(SKY, 10), '.T..T..T..T.....', FLOOR, FLOOR],
-    // Bonus games: optional, they don't hold the exit shut.
-    C: [CEIL, CEIL, ...rows(SKY, 10), '...T......T..*.#', FLOOR, FLOOR],
-    X: rematchRoom.left,
-    Y: rematchRoom.right,
+    C: [CEIL, CEIL, ...rows(SKY, 10), '.............*.#', FLOOR, FLOOR],
+    ...rematchScreens,
   },
 };

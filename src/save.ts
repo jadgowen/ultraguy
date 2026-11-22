@@ -1,3 +1,4 @@
+import { ARCADE_GAMES } from './arcade';
 import { ALL_STAGE_IDS, StageId } from './level/Level';
 import { PART_ORDER, PartId } from './parts';
 import { PIP_CATALOG, PIP_MODULES, PIP_PAINTS, PIP_SHELLS, PIP_TRAILS, PipKind, PipModule, PipPaint, PipShell, PipTrail, pipOwns } from './pip';
@@ -39,6 +40,8 @@ export interface SaveData {
   pipPaint: PipPaint;
   pipTrail: PipTrail;
   pipMet: boolean;
+  /** Minigames won in the story (scene keys): the ARCADE lets you replay them. */
+  arcade: string[];
 }
 
 export const MAX_TANKS = 4;
@@ -57,7 +60,7 @@ export function activeSlot(): number {
 }
 
 function fresh(): SaveData {
-  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [], boughtSkins: [], jukebox: false, heard: [], pipOwned: [], pipOff: [], pipShell: 'round', pipPaint: 'teal', pipTrail: 'none', pipMet: false };
+  return { weapons: ['buster'], cleared: [], tanks: 0, parts: [], exCleared: [], skin: 'classic', bolts: 0, wtanks: 0, spareLives: 0, guards: 0, magnet: false, oneUpsFound: [], boughtSkins: [], jukebox: false, heard: [], pipOwned: [], pipOff: [], pipShell: 'round', pipPaint: 'teal', pipTrail: 'none', pipMet: false, arcade: [] };
 }
 
 /** Load the active slot (or `slot`). */
@@ -103,6 +106,10 @@ export function loadSave(slot = activeSlot()): SaveData {
       pipPaint: PIP_PAINTS.some((k) => k.id === data.pipPaint) ? (data.pipPaint as PipPaint) : 'teal',
       pipTrail: PIP_TRAILS.some((k) => k.id === data.pipTrail) ? (data.pipTrail as PipTrail) : 'none',
       pipMet: data.pipMet === true,
+      // Saves from before the arcade: seed it from progress (see ArcadeGame.seed).
+      arcade: Array.isArray(data.arcade)
+        ? data.arcade.filter((k): k is string => ARCADE_GAMES.some((g) => g.scene === k))
+        : ARCADE_GAMES.filter((g) => g.seed.some((id) => cleared.includes(id))).map((g) => g.scene),
     };
   } catch {
     return fresh(); // corrupt or blocked storage: start fresh
@@ -115,6 +122,15 @@ function write(data: SaveData, slot = activeSlot()): void {
   } catch {
     // Storage unavailable (private mode etc.): progress just isn't kept.
   }
+}
+
+/** Record a minigame won in the story (it joins the ARCADE). */
+export function recordArcadeWin(scene: string): void {
+  if (!ARCADE_GAMES.some((g) => g.scene === scene)) return;
+  const data = loadSave();
+  if (data.arcade.includes(scene)) return;
+  data.arcade.push(scene);
+  write(data);
 }
 
 /** Record a cleared stage (and the weapon it gave, if any). Returns true if the weapon is new. */

@@ -115,6 +115,16 @@ const synth = {
     setTimeout(() => tone(1320, 1320, 0.12, 'square', 0.04), 90);
   },
   door: () => tone(200, 80, 0.5, 'sawtooth', 0.04),
+  // Teleport beam: a falling zip, then the thump of landing; going out, a rising zip.
+  beamIn: () => {
+    tone(2600, 500, 0.2, 'square', 0.035);
+    setTimeout(() => tone(180, 90, 0.08, 'triangle', 0.07), 190);
+    setTimeout(() => tone(700, 1500, 0.14, 'triangle', 0.04), 260);
+  },
+  beamOut: () => {
+    tone(1500, 700, 0.1, 'triangle', 0.04);
+    setTimeout(() => tone(400, 2800, 0.25, 'square', 0.035), 260);
+  },
   ready: () => {
     tone(392, 392, 0.1);
     setTimeout(() => tone(523, 523, 0.1), 110);

@@ -7,6 +7,9 @@ import type { GameScene } from '../../scenes/GameScene';
 import type { WeaponId } from '../../weapons';
 
 export const BOSS_MAX_HP = 28;
+/** Steps a boss can't be hurt (and flashes) after a hit, and after a weakness hit. */
+export const HIT_INVULN = 34;
+export const WEAK_INVULN = 44;
 
 /** The boss room's usable area, in world pixels. */
 export interface Room {
@@ -203,8 +206,10 @@ export abstract class Boss {
     if (this.tier > 0) dmg = Math.max(1, Math.round(dmg * (this.tier === 2 ? 0.6 : 0.8)));
     this.hp = Math.max(0, this.hp - dmg);
     this.barHp = this.hp;
-    // A short window where shots pass through, so a rapid triple shot can't land every bullet.
-    this.invuln = weak ? 32 : 20;
+    // A window where shots pass through (it lasts exactly as long as the flash),
+    // so rapid fire can't stack hits: about half a second, a bit longer after a
+    // weakness hit.
+    this.invuln = weak ? WEAK_INVULN : HIT_INVULN;
     this.flash = this.invuln;
     if (this.hp === 0) {
       this.state = 'dying';

@@ -3,6 +3,7 @@ import type { BossKind, StageId } from '../level/Level';
 import type { PartId } from '../parts';
 import { Line, pixelateOut } from './cutscene';
 import { GUARDIANS } from './rpgGuardians';
+import { recordArcadeWin } from '../save';
 
 /**
  * Encounters fought in another game style. Each starts with dialogue in the
@@ -16,7 +17,8 @@ import { GUARDIANS } from './rpgGuardians';
  *  - stage bosses fought only in their own game (the Gatekeeper's boxing match).
  */
 
-export type EncounterKind = 'vault' | 'mini' | 'part' | 'boss' | 'challenge';
+/** Where a game was started from (`arcade`: the title menu's ARCADE, which it goes back to). */
+export type EncounterKind = 'vault' | 'mini' | 'part' | 'boss' | 'challenge' | 'arcade';
 
 export interface Encounter {
   /** Scene key of the mode. */
@@ -48,6 +50,12 @@ export interface ModeData {
 
 /** End a mode: warp back to the stage with the result. */
 export function returnToGame(scene: Phaser.Scene, data: ModeData, won: boolean): void {
+  if (data.ret.kind === 'arcade') {
+    pixelateOut(scene, 800, () => scene.scene.start('arcade', { pick: scene.scene.key }));
+    return;
+  }
+  // Won in the story: it's yours to replay in the ARCADE.
+  if (won) recordArcadeWin(scene.scene.key);
   pixelateOut(scene, 800, () => scene.scene.start('game', { stage: data.stage, ex: data.ret.ex, resume: { ...data.ret, won } }));
 }
 

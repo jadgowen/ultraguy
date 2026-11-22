@@ -3,6 +3,7 @@ import { nowPlaying, playJingle, playMusic, playVoice, stageMusic, stopMusic } f
 import { BOSS_INTROS, INTRO, IntroCard } from './bossIntro';
 import { TileFx } from '../tileFx';
 import { ArenaFx } from './arenaFx';
+import { Beam } from './beam';
 import { uiHighlight, uiPanel } from '../uiArt';
 import { ensureScene, startScene } from './lazy';
 import { Blackout } from './blackout';
@@ -27,7 +28,7 @@ import { sfx } from '../sfx';
 import { WEAPONS, WeaponId, WEAPON_ORDER } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
 import { dialogue, pixelateIn, pixelateOut } from './cutscene';
-import { BOSS_ENCOUNTERS, BOSS_GAMES, CHALLENGE_BOLTS, CHALLENGE_MERCY, Encounter, MINI_ENCOUNTERS, PART_GUARDIANS, Resume, Ret, VAULT_ENCOUNTERS } from './encounters';
+import { BOSS_ENCOUNTERS, BOSS_GAMES, CHALLENGE_BOLTS, CHALLENGE_MERCY, Encounter, MINI_ENCOUNTERS, PART_GUARDIANS, Resume, Ret } from './encounters';
 import { Hazards } from './hazards';
 import { Sky } from './sky';
 import { PixelText, pixelText } from '../pixelFont';
@@ -61,14 +62,10 @@ const CHARGE_HIT_STOP = 3;
 const ICE_REFREEZE_AFTER_FALL = 40;
 
 /**
- * Boss Hall: which boss each teleporter (left to right) sends you to. The first
- * eight must all be beaten to open the exit; the rest are bonus games (the
- * Overlord shows up once you've cleared the game).
+ * Boss Hall: which boss each teleporter (left to right) sends you to. All
+ * eight must be beaten to open the exit. (The minigames are in the ARCADE.)
  */
-const REMATCH_ORDER: BossKind[] = ['anvil', 'mantis', 'frostline', 'gale', 'volt', 'magma', 'scrap', 'tide', 'gatekeeper', 'overlord'];
-const REQUIRED_REMATCHES = 8;
-const BONUS_NAMES: Partial<Record<BossKind, string>> = { gatekeeper: 'GATEKEEPER', overlord: 'OVERLORD' };
-const TELEPORT_FRAMES = 40;
+const REMATCH_ORDER: BossKind[] = ['anvil', 'mantis', 'frostline', 'gale', 'volt', 'magma', 'scrap', 'tide'];
 
 /** Display names for each stage boss (from the stage data). */
 const BOSS_NAMES: Partial<Record<BossKind, string>> = Object.fromEntries(
@@ -204,8 +201,15 @@ export class GameScene extends Phaser.Scene {
   /** Counts down after the last life is lost, then back to the select screen. */
   private gameOverT = 0;
   /** Rematch room: capsules, which are done, and a teleport in progress. */
-  private capsules: { box: Box; sprite: Phaser.GameObjects.Image; kind: BossKind; done: boolean; bonus: boolean }[] = [];
-  private teleport: { t: number; to: 'arena' | 'hub'; kind?: BossKind; back?: Point } | null = null;
+  private capsules: { box: Box; sprite: Phaser.GameObjects.Image; kind: BossKind; done: boolean }[] = [];
+  /**
+   * The teleport beam running right now (stage start, respawn, the Boss Hall's
+   * capsules), and what to do when it's done. Play waits for it.
+   */
+  private beam: Beam | null = null;
+  private beamThen: (() => void) | null = null;
+  /** Boss Hall: the stage whose arena you're refighting in (for arenaFx), or null. */
+  private hallArenaStage: StageId | null = null;
   private hubSpot: Point | null = null;
   /** Freeze-frame counter (weakness hits). */
   private hitStop = 0;
@@ -333,7 +337,9 @@ export class GameScene extends Phaser.Scene {
     // Back from an encounter (the boss's game, a part's guardian): a miniboss beaten on this visit stays beaten.
     this.miniDefeated = visit.miniDefeated;
     this.capsules = [];
-    this.teleport = null;
+    this.beam = null;
+    this.beamThen = null;
+    this.hallArenaStage = null;
     this.hubSpot = null;
     this.hitStop = 0;
     this.weaponLabelT = 0;
@@ -466,7 +472,8 @@ export class GameScene extends Phaser.Scene {
         : null;
     this.arenaFx = new ArenaFx({
       scene: this,
-      stage: this.stageId,
+      // (In the Boss Hall, the room does what the boss's own stage room does.)
+      stage: () => this.hallArenaStage ?? this.stageId,
       player: () => this.player,
       boss: () => (this.boss && !(this.boss instanceof Miniboss) ? this.boss : null),
       room: () => this.bossRoom,
@@ -506,22 +513,14 @@ export class GameScene extends Phaser.Scene {
       this.cacheItems.push({ box: { x: o.x - 7, y: o.y - 12, w: 14, h: 12 }, sprite, taken: false, key });
     }
     // Rematch room: one capsule per boss; the exit opens once all are beaten.
-    const gameCleared = loadSave().cleared.includes('finale');
     [...this.level.teleporters]
       .sort((a, b) => a.x - b.x)
       .forEach((t, i) => {
         const kind = REMATCH_ORDER[i % REMATCH_ORDER.length];
-        const bonus = i >= REQUIRED_REMATCHES;
-        const locked = bonus && kind === 'overlord' && !gameCleared;
-        const sprite = this.add.image(t.x, t.y, locked ? 'capsule_off' : 'capsule_on').setOrigin(0.5, 1).setDepth(3);
-        this.capsules.push({ box: { x: t.x - 8, y: t.y - 28, w: 16, h: 28 }, sprite, kind, done: locked, bonus });
-        const label = locked ? '???' : (BOSS_NAMES[kind] ?? BONUS_NAMES[kind] ?? '');
-        pixelText(this, t.x, t.y - 38, label, { fontFamily: 'monospace', fontSize: '7px', color: bonus ? '#ffe14a' : '#c8ccd8' }).setOrigin(0.5).setDepth(3);
+        const sprite = this.add.image(t.x, t.y, 'capsule_on').setOrigin(0.5, 1).setDepth(3);
+        this.capsules.push({ box: { x: t.x - 8, y: t.y - 28, w: 16, h: 28 }, sprite, kind, done: false });
+        pixelText(this, t.x, t.y - 38, BOSS_NAMES[kind] ?? '', { fontFamily: 'monospace', fontSize: '7px', color: '#c8ccd8' }).setOrigin(0.5).setDepth(3);
       });
-    if (this.capsules.some((c) => c.bonus)) {
-      const first = this.capsules.find((c) => c.bonus)!;
-      pixelText(this, first.box.x + 48, first.box.y - 40, 'BONUS GAMES', { fontFamily: 'monospace', fontSize: '8px', color: '#ffe14a' }).setOrigin(0.5).setDepth(3);
-    }
     if (this.capsules.length) {
       const hub = this.level.playerStart;
       pixelText(this, hub.x + 140, hub.y - 120, 'UP in a capsule to rematch a boss', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' }).setOrigin(0.5).setDepth(3);
@@ -732,7 +731,22 @@ export class GameScene extends Phaser.Scene {
       this.readyTimer--;
       this.banner.setText('READY').setVisible(Math.floor(this.readyTimer / 8) % 2 === 0);
       this.player.sprite.setVisible(false);
-      if (this.readyTimer === 0) this.banner.setVisible(false);
+      if (this.readyTimer === 0) {
+        this.banner.setVisible(false);
+        // Then he beams in.
+        this.startBeam('in');
+      }
+      return;
+    }
+    if (this.beam) {
+      this.stepEffects();
+      if (!this.beam.step()) {
+        this.beam = null;
+        this.player.sprite.setVisible(true);
+        const then = this.beamThen;
+        this.beamThen = null;
+        then?.();
+      }
       return;
     }
     if (this.weaponGetT > 0) {
@@ -741,10 +755,6 @@ export class GameScene extends Phaser.Scene {
     }
     if (this.partGetT > 0) {
       this.stepPartGet();
-      return;
-    }
-    if (this.teleport) {
-      this.stepTeleport();
       return;
     }
     const cutscene = this.transition || this.doorSeq || this.boss?.inIntro || this.bossDeathT > 0;
@@ -818,7 +828,7 @@ export class GameScene extends Phaser.Scene {
 
     this.collide();
     this.checkCapsules();
-    if (this.teleport) return;
+    if (this.beam) return;
     this.checkDoors();
     if (this.doorSeq) return;
     this.checkSection();
@@ -842,7 +852,7 @@ export class GameScene extends Phaser.Scene {
       k.render();
       k.sprite.setVisible(k.life < 240 || k.life % 6 < 3);
     }
-    if (this.readyTimer > 0) this.player.sprite.setVisible(false);
+    if (this.readyTimer > 0 || this.beam) this.player.sprite.setVisible(false);
 
     const cam = this.cameras.main;
     cam.setScroll(Math.round(this.camX), Math.round(this.camY));
@@ -1306,7 +1316,7 @@ export class GameScene extends Phaser.Scene {
       this.flashLabel(loadSave().tanks >= MAX_TANKS ? 'E-TANK (FULL)' : 'E-TANK');
     }
     const goal = this.level.goal;
-    const goalOpen = this.capsules.every((c) => c.done || c.bonus);
+    const goalOpen = this.capsules.every((c) => c.done);
     if (goal && goalOpen && overlaps(p, { x: goal.x - 6, y: goal.y - 16, w: 12, h: 16 })) this.stageClear();
   }
 
@@ -1581,8 +1591,7 @@ export class GameScene extends Phaser.Scene {
   }
 
   /** Lock the camera on the boss room ('X' marker's section) and start a boss there. */
-  private spawnBossInRoom(kind: BossKind): void {
-    const at = this.level.boss!;
+  private spawnBossInRoom(kind: BossKind, at: Point = this.level.boss!): void {
     const sec = this.level.sectionAt(at.x, at.y - 1)!;
     const camX = Math.round(this.bossRoomCamX(sec));
     this.arena = { camX, left: camX + 8, right: camX + VIEW_W - 8 };
@@ -1785,7 +1794,7 @@ export class GameScene extends Phaser.Scene {
     playMusic(this, stageMusic(this.level.data));
     if (r.kind === 'vault' && r.won) {
       this.player.heal(10);
-      if (this.capsules.every((k) => k.done || k.bonus)) {
+      if (this.capsules.every((k) => k.done)) {
         this.goalSprite?.setVisible(true);
         this.flashLabel('THE WAY FORWARD IS OPEN');
       }
@@ -1938,49 +1947,67 @@ export class GameScene extends Phaser.Scene {
     const c = this.capsules.find((k) => !k.done && overlaps(p, k.box));
     if (!c) return;
     this.hubSpot = { x: c.box.x + c.box.w / 2, y: c.box.y + c.box.h };
-    // The bonus capsules take you into their own game instead.
-    const game = VAULT_ENCOUNTERS[c.kind];
-    if (game) {
-      sfx.charge(2);
-      const done = this.capsules.flatMap((k, i) => (k.done ? [i] : []));
-      this.startEncounter(game, { kind: 'vault', step: this.capsules.indexOf(c), done });
-      return;
-    }
-    this.teleport = { t: 0, to: 'arena', kind: c.kind };
-    sfx.charge(2);
+    this.startBeam('out', () => this.beamToArena(c.kind));
   }
 
-  /** Beam out (hero flickers away), jump the camera, beam in. */
-  private stepTeleport(): void {
-    const tp = this.teleport!;
+  /** Beam in (or out) where the player stands; `then` runs when it's over. */
+  private startBeam(dir: 'in' | 'out', then?: () => void): void {
     const p = this.player;
-    tp.t++;
     p.vx = p.vy = 0;
-    p.sprite.setVisible(tp.t % 4 < 2 && tp.t < TELEPORT_FRAMES / 2 || tp.t > TELEPORT_FRAMES * 0.75);
-    if (tp.t === Math.floor(TELEPORT_FRAMES / 2)) {
+    this.beam?.destroy();
+    const s = p.sprite;
+    const look = { texture: s.texture.key, frame: s.frame.name, flipX: s.flipX };
+    const top = this.camY - 8;
+    this.beam = dir === 'in' ? Beam.in(this, Math.round(p.cx), Math.round(p.bottom), top, look) : Beam.out(this, Math.round(p.cx), Math.round(p.bottom), top, look);
+    this.beamThen = then ?? null;
+  }
+
+  /** Boss Hall: the arena for this boss (a copy of its own stage's), and the stage it's from. */
+  private rematchArena(kind: BossKind): { at: Point; stage: StageId | null } {
+    const a = this.level.data.rematchArenas?.find((r) => r.kind === kind);
+    const at = (a && this.level.bossSpots.find((s) => Math.floor((s.y - 1) / SCREEN_H) === a.row)) ?? this.level.boss!;
+    return { at, stage: a?.stage ?? null };
+  }
+
+  /** Gone from the hall: land in the boss's arena, beam in, then the boss drops in. */
+  private beamToArena(kind: BossKind): void {
+    const p = this.player;
+    this.clearActors();
+    const { at, stage } = this.rematchArena(kind);
+    this.hallArenaStage = stage;
+    const sec = this.level.sectionAt(at.x, at.y - 1)!;
+    const camX = Math.round(this.bossRoomCamX(sec));
+    p.reset(camX + 60, at.y);
+    this.section = sec;
+    this.arena = { camX, left: camX + 8, right: camX + VIEW_W - 8 };
+    this.camX = camX;
+    this.camY = sec.row * SCREEN_H;
+    this.camGlide = null;
+    this.startBeam('in', () => {
+      this.hallRematch = true;
+      this.spawnBossInRoom(kind, at);
+    });
+  }
+
+  /** Back from a rematch: beam out of the arena, into the hall by that capsule. */
+  private beamToHub(): void {
+    this.startBeam('out', () => {
+      const p = this.player;
       this.clearActors();
-      if (tp.to === 'arena') {
-        const at = this.level.boss!;
-        const sec = this.level.sectionAt(at.x, at.y - 1)!;
-        const camX = Math.round(this.bossRoomCamX(sec));
-        p.reset(camX + 60, at.y);
-        this.section = sec;
-        this.hallRematch = true;
-        this.spawnBossInRoom(tp.kind!);
-        this.camY = sec.row * SCREEN_H;
-      } else {
-        const back = this.hubSpot ?? this.level.playerStart;
-        p.reset(back.x, back.y);
-        this.section = this.level.sectionAt(p.cx, p.cy)!;
-        this.arena = null;
-        this.followCamera();
-        playMusic(this, stageMusic(this.level.data));
-      }
-    }
-    if (tp.t >= TELEPORT_FRAMES) {
-      this.teleport = null;
-      p.sprite.setVisible(true);
-    }
+      this.boss?.destroy();
+      this.boss = null;
+      this.bossRoom = null;
+      this.hallArenaStage = null;
+      const back = this.hubSpot ?? this.level.playerStart;
+      p.reset(back.x, back.y);
+      this.section = this.level.sectionAt(p.cx, p.cy - 1)!;
+      this.arena = null;
+      this.camX = this.cameraTargetX(this.section);
+      this.camY = this.section.row * SCREEN_H;
+      this.camGlide = null;
+      playMusic(this, stageMusic(this.level.data));
+      this.startBeam('in');
+    });
   }
 
   /** A player shot is heading at `box` and is within `dist` px (Shade dodges these). */
@@ -2070,8 +2097,8 @@ export class GameScene extends Phaser.Scene {
           c.sprite.setTexture('capsule_off');
         }
         this.player.heal(10);
-        this.teleport = { t: 0, to: 'hub' };
-        if (this.capsules.every((k) => k.done || k.bonus)) {
+        this.beamToHub();
+        if (this.capsules.every((k) => k.done)) {
           this.goalSprite?.setVisible(true);
           this.flashLabel('THE WAY FORWARD IS OPEN');
         }
@@ -2482,7 +2509,10 @@ export class GameScene extends Phaser.Scene {
     // Latest checkpoint the player has passed.
     this.player.reset(this.checkpoint.x, this.checkpoint.y);
     this.pip?.reset();
-    this.teleport = null;
+    this.beam?.destroy();
+    this.beam = null;
+    this.beamThen = null;
+    this.hallArenaStage = null;
     this.section = this.level.sectionAt(this.player.cx, this.player.cy)!;
     this.camX = this.cameraTargetX(this.section);
     this.followCamera();

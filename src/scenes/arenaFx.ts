@@ -4,11 +4,13 @@ import type { Boss, Room } from '../entities/bosses/Boss';
 import type { Player } from '../entities/Player';
 import type { StageId } from '../level/Level';
 import { sfx } from '../sfx';
+import { makeFrames } from '../tileFx';
 import type { ShotOptions } from './GameScene';
 
 export interface ArenaHost {
   scene: Phaser.Scene;
-  stage: StageId;
+  /** Whose room this is (in the Boss Hall, the stage the arena was copied from). */
+  stage: () => StageId;
   player: () => Player;
   /** The stage boss being fought right now (not a miniboss), or null. */
   boss: () => Boss | null;
@@ -43,14 +45,14 @@ export class ArenaFx {
     const boss = this.h.boss();
     const room = this.h.room();
     const fighting = !!boss && !!room && boss.state === 'fight';
-    if (this.h.stage === 'caldera') this.stepSurge(fighting, room);
+    if (this.h.stage() === 'caldera') this.stepSurge(fighting, room);
     this.stepIcicles(fighting);
   }
 
   /** A boss hit a wall hard (Frostline's slide). */
   slam(): void {
     const room = this.h.room();
-    if (this.h.stage !== 'glacier' || !room) return;
+    if (this.h.stage() !== 'glacier' || !room) return;
     const p = this.h.player();
     const xs = [p.cx, room.left + 20 + Math.random() * (room.right - room.left - 40), room.left + 20 + Math.random() * (room.right - room.left - 40)];
     for (const x of xs) {
@@ -84,7 +86,9 @@ export class ArenaFx {
     }
     if (!this.lava) {
       const sc = this.h.scene;
-      const theme = sc.textures.exists('lava_top_volcano_0') ? 'volcano' : 'foundry';
+      // Caldera's magma colors, wherever it's fought (the Boss Hall too).
+      makeFrames(sc, 'volcano');
+      const theme = 'volcano';
       const w = room.right - room.left + 16;
       const ts = (key: string, depth: number) => sc.add.tileSprite(room.left - 8, room.floor, w, TILE, key).setOrigin(0).setDepth(depth).setVisible(false);
       this.lava = {

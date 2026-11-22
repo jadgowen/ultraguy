@@ -2,8 +2,7 @@ import Phaser from 'phaser';
 import { playMusic } from '../audio';
 import { VIEW_W } from '../constants';
 import { heroFrames } from '../heroSprites';
-import { ALL_BOSS_STAGES } from '../level/stages';
-import { loadSave, wearSavedSkin } from '../save';
+import { wearSavedSkin } from '../save';
 import { sfx, unlockAudio } from '../sfx';
 import { touchEnabled } from '../touch';
 import { heroTexture } from '../weapons';
@@ -11,7 +10,7 @@ import { FONT, MenuScene } from './menu';
 import { pixelText } from '../pixelFont';
 import { startScene } from './lazy';
 
-type Choice = 'start' | 'fortress' | 'arena' | 'settings' | 'dojo';
+type Choice = 'start' | 'arcade' | 'arena' | 'settings' | 'dojo';
 
 export class TitleScene extends MenuScene {
   private choices: Choice[] = [];
@@ -49,13 +48,11 @@ export class TitleScene extends MenuScene {
       vx: (Math.random() - 0.5) * 0.2,
     }));
 
-    // FORTRESS appears once all eight bosses are beaten (in the last-played slot).
-    const save = loadSave();
-    const fortressOpen = ALL_BOSS_STAGES.every((id) => save.cleared.includes(id));
-    this.choices = fortressOpen ? ['start', 'fortress', 'arena', 'dojo', 'settings'] : ['start', 'arena', 'dojo', 'settings'];
-    const labels: Record<Choice, string> = { start: 'START', fortress: 'FORTRESS', arena: 'ULTRA ARENA', dojo: 'DOJO', settings: 'SETTINGS' };
+    // ARCADE: replay the minigames you've won (the fortress is reached from the middle of boss select).
+    this.choices = ['start', 'arcade', 'arena', 'dojo', 'settings'];
+    const labels: Record<Choice, string> = { start: 'START', arcade: 'ARCADE', arena: 'ULTRA ARENA', dojo: 'DOJO', settings: 'SETTINGS' };
     this.panel(VIEW_W / 2, 140 + (this.choices.length * 14) / 2 - 4, 120, this.choices.length * 14 + 14);
-    this.list(VIEW_W / 2 - 34, 140, this.choices.map((c) => labels[c]), fortressOpen ? 1 : 0);
+    this.list(VIEW_W / 2 - 34, 140, this.choices.map((c) => labels[c]), 0);
 
     pixelText(this, VIEW_W / 2, 222, touchEnabled() ? 'TAP JUMP to choose' : 'ENTER / Z to choose', { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' }).setOrigin(0.5);
     // Any key unlocks audio (browser autoplay rules).
