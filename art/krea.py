@@ -96,6 +96,12 @@ PROMPTS = {
         "mustard. Below him a few small angry living hot dogs with tiny legs and furious eyebrows. Comic and "
         "grotesque. " + STYLE
     ),
+    "hotdog": (
+        "A single small HOTDOG MINION enemy: one living hot dog in a bun, standing upright on two stubby little legs "
+        "with tiny sneakers and two little arms with fists raised, a furious face on the sausage with angry "
+        "eyebrows, gritted teeth and glowing yellow eyes, a zigzag of mustard and a drip of ketchup on top. "
+        "Comic but menacing. Only ONE hot dog, alone, full figure, facing right. " + STYLE.replace("facing slightly to the left (toward the heroes on the right)", "facing to the right")
+    ),
     "creator": (
         "THE CREATOR: the final boss, an enormous floating disembodied head looming out of a void. A heavyset "
         "white man in his late thirties with short tousled dark brown hair, a high forehead receding at the "

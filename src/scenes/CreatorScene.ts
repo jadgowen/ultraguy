@@ -10,6 +10,7 @@ import { sfx } from '../sfx';
 import { WEAPONS, WeaponId, heroTexture } from '../weapons';
 import { pixelateIn, pixelateOut } from './cutscene';
 import { FINALE_ART, PaintLayer } from './paintLayer';
+import { HIT_AT, SPELL_FRAMES, drawCast, drawSpell } from './spellFx';
 import { rpgWindow } from './rpgArt';
 
 /**
@@ -26,7 +27,7 @@ import { rpgWindow } from './rpgArt';
  * a reel of every stage, then the cast roll.
  */
 
-type Status = 'freeze' | 'slow' | 'burn' | 'poison' | 'magnet' | 'shuffle' | 'dark' | 'reverse' | 'buff';
+type Status = 'freeze' | 'slow' | 'burn' | 'poison' | 'magnet' | 'dark' | 'reverse' | 'buff';
 interface Attack {
   name: string;
   /** Damage per hit (before guard and barrier). */
@@ -52,6 +53,8 @@ interface Tier {
   name: string;
   art: string;
   backdrop: string;
+  /** Who it is, short (on the popups). */
+  short: string;
   /** Painting placement (game units): center x, bottom y, height. */
   box: [number, number, number];
   hp: number;
@@ -70,9 +73,10 @@ const CREATOR = 'THE CREATOR';
 const TIERS: Tier[] = [
   {
     name: 'THE ELEMENTAL CHIMERA',
+    short: 'CHIMERA',
     art: 'chimera.png',
     backdrop: 'bg_storm.jpg',
-    box: [128, 196, 188],
+    box: [124, 190, 160],
     hp: 900,
     speed: 0.0032,
     weak: ['spark', 'flame'],
@@ -88,9 +92,10 @@ const TIERS: Tier[] = [
   },
   {
     name: 'THE IRON IDOL',
+    short: 'IRON IDOL',
     art: 'idol.png',
     backdrop: 'bg_forge.jpg',
-    box: [132, 196, 192],
+    box: [128, 190, 164],
     hp: 1100,
     speed: 0.003,
     weak: ['bubble', 'quake'],
@@ -106,9 +111,10 @@ const TIERS: Tier[] = [
   },
   {
     name: 'BLACK JARED, SUPERSIZED',
+    short: 'BLACK JARED',
     art: 'jared.png',
     backdrop: 'bg_store.jpg',
-    box: [128, 200, 194],
+    box: [118, 192, 164],
     hp: 900,
     speed: 0.0035,
     weak: ['flame', 'saw'],
@@ -128,9 +134,10 @@ const TIERS: Tier[] = [
   },
   {
     name: CREATOR,
+    short: CREATOR,
     art: 'creator.png',
     backdrop: 'bg_void.jpg',
-    box: [132, 204, 200],
+    box: [128, 196, 172],
     hp: 1800,
     speed: 0.0034,
     weak: [],
@@ -147,7 +154,7 @@ const TIERS: Tier[] = [
       { name: 'HIGH SKIES', power: 24, target: 'one', hits: 7, color: 0xa8e070, memory: 'I LEARNED TO DODGE BEFORE I LEARNED LONG DIVISION.' },
       { name: 'RACE DAY', power: 60, target: 'both', color: 0xf8e040, special: 'reverse', memory: "I DIDN'T HAVE A BIKE THAT FAST. SO I MADE ONE." },
       { name: 'SHORT FUSE', power: 0, target: 'hero', color: 0xff7a2a, special: 'bomb', memory: 'BOMBS, BRICKS, AND YOUR BEST FRIEND SITTING THREE FEET AWAY. PURE DIPLOMACY.' },
-      { name: 'JUNK MAZE', power: 50, target: 'hero', color: 0xc8ccd8, status: ['shuffle', 3], memory: 'SOME OF MY BEST AFTERNOONS WERE SPENT LOST, WITH A SWORD AND ONE MORE KEY TO FIND.' },
+      { name: 'JUNK MAZE', power: 50, target: 'hero', color: 0xc8ccd8, status: ['slow', 360], memory: 'SOME OF MY BEST AFTERNOONS WERE SPENT LOST, WITH A SWORD AND ONE MORE KEY TO FIND.' },
       { name: 'TRENCH DESCENT', power: 70, target: 'both', color: 0x3a78b8, status: ['dark', 600], memory: "THE DARK PARTS SCARED ME MOST. THAT'S HOW I KNEW THEY WERE GOOD." },
       { name: 'TITLE BOUT', power: 0, target: 'hero', color: 0x8c4ad8, special: 'coach', memory: "EVERY CHAMP NEEDS SOMEONE IN THE CORNER. GO ON. I'LL ALLOW IT." },
       { name: 'DOGFIGHT', power: 20, target: 'one', hits: 8, color: 0xff5050, memory: 'ONE QUARTER. ONE MORE TRY. ONE MORE QUARTER.' },
@@ -221,7 +228,11 @@ export class CreatorScene extends Phaser.Scene {
   private we: Partial<Record<WeaponId, number>> = {};
   private items = { etank: 2, wtank: 1 };
   // Hotdog minions (tier 3).
-  private dogs: { hp: number; img: Phaser.GameObjects.Image; atb: number }[] = [];
+  private dogs: Dog[] = [];
+  private dogSerial = 0;
+  /** Rings from weapon impacts, and frames of hit-freeze left. */
+  private rings: { x: number; y: number; r: number; max: number; color: number; life: number }[] = [];
+  private freeze = 0;
   // Menus.
   private menu: { kind: 'main' | 'weapon' | 'item' | 'target'; options: string[]; sel: number; pending?: string } | null = null;
   // Talking: a queue of lines in the top box; play waits while it's open.
@@ -241,6 +252,9 @@ export class CreatorScene extends Phaser.Scene {
   private omenText!: ReturnType<typeof pixelText>;
   private effects: { x: number; y: number; vx: number; vy: number; life: number; color: number; size: number }[] = [];
   private reelImg: Phaser.GameObjects.Image | null = null;
+  /** The reel's frames: a window around each shot, and a caption window under it. */
+  private reelFrame: Phaser.GameObjects.Image | null = null;
+  private reelCaption: Phaser.GameObjects.Container | null = null;
   private winL!: Phaser.GameObjects.Image;
   private winR!: Phaser.GameObjects.Image;
   private pipLook!: { shell: PipShell; paint: PipPaint };
@@ -256,7 +270,7 @@ export class CreatorScene extends Phaser.Scene {
     const save = loadSave();
     Object.assign(this, {
       acc: 0, frame: 0, phase: 'omen', phaseT: 0, tier: 0, bossAtb: 0, pendingBig: null, lastAttack: '',
-      barrier: false, bomb: 0, bombDamage: 0, lines: [], lineT: 0, after: null, menu: null, effects: [], dogs: [], reelImg: null,
+      barrier: false, bomb: 0, bombDamage: 0, rings: [], freeze: 0, dogSerial: 0, spell: null, lines: [], lineT: 0, after: null, menu: null, effects: [], dogs: [], reelImg: null,
     });
     this.halfway = { at66: false, at33: false };
     this.hero = { hp: HERO_MAX, atb: 0, guard: false, charged: false, revives: 0 };
@@ -273,13 +287,17 @@ export class CreatorScene extends Phaser.Scene {
     for (const t of TIERS) {
       new Image().src = FINALE_ART(t.art);
       new Image().src = FINALE_ART(t.backdrop);
+      new Image().src = FINALE_ART('hotdog.png');
     }
 
     this.gfx = this.add.graphics().setDepth(44);
+    this.dim = this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x05040c, 1).setOrigin(0).setDepth(5).setAlpha(0);
+    this.spellSolid = this.add.graphics().setDepth(28);
+    this.spellAdd = this.add.graphics().setDepth(29).setBlendMode(Phaser.BlendModes.ADD);
     this.fx = this.add.graphics().setDepth(30).setBlendMode(Phaser.BlendModes.ADD);
     this.pose = 'idle';
-    this.heroImg = this.add.image(352, 172, heroTexture('buster'), heroFrames(this).idle).setOrigin(0.5, 1).setScale(2).setFlipX(true).setDepth(10).setVisible(false);
-    this.pipImg = this.add.image(392, 132, pipTexture(this, this.pipLook.shell, this.pipLook.paint, 0)).setScale(2).setDepth(10).setVisible(false);
+    this.heroImg = this.add.image(352, 172, heroTexture('buster'), heroFrames(this).idle).setOrigin(0.5, 1).setScale(1.5).setFlipX(true).setDepth(10).setVisible(false);
+    this.pipImg = this.add.image(390, 136, pipTexture(this, this.pipLook.shell, this.pipLook.paint, 0)).setScale(1.5).setDepth(10).setVisible(false);
     this.topBox = this.add.image(VIEW_W / 2, 22, rpgWindow(this, 400, 36)).setDepth(40).setVisible(false);
     this.topName = pixelText(this, 22, 8, '', { color: '#ffe14a' }).setDepth(41);
     this.topText = pixelText(this, 22, 19, '', { color: '#fff1e0' }).setDepth(41).setMaxWidth(380);
@@ -306,11 +324,21 @@ export class CreatorScene extends Phaser.Scene {
   // --- flow -----------------------------------------------------------------------
 
   private step(): void {
-    this.phaseT++;
     this.paint.step();
     this.stepEffects();
+    // A weapon's impact freezes the action for a beat.
+    if (this.freeze > 0) {
+      this.freeze--;
+      return;
+    }
+    this.phaseT++;
     if (this.lines.length) {
       this.stepTalk();
+      return;
+    }
+    if (this.spell) {
+      // The battle waits for the spell (the gauges hold).
+      this.stepSpell();
       return;
     }
     switch (this.phase) {
@@ -412,7 +440,7 @@ export class CreatorScene extends Phaser.Scene {
     const tier = TIERS[this.tier];
     // Statuses tick down; burn and poison hurt.
     for (const [s, n] of [...this.status]) {
-      if (s === 'magnet' || s === 'shuffle') continue; // these count the hero's turns
+      if (s === 'magnet') continue; // this counts the hero's turns
       if ((s === 'burn' || s === 'poison') && n % 60 === 0) this.hurtHero(s === 'burn' ? 18 : 14, s === 'burn' ? 0xff7a2a : 0x6cc04a, true);
       if (n <= 1) this.clearStatus(s);
       else this.status.set(s, n - 1);
@@ -442,7 +470,7 @@ export class CreatorScene extends Phaser.Scene {
       d.atb += 0.0028;
       if (d.atb >= 1) {
         d.atb = 0;
-        this.showName('HOTDOG', 'enemy');
+        this.showName('MUSTARD SQUIRT', 'enemy', 'HOTDOG');
         this.hurtHero(30, 0xe86a50);
       }
     }
@@ -451,10 +479,14 @@ export class CreatorScene extends Phaser.Scene {
 
   // --- UltraGuy ------------------------------------------------------------------
 
+  /** Always in this order. */
   private mainOptions(): string[] {
-    const opts = ['FIGHT', 'WEAPON', 'CHARGE', 'ITEM', 'GUARD'];
-    if (this.status.has('shuffle')) return Phaser.Utils.Array.Shuffle([...opts]);
-    return opts;
+    return ['FIGHT', 'WEAPON', 'GUARD', 'ITEM'];
+  }
+
+  /** The weapon list: CHARGE first, then each weapon with its energy left and what a use costs. */
+  private weaponOptions(): string[] {
+    return ['CHARGE', ...(Object.keys(this.we) as WeaponId[]).map((w) => `${WEAPONS[w].name} ${this.we[w]} -${WEAPONS[w].cost * 2}`)];
   }
 
   private openMenu(): void {
@@ -484,19 +516,19 @@ export class CreatorScene extends Phaser.Scene {
           this.popText('MAGNETIZED!', 352, 110, '#e83a3a');
           return;
         }
-        const ws = (Object.keys(this.we) as WeaponId[]).map((w) => `${WEAPONS[w].name}  ${this.we[w]}`);
-        if (!ws.length) return void sfx.hurt();
-        this.menu = { kind: 'weapon', options: ws, sel: 0 };
+        this.menu = { kind: 'weapon', options: this.weaponOptions(), sel: 0 };
       } else if (pick === 'ITEM') this.menu = { kind: 'item', options: [`E-TANK  x${this.items.etank}`, `W-TANK  x${this.items.wtank}`], sel: 0 };
       else if (pick === 'FIGHT' && this.dogs.length) this.menu = { kind: 'target', options: this.targets(), sel: 0, pending: 'FIGHT' };
       else this.heroActs(pick);
       return;
     }
     if (m.kind === 'weapon') {
-      const w = (Object.keys(this.we) as WeaponId[])[m.sel];
+      if (m.sel === 0) return void this.heroActs('CHARGE');
+      const w = (Object.keys(this.we) as WeaponId[])[m.sel - 1];
       const cost = WEAPONS[w].cost * 2;
       if ((this.we[w] ?? 0) < cost) return void sfx.hurt();
-      if (this.dogs.length) this.menu = { kind: 'target', options: this.targets(), sel: 0, pending: `W:${w}` };
+      // Spark Ring, Quake Wave and Cyclone hit everything, so there's nothing to aim.
+      if (this.dogs.length && !AOE.has(w)) this.menu = { kind: 'target', options: this.targets(), sel: 0, pending: `W:${w}` };
       else this.heroActs(`W:${w}`);
       return;
     }
@@ -508,14 +540,14 @@ export class CreatorScene extends Phaser.Scene {
   }
 
   private targets(): string[] {
-    return [TIERS[this.tier].name.split(',')[0], ...this.dogs.map((_, i) => `HOTDOG ${String.fromCharCode(65 + i)}`)];
+    return [TIERS[this.tier].short, ...this.dogs.map((_, i) => `HOTDOG ${String.fromCharCode(65 + i)}`)];
   }
 
   /** UltraGuy does it. `dog` is a hotdog's index (or -1 for the boss). */
   private heroActs(act: string, dog = -1): void {
     this.menu = null;
     this.hero.atb = 0;
-    for (const s of ['magnet', 'shuffle'] as Status[]) {
+    for (const s of ['magnet'] as Status[]) {
       const n = this.status.get(s);
       if (n !== undefined) n <= 1 ? this.clearStatus(s) : this.status.set(s, n - 1);
     }
@@ -549,45 +581,108 @@ export class CreatorScene extends Phaser.Scene {
       sfx.pickup();
       return;
     }
-    // FIGHT or a weapon: a shot across to the target.
-    this.tweens.add({ targets: this.heroImg, x: 338, duration: 90, yoyo: true });
-    let dmg: number;
-    let color = 0xffe14a;
-    let weakHit = false;
-    let label = '';
+    // FIGHT or a weapon: a shot across to the target (or, for the sweeping weapons, at everything).
+    this.tweens.add({ targets: this.heroImg, x: 340, duration: 90, yoyo: true });
+    const t = TIERS[this.tier];
+    const bossAt = { x: t.box[0], y: t.box[1] - t.box[2] * 0.5 };
     if (act === 'FIGHT') {
-      dmg = Phaser.Math.Between(24, 34) * (this.hero.charged ? 3 : 1);
-      label = this.hero.charged ? 'CHARGE SHOT' : '';
+      const dmg = Math.round(Phaser.Math.Between(24, 34) * (this.hero.charged ? 3 : 1) * buff);
+      const charged = this.hero.charged;
       this.hero.charged = false;
+      if (charged) this.showName('CHARGE SHOT', 'ally', 'ULTRAGUY');
       sfx.shoot();
-    } else {
-      const w = act.slice(2) as WeaponId;
-      this.we[w] = (this.we[w] ?? 0) - WEAPONS[w].cost * 2;
-      weakHit = TIERS[this.tier].weak.includes(w) && dog < 0;
-      dmg = Phaser.Math.Between(38, 50) * (weakHit ? 2.2 : 1);
-      color = WEAPON_COLOR[w] ?? 0xffffff;
-      label = WEAPONS[w].name;
-      sfx.chargeShot?.();
+      const target = dog >= 0 ? this.dogs[dog] : null;
+      const at = target ? { x: target.x, y: target.y - 16 } : bossAt;
+      this.shot(340, 148, at.x, at.y, charged ? 0xffe14a : 0xfff4a0, () => {
+        if (miss) return void this.popText('MISS', at.x, at.y - 10, '#8a8fa8');
+        if (charged) this.impact(at.x, at.y, 0xffe14a, true);
+        if (target) this.hitDog(target, dmg, 0xfff4a0);
+        else this.hitBoss(dmg, 0xfff4a0);
+      }, charged ? 'charge2' : 'bullet');
+      return;
     }
-    dmg = Math.round(dmg * buff);
-    if (label) this.showName(label, 'ally');
+    const w = act.slice(2) as WeaponId;
+    this.we[w] = (this.we[w] ?? 0) - WEAPONS[w].cost * 2;
+    const color = WEAPON_COLOR[w] ?? 0xffffff;
+    this.showName(WEAPONS[w].name, 'ally', 'ULTRAGUY');
+    sfx.chargeShot?.();
+    const weakHit = t.weak.includes(w);
+    const roll = () => Math.round(Phaser.Math.Between(38, 50) * buff);
+    // Cast like a spell: on the form and every hotdog for the sweeping weapons, else the one target.
     const target = dog >= 0 ? this.dogs[dog] : null;
-    const tx = target ? target.img.x : TIERS[this.tier].box[0];
-    const ty = target ? target.img.y - 6 : TIERS[this.tier].box[1] - TIERS[this.tier].box[2] * 0.5;
-    this.shot(340, 150, tx, ty, color, () => {
-      if (miss) {
-        this.popText('MISS', tx, ty - 10, '#8a8fa8');
-        return;
-      }
-      if (target) {
-        target.hp -= dmg;
-        this.burst(tx, ty, color, 14);
-        this.popText(`${dmg}`, tx, ty - 10, '#fff1e0');
-        if (target.hp <= 0) this.killDog(target);
-        return;
-      }
-      this.hitBoss(dmg, color, weakHit);
-    });
+    const hits: { x: number; y: number; dog: Dog | null }[] = AOE.has(w)
+      ? [{ x: bossAt.x, y: bossAt.y, dog: null }, ...this.dogs.map((d) => ({ x: d.x, y: d.y - 16, dog: d }))]
+      : [{ x: target ? target.x : bossAt.x, y: target ? target.y - 16 : bossAt.y, dog: target }];
+    this.spell = {
+      w, color, t: 0, targets: hits, landed: hits.map(() => false),
+      land: (k) => {
+        const a = hits[k];
+        if (miss) return void this.popText('MISS', a.x, a.y - 10, '#8a8fa8');
+        this.impact(a.x, a.y, color, !AOE.has(w));
+        const dmg = Math.round(roll() * (AOE.has(w) ? 0.8 : 1) * (a.dog ? 1 : weakHit ? 2.2 : 1));
+        if (a.dog) {
+          if (this.dogs.includes(a.dog)) this.hitDog(a.dog, dmg, color);
+        } else this.hitBoss(dmg, color, weakHit);
+      },
+    };
+  }
+
+  /** The weapon being cast (gathering, then the spell over its targets), or null. */
+  private spell: { w: WeaponId; color: number; t: number; targets: { x: number; y: number }[]; landed: boolean[]; land: (k: number) => void } | null = null;
+  /** The arena darkens while a spell plays (it's drawn under the party). */
+  private dim!: Phaser.GameObjects.Rectangle;
+  private spellAdd!: Phaser.GameObjects.Graphics;
+  private spellSolid!: Phaser.GameObjects.Graphics;
+
+  /** One step of a spell: the gathering, then the show; damage lands at its moment, per target. */
+  private stepSpell(): void {
+    const sp = this.spell!;
+    sp.t++;
+    const k = (sp.t - CAST_FRAMES) / SPELL_FRAMES;
+    if (sp.t === 1) sfx.charge?.(2);
+    if (sp.t === CAST_FRAMES) sfx.chargeShot?.();
+    if (k >= 0) {
+      sp.targets.forEach((_, i) => {
+        // Each target's hit time, matching drawSpell's stagger.
+        const at = (HIT_AT + i * 0.08) / (1 + sp.targets.length * 0.08);
+        if (!sp.landed[i] && k >= at) {
+          sp.landed[i] = true;
+          sp.land(i);
+        }
+      });
+    }
+    if (k >= 1.15) this.spell = null;
+  }
+
+  private drawSpellLayer(): void {
+    const a = this.spellAdd.clear();
+    const s = this.spellSolid.clear();
+    const sp = this.spell;
+    // The darkness fades in for the cast and out after.
+    const target = sp ? (sp.t < CAST_FRAMES ? (sp.t / CAST_FRAMES) * 0.55 : (sp.t - CAST_FRAMES) / SPELL_FRAMES > 1 ? 0.55 * (1 - ((sp.t - CAST_FRAMES) / SPELL_FRAMES - 1) / 0.15) : 0.55) : 0;
+    this.dim.setAlpha(Math.max(0, target));
+    if (!sp) return;
+    if (sp.t < CAST_FRAMES + 10) drawCast(a, this.heroImg.x, this.heroImg.y - 22, sp.t / CAST_FRAMES, sp.color, this.frame);
+    const k = (sp.t - CAST_FRAMES) / SPELL_FRAMES;
+    if (k >= 0 && k <= 1) drawSpell(a, s, sp.w, k, sp.targets, this.frame);
+  }
+
+  /** A weapon landing: a ring, a burst, a colored flash, a shake, and a beat of freeze. */
+  private impact(x: number, y: number, color: number, heavy: boolean): void {
+    this.rings.push({ x, y, r: 4, max: heavy ? 46 : 32, color, life: 22 });
+    this.rings.push({ x, y, r: 2, max: heavy ? 26 : 18, color: 0xffffff, life: 14 });
+    this.burst(x, y, color, heavy ? 34 : 22);
+    this.cameras.main.flash(90, (color >> 16) & 255, (color >> 8) & 255, color & 255, true);
+    this.cameras.main.shake(heavy ? 200 : 140, heavy ? 0.008 : 0.005);
+    this.freeze = heavy ? 5 : 3;
+  }
+
+  private hitDog(d: Dog, dmg: number, color: number): void {
+    d.hp -= dmg;
+    this.paint.flashMinion(d.id);
+    this.burst(d.x, d.y - 16, color, 12);
+    this.popText(`${dmg}`, d.x, d.y - 30, '#fff1e0', true);
+    if (d.hp <= 0) this.killDog(d);
   }
 
   private hitBoss(dmg: number, color: number, weak = false): void {
@@ -599,7 +694,7 @@ export class CreatorScene extends Phaser.Scene {
     const x = t.box[0] + Phaser.Math.Between(-30, 30);
     const y = t.box[1] - t.box[2] * Phaser.Math.FloatBetween(0.35, 0.7);
     this.burst(x, y, color, weak ? 30 : 16);
-    this.popText(`${dmg}`, x, y - 8, weak ? '#ff6a5a' : '#fff1e0');
+    this.popText(`${dmg}`, x, y - 8, weak ? '#ff6a5a' : '#fff1e0', true);
     sfx.hit();
     if (weak) {
       // A weakness staggers it: its gauge resets.
@@ -640,7 +735,7 @@ export class CreatorScene extends Phaser.Scene {
     if (low) {
       const heal = 200;
       this.hero.hp = Math.min(HERO_MAX, this.hero.hp + heal);
-      this.showName('REPAIR', 'ally');
+      this.showName('REPAIR', 'ally', 'PIP');
       this.burst(352, 140, 0x5ef0c8, 16);
       this.popText(`${heal}`, 352, 120, '#5ef0c8');
       this.clearStatus('burn');
@@ -650,7 +745,7 @@ export class CreatorScene extends Phaser.Scene {
     }
     if (this.pendingBig && !this.barrier) {
       this.barrier = true;
-      this.showName('BARRIER', 'ally');
+      this.showName('BARRIER', 'ally', 'PIP');
       sfx.charge?.(1);
       return;
     }
@@ -658,14 +753,10 @@ export class CreatorScene extends Phaser.Scene {
     const dog = this.dogs[0];
     const dmg = Phaser.Math.Between(14, 24);
     if (dog) {
-      this.shot(392, 132, dog.img.x, dog.img.y - 6, 0x5ef0c8, () => {
-        dog.hp -= dmg * 2;
-        this.popText(`${dmg * 2}`, dog.img.x, dog.img.y - 14, '#5ef0c8');
-        if (dog.hp <= 0) this.killDog(dog);
-      });
+      this.shot(390, 136, dog.x, dog.y - 16, 0x5ef0c8, () => this.hitDog(dog, dmg * 2, 0x5ef0c8));
     } else {
       const t = TIERS[this.tier];
-      this.shot(392, 132, t.box[0], t.box[1] - t.box[2] * 0.5, 0x5ef0c8, () => this.hitBoss(dmg, 0x5ef0c8));
+      this.shot(390, 136, t.box[0], t.box[1] - t.box[2] * 0.5, 0x5ef0c8, () => this.hitBoss(dmg, 0x5ef0c8));
     }
     sfx.zap();
   }
@@ -702,7 +793,7 @@ export class CreatorScene extends Phaser.Scene {
   /** Say its memory (tier 4), show its name, then do it. */
   private cast(a: Attack, then?: () => void): void {
     const go = () => {
-      this.showName(a.name, 'enemy');
+      this.showName(a.name, 'enemy', TIERS[this.tier].short);
       this.time.delayedCall(450, () => {
         this.doAttack(a);
         then?.();
@@ -796,17 +887,20 @@ export class CreatorScene extends Phaser.Scene {
     this.say(lines);
   }
 
+  /** A hotdog (painted, like the forms) runs in at Jared's feet, in the first free spot. */
   private addDog(): void {
-    const n = this.dogs.length;
-    const img = this.add.image(196 + n * 26, 196 - (n % 2) * 6, 'hotdog').setScale(3).setDepth(12).setAlpha(0);
-    this.tweens.add({ targets: img, alpha: 1, y: img.y - 4, duration: 300 });
-    this.dogs.push({ hp: 120, img, atb: Math.random() * 0.4 });
+    const slot = DOG_SLOTS.findIndex((_, i) => !this.dogs.some((d) => d.slot === i));
+    if (slot < 0) return;
+    const [x, y] = DOG_SLOTS[slot];
+    const id = `dog${this.dogSerial++}`;
+    this.paint.addMinion(id, FINALE_ART('hotdog.png'), x, y, 44);
+    this.dogs.push({ id, slot, x, y, hp: 120, atb: Math.random() * 0.4 });
   }
 
-  private killDog(d: { hp: number; img: Phaser.GameObjects.Image }): void {
-    this.burst(d.img.x, d.img.y, 0xe86a50, 14);
+  private killDog(d: Dog): void {
+    this.burst(d.x, d.y - 16, 0xe86a50, 18);
     sfx.enemyDie();
-    d.img.destroy();
+    this.paint.removeMinion(d.id);
     this.dogs = this.dogs.filter((x) => x !== d);
   }
 
@@ -873,40 +967,53 @@ export class CreatorScene extends Phaser.Scene {
     if (t === 1) {
       const r = REEL[i];
       this.reelImg?.destroy();
-      this.reelImg = this.textures.exists(`reel_${r.shot}`) ? this.add.image(VIEW_W / 2, 100, `reel_${r.shot}`).setScale(0.75).setDepth(50) : null;
+      this.reelImg = this.textures.exists(`reel_${r.shot}`) ? this.add.image(VIEW_W / 2, 94, `reel_${r.shot}`).setScale(0.72).setDepth(50) : null;
+      // The shot sits in a window like the battle's, the caption in another under it.
+      this.reelFrame ??= this.add.image(VIEW_W / 2, 94, rpgWindow(this, 318, 182)).setDepth(49);
+      this.reelCaption?.destroy();
+      const box = this.add.image(0, 0, rpgWindow(this, 330, 36));
+      const title = pixelText(this, 0, -12, r.title, { color: '#ffe14a' }).setOrigin(0.5, 0);
+      const line = pixelText(this, 0, 2, r.line, { color: '#fff1e0' }).setOrigin(0.5, 0);
+      this.reelCaption = this.add.container(VIEW_W / 2, 210, [box, title, line]).setDepth(50);
     }
     const a = t < 40 ? t / 40 : t > per - 40 ? (per - t) / 40 : 1;
-    this.reelImg?.setAlpha(a).setScale(0.75 + t * 0.00012);
-    this.omenText.setPosition(VIEW_W / 2, 206).setText(`${REEL[i].title}\n\n${REEL[i].line}`).setAlpha(a);
+    this.reelImg?.setAlpha(a);
+    this.reelFrame?.setAlpha(i === 0 ? Math.min(1, t / 40) : 1);
+    this.reelCaption?.setAlpha(a);
     if (this.controls.justPressed('start')) this.phaseT = REEL.length * per;
   }
 
   // --- effects --------------------------------------------------------------------------
 
   /**
-   * What's being cast, in a little window at the top (FF style): the enemy's in
-   * white, yours and Pip's in teal. It pops in, holds, and fades.
+   * What's being cast, in a little window at the top (FF style): who's casting it
+   * on top, the spell under it. The enemy's in white, yours and Pip's in teal. It
+   * pops in, holds a few seconds, and fades.
    */
   private popup: Phaser.GameObjects.Container | null = null;
-  private showName(name: string, who: 'enemy' | 'ally'): void {
+  private showName(name: string, who: 'enemy' | 'ally', caster: string): void {
     this.popup?.destroy();
-    const w = Math.max(80, name.length * 6 + 28);
-    const box = this.add.image(0, 0, rpgWindow(this, w, 20));
-    const text = pixelText(this, 0, -4, name, { color: who === 'enemy' ? '#fff1e0' : '#5ef0c8' }).setOrigin(0.5, 0);
-    const c = this.add.container(VIEW_W / 2, 66, [box, text]).setDepth(45).setScale(0.6, 0.2).setAlpha(0);
+    const w = Math.max(90, Math.max(name.length, caster.length) * 6 + 30);
+    const box = this.add.image(0, 0, rpgWindow(this, w, 30));
+    const by = pixelText(this, 0, -10, caster, { color: who === 'enemy' ? '#ff9a7a' : '#ffe14a' }).setOrigin(0.5, 0);
+    const text = pixelText(this, 0, 1, name, { color: who === 'enemy' ? '#fff1e0' : '#5ef0c8' }).setOrigin(0.5, 0);
+    const c = this.add.container(VIEW_W / 2, 66, [box, by, text]).setDepth(45).setScale(0.6, 0.2).setAlpha(0);
     this.popup = c;
     this.tweens.add({ targets: c, scaleX: 1, scaleY: 1, alpha: 1, duration: 120, ease: 'Back.easeOut' });
-    this.tweens.add({ targets: c, alpha: 0, delay: 1300, duration: 250, onComplete: () => (c.destroy(), this.popup === c && (this.popup = null)) });
+    this.tweens.add({ targets: c, alpha: 0, delay: 2600, duration: 300, onComplete: () => (c.destroy(), this.popup === c && (this.popup = null)) });
   }
 
-  private popText(text: string, x: number, y: number, color: string): void {
-    const t = pixelText(this, x, y, text, { color, stroke: '#000000' }).setOrigin(0.5).setDepth(46);
+  private popText(text: string, x: number, y: number, color: string, big = false): void {
+    const t = pixelText(this, x, y, text, { color, stroke: '#000000', fontSize: big ? '16px' : '8px' }).setOrigin(0.5).setDepth(46);
     this.tweens.add({ targets: t, y: y - 18, alpha: 0, duration: 900, ease: 'Cubic.easeOut', onComplete: () => t.destroy() });
   }
 
-  private shot(x0: number, y0: number, x1: number, y1: number, color: number, hit: () => void): void {
-    const b = this.add.circle(x0, y0, 3, color).setDepth(31).setBlendMode(Phaser.BlendModes.ADD);
-    this.tweens.add({ targets: b, x: x1, y: y1, duration: 260, ease: 'Quad.easeIn', onComplete: () => (b.destroy(), hit()) });
+  /** A projectile across: the weapon's own sprite (spinning), or a glowing orb, with a trail. */
+  private shot(x0: number, y0: number, x1: number, y1: number, color: number, hit: () => void, tex?: string): void {
+    const b: Phaser.GameObjects.Image | Phaser.GameObjects.Arc =
+      tex && this.textures.exists(tex) ? this.add.image(x0, y0, tex).setScale(2).setDepth(31).setFlipX(x1 < x0) : this.add.circle(x0, y0, 3, color).setDepth(31).setBlendMode(Phaser.BlendModes.ADD);
+    const trail = this.time.addEvent({ delay: 30, loop: true, callback: () => this.effects.push({ x: b.x, y: b.y, vx: 0, vy: 0, life: 10, color, size: 2 }) });
+    this.tweens.add({ targets: b, x: x1, y: y1, angle: tex ? 540 : 0, duration: 300, ease: 'Quad.easeIn', onComplete: () => (trail.remove(), b.destroy(), hit()) });
   }
 
   private burst(x: number, y: number, color: number, n: number): void {
@@ -934,6 +1041,11 @@ export class CreatorScene extends Phaser.Scene {
       e.life--;
     }
     this.effects = this.effects.filter((e) => e.life > 0);
+    for (const r of this.rings) {
+      r.life--;
+      r.r += (r.max - r.r) * 0.25;
+    }
+    this.rings = this.rings.filter((r) => r.life > 0);
   }
 
   private clearStatus(s: Status): void {
@@ -944,9 +1056,11 @@ export class CreatorScene extends Phaser.Scene {
   // --- drawing -----------------------------------------------------------------------------
 
   private draw(): void {
+    this.drawSpellLayer();
     const g = this.gfx.clear();
     const f = this.fx.clear();
     for (const e of this.effects) f.fillStyle(e.color, Math.min(1, e.life / 20)).fillRect(e.x, e.y, e.size, e.size);
+    for (const r of this.rings) f.lineStyle(2, r.color, Math.min(1, r.life / 12)).strokeCircle(r.x, r.y, r.r);
     for (const t of this.texts) t.destroy();
     this.texts = [];
     for (const t of this.menuTexts) t.destroy();
@@ -972,7 +1086,7 @@ export class CreatorScene extends Phaser.Scene {
     const fr = heroFrames(this);
     this.heroImg.setFrame(this.pose === 'hurt' ? fr.hurt : fr[`idle${1 + bob}`] ?? fr.idle);
     this.heroImg.setTint(this.hero.charged && this.frame % 6 < 3 ? 0xfff080 : this.status.has('freeze') ? 0x9ae8ff : 0xffffff);
-    this.pipImg.setTexture(pipTexture(this, this.pipLook.shell, this.pipLook.paint, (Math.floor(this.frame / 8) % 2) as 0 | 1)).setY(132 + Math.sin(this.frame * 0.08) * 3);
+    this.pipImg.setTexture(pipTexture(this, this.pipLook.shell, this.pipLook.paint, (Math.floor(this.frame / 8) % 2) as 0 | 1)).setY(136 + Math.sin(this.frame * 0.08) * 3);
     if (this.barrier) g.lineStyle(1, 0x5ef0c8, 0.6 + Math.sin(this.frame * 0.2) * 0.3).strokeEllipse(370, 140, 90, 70);
     // The bottom windows: the enemy, and the party with HP and gauges.
     const wy = 186;
@@ -1023,6 +1137,29 @@ export class CreatorScene extends Phaser.Scene {
     this.texts.push(pixelText(this, x, y, text, { color }).setDepth(41));
   }
 }
+
+interface Dog {
+  id: string;
+  slot: number;
+  /** Where it stands (game units): center x, feet y. */
+  x: number;
+  y: number;
+  hp: number;
+  atb: number;
+}
+
+/** Where hotdogs stand: in a ragged line at Jared's feet, between him and the party. */
+const DOG_SLOTS: [number, number][] = [
+  [178, 200],
+  [204, 194],
+  [228, 202],
+];
+
+/** Steps UltraGuy gathers power before a spell goes off. */
+const CAST_FRAMES = 36;
+
+/** The weapons that hit everything on the field. */
+const AOE = new Set<WeaponId>(['spark', 'quake', 'cyclone']);
 
 const WEAPON_COLOR: Partial<Record<WeaponId, number>> = {
   quake: 0xc8a070, thorn: 0x6cc04a, frost: 0x9ae8ff, cyclone: 0xd8ffe0, spark: 0xf8e040, flame: 0xff7a2a, saw: 0xc8ccd8, bubble: 0x6ab8e8,

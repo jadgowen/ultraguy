@@ -119,6 +119,7 @@ export class PaintLayer {
     if (this.shakeT > 0) this.shakeT--;
     if (this.flashT > 0) this.flashT--;
     this.placeBoss();
+    for (const id of this.minions.keys()) this.placeMinion(id);
     const dim = this.dim > 0 ? `brightness(${1 - this.dim * 0.85})` : '';
     for (const b of this.backs) b.style.filter = dim;
     if (performance.now() > this.fadingUntil) {
@@ -139,6 +140,49 @@ export class PaintLayer {
       // (The paintings face right; mirrored, they face the party on the right.)
       transform: `translateX(-50%) translateX(${sx * u}px) scaleX(-1)`,
     });
+  }
+
+  /** Small painted enemies (Jared's hotdogs): centered at x, feet at y, h tall (game units). */
+  private minions = new Map<string, { img: HTMLImageElement; x: number; y: number; h: number }>();
+
+  addMinion(id: string, url: string, x: number, y: number, h: number): void {
+    const img = document.createElement('img');
+    img.src = url;
+    Object.assign(img.style, { position: 'absolute', opacity: '0', filter: 'brightness(4) blur(4px)', transition: 'opacity 0.5s ease, filter 0.5s ease', transformOrigin: '50% 100%' });
+    this.root.appendChild(img);
+    this.minions.set(id, { img, x, y, h });
+    this.placeMinion(id);
+    requestAnimationFrame(() => {
+      img.style.opacity = '1';
+      img.style.filter = 'none';
+    });
+  }
+
+  removeMinion(id: string): void {
+    const m = this.minions.get(id);
+    if (!m) return;
+    this.minions.delete(id);
+    m.img.style.transition = 'opacity 0.6s ease, filter 0.6s ease';
+    m.img.style.filter = 'brightness(5) blur(6px)';
+    m.img.style.opacity = '0';
+    setTimeout(() => m.img.remove(), 700);
+  }
+
+  flashMinion(id: string): void {
+    const m = this.minions.get(id);
+    if (!m) return;
+    m.img.style.transition = 'none';
+    m.img.style.filter = 'brightness(3)';
+    setTimeout(() => (m.img.style.filter = 'none'), 110);
+  }
+
+  private placeMinion(id: string): void {
+    const m = this.minions.get(id);
+    if (!m) return;
+    const u = this.unit;
+    // A little hop as they wait (each its own rhythm).
+    const hop = Math.abs(Math.sin(this.hover * 0.09 + m.x)) * 2;
+    Object.assign(m.img.style, { height: `${m.h * u}px`, left: `${m.x * u}px`, top: `${(m.y - m.h - hop) * u}px`, transform: 'translateX(-50%)' });
   }
 
   show(on: boolean): void {
