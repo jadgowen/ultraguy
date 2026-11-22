@@ -1,8 +1,10 @@
 import type { StageData } from './Level';
-import { bossArena, bossHall, rows, SKY } from './rooms';
+import { SKY, bossArena, bossHall, challengeRoom, rows } from './rooms';
 
 /** The quiet hallway before the boss room (see bossHall). */
 const lobby = bossHall();
+/** Where the stage's boss challenges you to their own game (see challengeRoom). */
+const duel = challengeRoom();
 
 // CALDERA. Built around lava: lifts over it, rock that crumbles into it, and
 // a climb with the lava rising behind you.
@@ -40,7 +42,7 @@ export const CALDERA: StageData = {
   bossName: 'MAGMA',
   bossWeapon: 'flame',
   signature: [{ kind: 'lavaLeaper', from: 'slug', every: 1 }, { kind: 'lavaLeaper', from: 'ember', every: 3 }],
-  layout: ['...FGHJT78I|56|XY', '...E..KM', 'ABCD..NL'],
+  layout: ['...FGHJT9078I|56|XY', '...E..KM', 'ABCD..NL'],
   rise: { screens: 'DE', speed: 0.35 },
   screens: {
     // --- 1. Across the lava -------------------------------------------------------------
@@ -100,6 +102,9 @@ export const CALDERA: StageData = {
     T: [CEIL, CEIL, ...rows('###..........###', 8), '###.............', '###.............', '###....,........', '###.......######', '###.......######'],
     I: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
     // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    // --- The boss's challenge: their own game, before the last stretch ---
+    '9': duel.a,
+    '0': duel.b,
     '7': ['################', '################', '................', '................', '................', '................', '................', '................', '................', '................', '................', '................', '.......e....m...', '######LLL#######', '######LLL#######'],
     '8': ['################', '################', '................', '................', '................', '................', '..........f.....', '................', '................', '................', '....$...........', '...###..........', '.............m..', '################', '################'],
     '5': lobby.left,

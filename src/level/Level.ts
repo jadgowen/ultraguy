@@ -30,6 +30,7 @@ import type { WeaponId } from '../weapons';
  *   B  checkpoint that is also the "boss test" start
  *   X  boss (in the boss room)
  *   M  miniboss (stage's `miniboss`; the camera locks around it until it's beaten)
+ *   A  boss challenge: the stage's boss waits here and takes you into their own game
  *   E  energy tank (collectible)
  *   U  upgrade capsule holding the stage's armor part (`upgrade`)
  *   T  teleporter capsule (boss rematch room; left to right = REMATCH_ORDER)
@@ -297,7 +298,7 @@ const TILE_CHARS: Record<string, Tile> = {
   Q: Tile.Solid,
 };
 
-const MARKERS = new Set(['.', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U', '=', '-', 'v', ':', '!', '@', '+', '$', ';', ',', 'O']);
+const MARKERS = new Set(['.', 'A', 'X', 'B', 'P', 'c', '*', 'M', 'E', 'T', 'U', '=', '-', 'v', ':', '!', '@', '+', '$', ';', ',', 'O']);
 
 /** Water, including currents. */
 export function isWaterTile(t: Tile): boolean {
@@ -315,6 +316,8 @@ export class Level {
   goal: Point | null = null;
   boss: Point | null = null;
   miniboss: Point | null = null;
+  /** Where the stage's boss challenges you to their game ('A'). */
+  challenge: Point | null = null;
   readonly tanks: Point[] = [];
   /** Hidden extra lives ('+') and bolt caches ('$'). */
   readonly oneUps: Point[] = [];
@@ -451,6 +454,7 @@ export class Level {
         else if (ch === 'c') this.checkpoints.push({ x: cx, y: bottom });
         else if (ch === '*') this.goal = { x: cx, y: bottom };
         else if (ch === 'M') this.miniboss = { x: cx, y: bottom };
+        else if (ch === 'A') this.challenge = { x: cx, y: bottom };
         else if (ch === 'E') this.tanks.push({ x: cx, y: bottom });
         else if (ch === '+') this.oneUps.push({ x: cx, y: bottom });
         else if (ch === '$') this.boltCaches.push({ x: cx, y: bottom });

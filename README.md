@@ -14,8 +14,8 @@ ELEVENLABS_API_KEY=your-key npm run audio   # generate music + sound effects (op
 Title -> save select (3 slots; X twice erases one) -> intro stage (DOWNTOWN, boss BLACK JARED) on a new game -> boss select (8 bosses, 3x3 grid).
 Each boss gives a weapon; weaknesses form a loop. Beat all 8 and FORTRESS opens on the title menu
 (and the middle of boss select): three fortress stages, each ending with a guardian boss (GATEKEEPER,
-ABYSS EYE, SPIRE WARDEN; no weapon reward), the BOSS HALL (eight teleporters for boss
-rematches), then the final boss (OVERLORD, then SHADE).
+ABYSS EYE, SPIRE WARDEN; no weapon reward), the BOSS HALL (eight teleporters for harder boss
+refights), then the final boss (OVERLORD, then SHADE).
 
 **Look.** The regular stage enemies are drawn on the shaded rig too (`art/enemyArt.mjs`; the walker and lava slug
 keep their original art). Every minigame now has art of its own (`*Art.ts` beside each scene). Menus share a
@@ -47,26 +47,37 @@ a change of direction partway:
 | Scrapyard | barrel chutes, compactor presses, crane platforms and conveyor stairs |
 | Reef | currents (`{` / `}`) and bubble columns; a trench current that drags you toward spikes |
 
-Stage bosses are always fought in their arenas, where your weapons and parts matter. Some fights
-change the game entirely; each is its own scene, entered through a dialogue and a pixelate warp
+Stage bosses are always fought in their arenas, where your weapons and parts matter. But two-thirds
+of the way through each stage, in a room of their own (`challengeRoom` in `src/level/rooms.ts`, marker
+`A`, screens `9` and `0` just before the stage's last stretch), the boss is waiting for you, and
+challenges you to their own game. Some fights change the game entirely; each is its own scene, entered through a dialogue and a pixelate warp
 (`src/scenes/cutscene.ts`), and wired up in `src/scenes/encounters.ts`:
 
 | Where | Fight | Mode | Scene |
 |---|---|---|---|
-| Boss Hall capsule | Anvil | brick-breaker: smash his forge wall and hit him behind it; his sparks slow your paddle; hot bricks (and every hit on him) drop multiballs; he patches holes | `BreakerScene.ts` |
-| Boss Hall capsule | Mantis | lane-crossing hop: dodge the traffic, ride logs and pads, fill all three pads without landing where Mantis waits (tiled grass, trail and animated river, sprite logs, pads, beetles, boulders, vines, boars and rolling logs, splashes and dust, jungle margins; art in `hopArt.ts`) | `HopScene.ts` |
-| Boss Hall capsule | Frostline | one-on-one ice hockey: slippery skating, shots and body checks, first to 3 (a painted rink with boards, markings and a snowflake logo, meshed nets with a goal light, top-down skaters with sticks, ice spray and blade trails, a scoreboard over the stands; art in `hockeyArt.ts`) | `HockeyScene.ts` |
-| Boss Hall capsule | Gale | vertical sky shooter (art in `skiesArt.ts`): kites, swooper squadrons, ring-firing spinners, balloon bombers (always carry a P) and darts that flag their column, with wind gusts shoving your ship; P capsules power your shot up to five-way, and the fifth turns it into a big laser that cuts through everything in its column (losing a ship costs a level); then Gale's feathers, blades and a low tornado you can fly over | `SkiesScene.ts` |
-| Boss Hall capsule | Volt | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
-| Boss Hall capsule | Scrap | top-down junk maze: four rooms, keys, a hookshot that swings you across shafts; Scrap's magnet field turns shots until you stun him (scrap-heap walls with lit tops and front faces, rusted floor plates, magnet posts, shutters, blinking warning lamps, beetles and turret sprouts, a chained claw hookshot, a heart-and-key status bar; art in `dungeonArt.ts`) | `DungeonScene.ts` |
-| Boss Hall capsule | Tide | trench descent: dive head-first down a winding deep-sea trench (darker the deeper you go; your lamp and flares light the way) past jellyfish, sea mines and urchins, grabbing air bubbles, while Tide hunts you: his body loops through the dark, then his lights glow where he'll strike, lunging across from the side (aimed where you'd be if you kept cruising, so brake or dive out of it) or surging up from below. Reach the vent at the bottom and he jams in it behind you (art in `trenchArt.ts`; the old pinball table, `PinballScene.ts`, is no longer on a capsule) | `TrenchScene.ts` |
-| Boss Hall capsule | Magma | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
+| Foundry challenge | Anvil | brick-breaker: smash his forge wall and hit him behind it; his sparks slow your paddle; hot bricks (and every hit on him) drop multiballs; he patches holes | `BreakerScene.ts` |
+| Canopy challenge | Mantis | lane-crossing hop: dodge the traffic, ride logs and pads, fill all three pads without landing where Mantis waits (tiled grass, trail and animated river, sprite logs, pads, beetles, boulders, vines, boars and rolling logs, splashes and dust, jungle margins; art in `hopArt.ts`) | `HopScene.ts` |
+| Glacier challenge | Frostline | one-on-one ice hockey: slippery skating, shots and body checks, first to 3 (a painted rink with boards, markings and a snowflake logo, meshed nets with a goal light, top-down skaters with sticks, ice spray and blade trails, a scoreboard over the stands; art in `hockeyArt.ts`) | `HockeyScene.ts` |
+| Stratos challenge | Gale | vertical sky shooter (art in `skiesArt.ts`): kites, swooper squadrons, ring-firing spinners, balloon bombers (always carry a P) and darts that flag their column, with wind gusts shoving your ship; P capsules power your shot up to five-way, and the fifth turns it into a big laser that cuts through everything in its column (losing a ship costs a level); then Gale's feathers, blades and a low tornado you can fly over | `SkiesScene.ts` |
+| Power Plant challenge | Volt | side-view motocross race: JUMP gas, FIRE turbo that overheats, UP/DOWN lanes, tilt in the air | `RaceScene.ts` |
+| Scrapyard challenge | Scrap | top-down junk maze: four rooms, keys, a hookshot that swings you across shafts; Scrap's magnet field turns shots until you stun him (scrap-heap walls with lit tops and front faces, rusted floor plates, magnet posts, shutters, blinking warning lamps, beetles and turret sprouts, a chained claw hookshot, a heart-and-key status bar; art in `dungeonArt.ts`) | `DungeonScene.ts` |
+| Reef challenge | Tide | trench descent: dive head-first down a winding deep-sea trench (darker the deeper you go; your lamp and flares light the way) past jellyfish, sea mines and urchins, grabbing air bubbles, while Tide hunts you: his body loops through the dark, then his lights glow where he'll strike, lunging across from the side (aimed where you'd be if you kept cruising, so brake or dive out of it) or surging up from below. Reach the vent at the bottom and he jams in it behind you (art in `trenchArt.ts`; the old pinball table, `PinballScene.ts`, is no longer on a capsule) | `TrenchScene.ts` |
+| Caldera challenge | Magma | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
 | Fortress Gate + Boss Hall bonus | Gatekeeper | behind-the-back boxing (his only fight), three rounds, Coach Jared in your corner (both fighters drawn on the shaded rig in `art/boxArt.mjs`; the arena, with its crowd, lighting rig, banner, ropes and mat, in `boxingArt.ts`; sweeping spotlights, camera flashes and punch sparks) | `BoxingScene.ts` |
 | Boss Hall bonus (after beating the game) | Overlord | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
 
-Every Boss Hall capsule is its own game (they share `ModeScene.ts`); the exit opens once all eight
-stage bosses are beaten (bonus capsules are optional). Win a mode and you're back where you were
-(the Hall remembers which capsules are done); lose and you retry from the last checkpoint.
+The games share `ModeScene.ts`. **Stage challenges:** walk up to the boss and they say their piece
+(Anvil's and Volt's lines were rewritten for a first meeting), then the warp. Win and you carry on
+from where they stood, fully healed, with 50 bolts. Lose and you're back at the room's checkpoint
+with no life lost (losses don't cost lives, since GAME OVER would mean the whole stage again); after
+two losses they offer ONE MORE TRY or PUSH PAST (no bolts; they leave, and you settle it at the end of
+the stage). EX rematches start at the boss door, past the challenge.
+
+**Boss Hall.** The eight capsules are platform refights in the room below, a notch harder than in
+their stages (`tier` 1 in `Boss.ts`: about 20% less damage taken, 20% shorter pauses, and their EX
+attack; EX itself is tier 2). The exit opens once all eight are beaten. The two bonus capsules
+(Gatekeeper's boxing, the Overlord's armada) are their own games: win and you're back in front of
+the capsule (the Hall remembers which are done); lose and you retry from the last checkpoint.
 
 Every hidden part is guarded, and each guardian is fought in a turn-based RPG battle (`RpgScene.ts`,
 guardians in `src/scenes/rpgGuardians.ts`): FIGHT, SPELL, GUARD, ITEM (your E-tanks), RUN. Spells are

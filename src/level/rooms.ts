@@ -100,3 +100,17 @@ export const SECRET_ROOM: string[] = [
   '################',
   '################',
 ];
+
+/**
+ * Two-screen challenge room, two-thirds of the way through a stage: the
+ * stage's boss waits at 'A' and takes you into their own game. A checkpoint on
+ * the way in; beat the game and you carry on from where they stood. `top` is
+ * the floor's surface tile.
+ */
+export function challengeRoom(top = '#', underwater = false): { a: string[]; b: string[] } {
+  const ceil = '################';
+  const floor = [top.repeat(16), '################'];
+  const a = [ceil, ceil, '...##.......##..', ...rows(SKY, 9), '...c............', ...floor];
+  const b = [ceil, ceil, '..##.......##...', ...rows(SKY, 9), '...........A....', ...floor];
+  return underwater ? { a: water(a), b: water(b) } : { a, b };
+}

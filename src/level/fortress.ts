@@ -260,8 +260,9 @@ const rematchRoom = bossRoom();
 /**
  * BOSS HALL: before the throne, eight teleporter capsules ('T'), one per
  * stage boss. Press UP in a capsule to refight that boss; the exit capsule
- * opens once all eight are beaten. Bosses are fought in the room below, or in
- * their own game (Volt races, Magma bombs). Past them, two bonus capsules:
+ * opens once all eight are beaten. They're fought in the room below, a notch
+ * harder than in their stages (their own games come mid-stage now, in each
+ * stage's challenge room). Past them, two bonus capsules:
  * the Gatekeeper's boxing match, and once the game is beaten, the Overlord's
  * armada.
  */

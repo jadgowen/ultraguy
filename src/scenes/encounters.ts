@@ -9,13 +9,14 @@ import { GUARDIANS } from './rpgGuardians';
  * stage, then the screen pixelates and that mode's scene takes over; when it
  * ends it returns to the stage with how it went (`Resume`).
  *
- *  - Boss Hall rematches (the capsules send some bosses into their own game),
+ *  - stage bosses' own games, met two-thirds of the way through their stages,
+ *  - the Boss Hall's bonus capsules (the Gatekeeper's boxing, the Overlord's armada),
  *  - minibosses,
  *  - guardians of hidden armor parts,
  *  - stage bosses fought only in their own game (the Gatekeeper's boxing match).
  */
 
-export type EncounterKind = 'vault' | 'mini' | 'part' | 'boss';
+export type EncounterKind = 'vault' | 'mini' | 'part' | 'boss' | 'challenge';
 
 export interface Encounter {
   /** Scene key of the mode. */
@@ -51,13 +52,14 @@ export function returnToGame(scene: Phaser.Scene, data: ModeData, won: boolean):
 }
 
 /**
- * Boss Hall rematches: stage bosses fight normally in their stages (where your
- * weapons and parts matter); in the Hall, these send you into their own game.
+ * Each stage boss's own game. Two-thirds of the way through their stage they
+ * wait in a room of their own ('A') and take you into it; you fight them for
+ * real at the end of the stage (and again, harder, in the Boss Hall).
  */
-export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
+export const BOSS_GAMES: Partial<Record<BossKind, Encounter>> = {
   anvil: {
     scene: 'breaker',
-    lines: () => [{ name: 'ANVIL', text: "You want a rematch? Then break through my forge wall. Every brick I lay, I lay twice as hard!", portrait: { key: 'anvil_idle' }, voice: 'anvil_challenge', color: 0xf28c28 }],
+    lines: () => [{ name: 'ANVIL', text: "Think you can walk into my forge? Then break through my wall first. Every brick I lay, I lay twice as hard!", portrait: { key: 'anvil_idle' }, voice: 'anvil_challenge', color: 0xf28c28 }],
   },
   frostline: {
     scene: 'hockey',
@@ -82,18 +84,25 @@ export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
   volt: {
     scene: 'race',
     lines: () => [
-      { name: 'VOLT', text: "Heh. You can't beat me in a fight... but maybe you can beat me in a race. Winner takes all!", portrait: { key: 'volt_idle' }, voice: 'volt_challenge', color: 0xf8e040 },
+      { name: 'VOLT', text: "Heh. Before you get anywhere near my generator, let's see how fast you really are. Race me. Winner takes all!", portrait: { key: 'volt_idle' }, voice: 'volt_challenge', color: 0xf8e040 },
     ],
-  },
-  gatekeeper: {
-    scene: 'boxing',
-    lines: () => [{ name: 'GATEKEEPER', text: 'No weapons. No tricks. Just our hands.', portrait: { key: 'gatekeeper_idle' }, voice: 'gate_challenge', color: 0x8c4ad8 }],
   },
   magma: {
     scene: 'bomb',
     lines: () => [
       { name: 'MAGMA', text: "Too hot to handle, little bot? Then let's settle this the old way. Bombs, bricks, and nowhere to run!", portrait: { key: 'magma_idle' }, voice: 'magma_challenge', color: 0xff7a2a },
     ],
+  },
+};
+
+/**
+ * The Boss Hall's bonus capsules, which send you into their own game (the
+ * eight stage bosses there are platform refights, a notch harder).
+ */
+export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
+  gatekeeper: {
+    scene: 'boxing',
+    lines: () => [{ name: 'GATEKEEPER', text: 'No weapons. No tricks. Just our hands.', portrait: { key: 'gatekeeper_idle' }, voice: 'gate_challenge', color: 0x8c4ad8 }],
   },
   overlord: {
     scene: 'shooter',
@@ -108,6 +117,15 @@ export const VAULT_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
 export const BOSS_ENCOUNTERS: Partial<Record<BossKind, Encounter>> = {
   gatekeeper: VAULT_ENCOUNTERS.gatekeeper,
 };
+
+/**
+ * After a few losses to a boss's game, they let you choose: try again, or
+ * push past (no bolts) and settle it at the end of the stage.
+ */
+export const CHALLENGE_MERCY = 2;
+
+/** Bolts for beating a boss at their own game. */
+export const CHALLENGE_BOLTS = 50;
 
 /** Minibosses fought in another game style (none now: Briar Toad's crossing became Mantis's Boss Hall game). */
 export const MINI_ENCOUNTERS: Partial<Record<StageId, Encounter>> = {};

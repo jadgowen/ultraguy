@@ -55,6 +55,11 @@ export abstract class Boss {
   introHold = 0;
   /** EX rematch (after the game is beaten): tougher, quicker, and an extra attack. */
   readonly ex: boolean;
+  /**
+   * How hard: 0 in their stage, 1 in the Boss Hall (a notch quicker and
+   * tougher, with the extra attack), 2 in an EX rematch.
+   */
+  readonly tier: 0 | 1 | 2;
 
   constructor(
     protected g: GameScene,
@@ -70,16 +75,17 @@ export abstract class Boss {
     this.y = room.top; // drops in from the top of the room
     this.sprite = g.add.image(0, 0, `${kind}_idle`).setOrigin(0.5, 1).setDepth(6);
     this.ex = g.exMode;
+    this.tier = g.exMode ? 2 : g.hallRematch ? 1 : 0;
   }
 
-  /** A pause between attacks: shorter in EX. */
+  /** A pause between attacks: shorter in the Hall, shorter still in EX. */
   protected quick(frames: number): number {
-    return this.ex ? Math.round(frames * 0.65) : frames;
+    return this.tier === 2 ? Math.round(frames * 0.65) : this.tier === 1 ? Math.round(frames * 0.8) : frames;
   }
 
-  /** The attack pool, plus the EX-only attack in an EX rematch. */
+  /** The attack pool, plus the extra attack in the Hall and in EX. */
   protected withEx<T>(options: T[], exMove: T): T[] {
-    return this.ex ? [...options, exMove] : options;
+    return this.tier > 0 ? [...options, exMove] : options;
   }
 
   /** Texture prefix (`${texKey}_${pose}`); defaults to the boss kind. */
@@ -193,8 +199,8 @@ export abstract class Boss {
   }
 
   hit(dmg: number, weak: boolean): void {
-    // EX bosses are tougher: hits do about 40% less (at least 1).
-    if (this.ex) dmg = Math.max(1, Math.round(dmg * 0.6));
+    // Tougher in the Hall (hits do about 20% less) and in EX (about 40% less), at least 1.
+    if (this.tier > 0) dmg = Math.max(1, Math.round(dmg * (this.tier === 2 ? 0.6 : 0.8)));
     this.hp = Math.max(0, this.hp - dmg);
     this.barHp = this.hp;
     // A short window where shots pass through, so a rapid triple shot can't land every bullet.

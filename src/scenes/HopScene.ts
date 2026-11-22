@@ -95,12 +95,12 @@ export class HopScene extends Phaser.Scene {
     super('hop');
   }
 
-  /** Who sits on the pads: Mantis in his Boss Hall rematch, otherwise the Briar Toad. */
+  /** Who sits on the pads: Mantis in his challenge (in Canopy), or the Briar Toad as an old miniboss game. */
   private host: 'mantis' | 'toad' = 'mantis';
 
   create(data: ModeData): void {
     this.mode = { stage: data?.stage ?? 'canopy', ret: data?.ret ?? { kind: 'vault', step: 0 } };
-    this.host = this.mode.ret.kind === 'vault' ? 'mantis' : 'toad';
+    this.host = this.mode.ret.kind === 'mini' ? 'toad' : 'mantis';
     this.controls = new Controls(this);
     Object.assign(this, { acc: 0, frame: 0, lives: LIVES, filled: [false, false, false], toadPad: 1, toadT: 0, timer: CROSS_FRAMES, dead: 0, result: null, overT: 0, started: 0 });
     this.lanes = makeLanes();

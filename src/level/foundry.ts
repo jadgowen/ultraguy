@@ -1,8 +1,10 @@
 import type { StageData } from './Level';
-import { bossArena, bossHall, miniHall, rows, SECRET_ROOM, SKY } from './rooms';
+import { SECRET_ROOM, SKY, bossArena, bossHall, challengeRoom, miniHall, rows } from './rooms';
 
 /** The quiet hallway before the boss room (see bossHall). */
 const lobby = bossHall();
+/** Where the stage's boss challenges you to their own game (see challengeRoom). */
+const duel = challengeRoom();
 
 // FOUNDRY. Built around crushers ('!'): presses that wait, slam to the floor
 // and slowly rise, in a rolling wave down a line.
@@ -46,7 +48,7 @@ export const FOUNDRY: StageData = {
   bossName: 'ANVIL',
   bossWeapon: 'quake',
   signature: [{ kind: 'hammerbot', from: 'walker', every: 2 }, { kind: 'hammerbot', from: 'hopper', every: 1 }],
-  layout: ['ABCDS', '...Ee', '....FGHI1278J|56|XY'],
+  layout: ['ABCDS', '...Ee', '....FGHI129078J|56|XY'],
   miniboss: 'press',
   upgrade: 'blaster',
   screens: {
@@ -100,6 +102,9 @@ export const FOUNDRY: StageData = {
     '2': lineB,
     J: [...rows('...............#', 10), '...............D', '...............D', '...c...........D', FLOOR, FLOOR],
     // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    // --- The boss's challenge: their own game, before the last stretch ---
+    '9': duel.a,
+    '0': duel.b,
     '7': ['################', '################', '................', '................', '................', '........f.......', '................', '................', '..........$.....', '.........####...', '................', '.....###........', '..w.........w...', '################', '################'],
     '8': ['################', '################', '...!......!.....', '................', '................', '................', '................', '................', '................', '................', '................', '..........t.....', '.....h..........', '################', '################'],
     '5': lobby.left,

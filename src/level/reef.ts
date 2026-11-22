@@ -1,8 +1,10 @@
 import type { StageData } from './Level';
-import { bossHall, bossRoom, miniHall, rows, SKY, water } from './rooms';
+import { SKY, bossHall, bossRoom, challengeRoom, miniHall, rows, water } from './rooms';
 
 /** The quiet hallway before the boss room (see bossHall). */
 const lobby = bossHall();
+/** Where the stage's boss challenges you to their own game (see challengeRoom). */
+const duel = challengeRoom('#', true);
 
 // REEF. Built around the water itself: currents ('{' pushes left, '}' right)
 // and bubble columns ('y') that lift you.
@@ -34,7 +36,7 @@ export const REEF: StageData = {
   bossName: 'TIDE',
   bossWeapon: 'bubble',
   signature: [{ kind: 'jelly', from: 'puffer', every: 1 }],
-  layout: ['AB', '.CDEF', '....GHI1278J|56|XY'],
+  layout: ['AB', '.CDEF', '....GHI129078J|56|XY'],
   miniboss: 'angler',
   dark: '12',
   screens: {
@@ -79,6 +81,9 @@ export const REEF: StageData = {
     '2': hall.b,
     J: water([...rows(ROCK, 6), ...rows('...............#', 4), '...............D', '...............D', '...c...........D', ROCK, ROCK]),
     // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    // --- The boss's challenge: their own game, before the last stretch ---
+    '9': duel.a,
+    '0': duel.b,
     '7': water(['################', '################', '................', '................', '................', '................', '......u.........', '................', '................', '................', '................', '................', '......##....q...', '################', '################']),
     '8': water(['################', '################', '................', '.........u......', '................', '................', '}}}}}}}}}}}}}}}}', '}}}}}}}}}}}}}}}}', '................', '................', '................', '................', '...$......q.....', '################', '################']),
     '5': water(lobby.left),

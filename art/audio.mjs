@@ -63,7 +63,7 @@ const MUSIC16 = {
 
 /** Spoken lines: [voice id, text]. Played with the dialogue boxes. */
 const VOICE = {
-  anvil_challenge: ['VR6AewLTigWG4xSOukaG', "You want a rematch? Then break through my forge wall. Every brick I lay, I lay twice as hard!"],
+  anvil_challenge: ['VR6AewLTigWG4xSOukaG', "Think you can walk into my forge? Then break through my wall first. Every brick I lay, I lay twice as hard!"],
   anvil_wins: ['VR6AewLTigWG4xSOukaG', "Hammered flat. Back to the anvil with you."],
   anvil_loses: ['VR6AewLTigWG4xSOukaG', "My wall... my beautiful wall. Fine work, little bot."],
   frostline_challenge: ['D38z5RcWu1voky8WS1ja', "No blasters on my ice. Puck, sticks, and nerves of steel. First to three takes it!"],
@@ -81,7 +81,7 @@ const VOICE = {
   mantis_challenge: ['SOYHLrjzK2X1ezoPC6cr', 'Cross my pond to reach me. Fill all three lily pads... and do not land where I wait.'],
   mantis_wins: ['SOYHLrjzK2X1ezoPC6cr', 'The pond keeps what it catches.'],
   mantis_loses: ['SOYHLrjzK2X1ezoPC6cr', 'Swift... and patient. You have earned your way across.'],
-  volt_challenge: ['TX3LPaxmHKxFdv7VOQHJ', "Heh. You can't beat me in a fight... but maybe you can beat me in a race. Winner takes all!"],
+  volt_challenge: ['TX3LPaxmHKxFdv7VOQHJ', "Heh. Before you get anywhere near my generator, let's see how fast you really are. Race me. Winner takes all!"],
   volt_wins: ['TX3LPaxmHKxFdv7VOQHJ', 'Too slow! Better luck next lap.'],
   volt_loses: ['TX3LPaxmHKxFdv7VOQHJ', 'No way... you actually beat me!'],
   race_go: ['pNInz6obpgDQGcFmaJgB', 'Three... two... one... GO!'],

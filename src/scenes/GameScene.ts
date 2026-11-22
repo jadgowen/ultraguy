@@ -27,7 +27,7 @@ import { sfx } from '../sfx';
 import { WEAPONS, WeaponId, WEAPON_ORDER } from '../weapons';
 import { AUTO_GID, PARALLAX, autoIndex, hasEnvArt } from '../envArt';
 import { dialogue, pixelateIn, pixelateOut } from './cutscene';
-import { BOSS_ENCOUNTERS, Encounter, MINI_ENCOUNTERS, PART_GUARDIANS, Resume, Ret, VAULT_ENCOUNTERS } from './encounters';
+import { BOSS_ENCOUNTERS, BOSS_GAMES, CHALLENGE_BOLTS, CHALLENGE_MERCY, Encounter, MINI_ENCOUNTERS, PART_GUARDIANS, Resume, Ret, VAULT_ENCOUNTERS } from './encounters';
 import { Hazards } from './hazards';
 import { Sky } from './sky';
 import { PixelText, pixelText } from '../pixelFont';
@@ -52,7 +52,7 @@ const LIVES_MAX = 9;
  * Lives and taken 1-UPs for the current stage visit. They live outside the
  * scene so a trip into an encounter (and back) doesn't reset them.
  */
-const visit = { stage: '' as string, lives: LIVES_START, oneUpsTaken: new Set<number>(), cachesTaken: new Set<number>() };
+const visit = { stage: '' as string, lives: LIVES_START, oneUpsTaken: new Set<number>(), cachesTaken: new Set<number>(), challengeLosses: 0 };
 /** Freeze-frame when a full charge shot hits a boss. */
 const CHARGE_HIT_STOP = 3;
 
@@ -186,6 +186,9 @@ export class GameScene extends Phaser.Scene {
   private bossStandIn: Phaser.GameObjects.Image | null = null;
   /** The stage's miniboss has been beaten this visit. */
   private miniDefeated = false;
+  /** The boss's challenge ('A'): settled (won, or pushed past), and the boss standing there until then. */
+  private challengeDone = false;
+  private challengeStandIn: Phaser.GameObjects.Image | null = null;
   /** Energy tanks lying in the stage (taken ones stay taken this visit). */
   private tankItems: { box: Box; sprite: Phaser.GameObjects.Image; taken: boolean }[] = [];
   private oneUpItems: { box: Box; sprite: Phaser.GameObjects.Image; taken: boolean; key: number }[] = [];
@@ -239,6 +242,8 @@ export class GameScene extends Phaser.Scene {
   private clearTimer = 0;
   /** An EX rematch (see Boss.ex). */
   exMode = false;
+  /** A Boss Hall capsule rematch (stage bosses fight a notch harder there). */
+  hallRematch = false;
 
   private layer!: Phaser.Tilemaps.TilemapLayer;
   /** Wall drawn over a hidden room until the player steps inside it. */
@@ -291,6 +296,8 @@ export class GameScene extends Phaser.Scene {
     this.bossWarped = false;
     this.bossStandIn = null;
     this.miniDefeated = false;
+    this.challengeDone = false;
+    this.challengeStandIn = null;
     this.tankItems = [];
     this.oneUpItems = [];
     this.cacheItems = [];
@@ -303,6 +310,7 @@ export class GameScene extends Phaser.Scene {
       visit.lives = LIVES_START;
       visit.oneUpsTaken = new Set();
       visit.cachesTaken = new Set();
+      visit.challengeLosses = 0;
       // 1-UPs bought at Rivet's go into this stage's lives.
       const bought = this.stageId === 'dojo' ? 0 : loadSave().spareLives;
       if (bought) {
@@ -328,6 +336,7 @@ export class GameScene extends Phaser.Scene {
     this.doorSeq = null;
     this.clearTimer = 0;
     this.exMode = !!data?.ex;
+    this.hallRematch = false;
     this.hudKey = '';
     this.barTrail = {};
     this.goalSprite = null;
@@ -536,7 +545,8 @@ export class GameScene extends Phaser.Scene {
     const resume = data?.resume;
     if (resume) this.prepareResume(resume);
     // Starting at the boss door (boss test) means the miniboss is behind you.
-    if ((DEV_TOOLS && data?.bossTest) || this.exMode) this.miniDefeated = true;
+    if ((DEV_TOOLS && data?.bossTest) || this.exMode) this.miniDefeated = this.challengeDone = true;
+    this.placeChallenger();
     this.respawn();
     if (resume) {
       pixelateIn(this, 800);
@@ -800,6 +810,8 @@ export class GameScene extends Phaser.Scene {
     this.checkSection();
     this.updateCheckpoint();
     this.tryStartMiniboss();
+    this.tryStartChallenge();
+    this.animateChallenger();
     if (!this.transition) this.followCamera();
     this.manageSpawns();
     this.cull();
@@ -1704,6 +1716,14 @@ export class GameScene extends Phaser.Scene {
           if (cp) this.checkpoint = { ...cp };
         }
       }
+    } else if (r.kind === 'challenge') {
+      // Won: carry on from where the boss stood. Lost: back at the room's checkpoint.
+      this.challengeDone = r.won;
+      const at = L.challenge;
+      if (at) {
+        const cp = r.won ? { x: at.x, y: at.y } : before(at.x);
+        if (cp) this.checkpoint = { ...cp };
+      }
     } else if (r.kind === 'part') {
       this.partGuardianBeaten = r.won;
       const at = L.upgrade;
@@ -1735,6 +1755,19 @@ export class GameScene extends Phaser.Scene {
         return;
       }
     }
+    if (r.kind === 'challenge') {
+      if (r.won) {
+        this.player.heal(this.player.maxHp);
+        playJingle(this, 'jingle_victory');
+        this.boltCount = addBolts(CHALLENGE_BOLTS);
+        this.flashLabel(`+${CHALLENGE_BOLTS} BOLTS`);
+        visit.challengeLosses = 0;
+      } else {
+        // Losing their game costs no life (a GAME OVER would mean the whole
+        // stage again): just another go, and after a few, the choice to push past.
+        visit.challengeLosses++;
+      }
+    }
     playMusic(this, stageMusic(this.level.data));
     if (r.kind === 'vault' && r.won) {
       this.player.heal(10);
@@ -1751,6 +1784,107 @@ export class GameScene extends Phaser.Scene {
     if (boss.kind === 'shade') return 'SHADE';
     if (boss.kind === this.level.data.boss) return this.level.data.bossName;
     return BOSS_NAMES[boss.kind];
+  }
+
+  // --- the boss's challenge ------------------------------------------------------------
+
+  /** The stage's boss waits in the challenge room ('A') until you've settled their game. */
+  private placeChallenger(): void {
+    this.challengeStandIn?.destroy();
+    this.challengeStandIn = null;
+    const at = this.level.challenge;
+    const kind = this.level.data.boss;
+    if (!at || !kind || this.challengeDone || !BOSS_GAMES[kind]) return;
+    this.challengeStandIn = this.add.image(at.x, at.y, `${kind}_idle`).setOrigin(0.5, 1).setDepth(5);
+  }
+
+  /** Idle frames (where the boss has them), facing you. */
+  private animateChallenger(): void {
+    const img = this.challengeStandIn;
+    const kind = this.level.data.boss;
+    if (!img || !kind) return;
+    const f = `${kind}_idle${1 + (Math.floor(this.fxFrame / 10) % 4)}`;
+    if (this.textures.exists(f)) img.setTexture(f);
+    img.setFlipX(this.player.cx < img.x);
+  }
+
+  /**
+   * Walking up to the boss in the challenge room locks the camera on the room;
+   * they say their piece and take you into their game. After a few losses they
+   * offer to let you push past instead (no bolts; they'll be waiting at the end).
+   */
+  private tryStartChallenge(): void {
+    const at = this.level.challenge;
+    const kind = this.level.data.boss;
+    const game = kind && BOSS_GAMES[kind];
+    const p = this.player;
+    if (!at || !game || this.challengeDone || this.boss || !p.alive || this.story) return;
+    const sec = this.section;
+    if (this.level.sectionAt(at.x, at.y - 1) !== sec || p.cx < at.x - 150) return;
+    const secLeft = sec.x0 * SCREEN_W;
+    const secRight = (sec.x1 + 1) * SCREEN_W;
+    const camX = Math.round(Phaser.Math.Clamp(at.x + 64 - VIEW_W, secLeft, secRight - VIEW_W));
+    this.arena = { camX, left: camX + 8, right: camX + VIEW_W - 8 };
+    this.camX = camX;
+    p.vx = 0;
+    this.challengeDone = true; // (until we hear back)
+    this.shake(3);
+    sfx.charge(2);
+    const go = () => this.startEncounter(game, { kind: 'challenge', step: visit.challengeLosses, ex: this.exMode }, true);
+    if (visit.challengeLosses < CHALLENGE_MERCY) {
+      go();
+      return;
+    }
+    const [line] = game.lines();
+    const name = this.level.data.bossName ?? line.name;
+    const skip = () => this.controls.justPressed('start') || this.controls.justPressed('jump');
+    this.story = dialogue(this, [{ ...line, name, voice: undefined, text: "Back again? You don't quit, I'll give you that. Want another go... or will you just get on with it?" }], skip, () => {
+      this.story = this.choose(['ONE MORE TRY', 'PUSH PAST'], (i) => {
+        if (i === 0) {
+          go();
+          return;
+        }
+        // Pushed past: they leave, and it's settled at the end of the stage.
+        this.story = null;
+        this.arena = null;
+        visit.challengeLosses = 0;
+        if (this.challengeStandIn) {
+          this.burst(this.challengeStandIn.x, this.challengeStandIn.y - 16, 'spark', 10);
+          this.challengeStandIn.destroy();
+          this.challengeStandIn = null;
+        }
+        sfx.charge(1);
+        this.flashLabel(`${name} WILL BE WAITING`);
+      });
+    }, true);
+  }
+
+  /** A small two-way choice at the top of the screen; returns the step to run while it's up. */
+  private choose(options: string[], picked: (i: number) => void): () => void {
+    const layer = this.add.container(0, 0).setScrollFactor(0).setDepth(80);
+    const w = 180;
+    const x = (VIEW_W - w) / 2;
+    layer.add(this.add.rectangle(x, 24, w, 18 + options.length * 14, 0x0a0c18, 0.92).setOrigin(0).setStrokeStyle(2, 0x5ef0c8));
+    const items = options.map((o, i) => pixelText(this, x + 26, 32 + i * 14, o, { fontFamily: 'monospace', fontSize: '8px', color: '#fff1e0' }));
+    const cursor = pixelText(this, x + 12, 32, '>', { fontFamily: 'monospace', fontSize: '8px', color: '#5ef0c8' });
+    layer.add([...items, cursor]);
+    let sel = 0;
+    let t = 0;
+    return () => {
+      t++;
+      const c = this.controls;
+      if (c.justPressed('up') || c.justPressed('down')) {
+        sel = (sel + (c.justPressed('down') ? 1 : options.length - 1)) % options.length;
+        sfx.tick();
+      }
+      cursor.y = 32 + sel * 14;
+      items.forEach((it, i) => it.setColor(i === sel ? '#ffe14a' : '#fff1e0'));
+      if (t > 10 && (c.justPressed('jump') || c.justPressed('start') || c.justPressed('fire'))) {
+        layer.destroy();
+        sfx.pickup();
+        picked(sel);
+      }
+    };
   }
 
   // --- miniboss -------------------------------------------------------------------
@@ -1790,7 +1924,7 @@ export class GameScene extends Phaser.Scene {
     const c = this.capsules.find((k) => !k.done && overlaps(p, k.box));
     if (!c) return;
     this.hubSpot = { x: c.box.x + c.box.w / 2, y: c.box.y + c.box.h };
-    // Some bosses take you into their own game instead.
+    // The bonus capsules take you into their own game instead.
     const game = VAULT_ENCOUNTERS[c.kind];
     if (game) {
       sfx.charge(2);
@@ -1817,6 +1951,7 @@ export class GameScene extends Phaser.Scene {
         const camX = Math.round(this.bossRoomCamX(sec));
         p.reset(camX + 60, at.y);
         this.section = sec;
+        this.hallRematch = true;
         this.spawnBossInRoom(tp.kind!);
         this.camY = sec.row * SCREEN_H;
       } else {

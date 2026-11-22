@@ -9,9 +9,9 @@ import { pixelateIn } from './cutscene';
 import { ModeData, returnToGame } from './encounters';
 
 /**
- * Shared frame for the Boss Hall's game modes: the fixed 60 Hz step, a READY /
+ * Shared frame for the bosses' own games (met mid-stage; the Hall's bonus capsules): the fixed 60 Hz step, a READY /
  * GO countdown, a banner and HUD line, and the ending (his line, a pause, then
- * back to the Hall). A mode fills in `setup`, `tick` and `draw`, and calls
+ * back to the stage). A mode fills in `setup`, `tick` and `draw`, and calls
  * `finish(won)` when it's decided.
  */
 export abstract class ModeScene extends Phaser.Scene {

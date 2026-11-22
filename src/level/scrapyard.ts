@@ -1,8 +1,10 @@
 import type { StageData } from './Level';
-import { bossArena, bossHall, miniHall, rows, SKY } from './rooms';
+import { SKY, bossArena, bossHall, challengeRoom, miniHall, rows } from './rooms';
 
 /** The quiet hallway before the boss room (see bossHall). */
 const lobby = bossHall();
+/** Where the stage's boss challenges you to their own game (see challengeRoom). */
+const duel = challengeRoom();
 
 // SCRAPYARD. Built around the machinery: barrel chutes ('@') that keep sending
 // barrels rolling at you, compactor presses ('!'), crane platforms ('=' and
@@ -44,7 +46,7 @@ export const SCRAPYARD: StageData = {
   bossName: 'SCRAP',
   bossWeapon: 'saw',
   signature: [{ kind: 'magnetDrone', from: 'flyer', every: 1 }, { kind: 'magnetDrone', from: 'junkbot', every: 2 }],
-  layout: ['......HIJ123478K|56|XY', 'ABCDEFG'],
+  layout: ['......HIJ12349078K|56|XY', 'ABCDEFG'],
   compactor: { screens: '234', speed: 0.7 },
   screens: {
     // --- 1. The lower yard ------------------------------------------------------------
@@ -88,6 +90,9 @@ export const SCRAPYARD: StageData = {
     '4': [GIRDER, GIRDER, ...rows('....######......', 10), '..............j.', FLOOR, FLOOR],
     K: [...rows('...............#', 10), '...............D', '...............D', '..c............D', FLOOR, FLOOR],
     // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    // --- The boss's challenge: their own game, before the last stretch ---
+    '9': duel.a,
+    '0': duel.b,
     '7': ['################', '################', '..!.....!.......', '................', '................', '................', '................', '................', '................', '................', '................', '................', '....g.......j...', '>>>>>>>>>>>>>>>>', '################'],
     '8': ['################', '################', '................', '................', '................', '........f.......', '................', '................', '................', '................', '......$.........', '.....###........', '..............@.', '################', '################'],
     '5': lobby.left,

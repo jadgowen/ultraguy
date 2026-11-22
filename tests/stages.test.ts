@@ -36,6 +36,20 @@ describe('boss stages', () => {
     expect(STAGE_GRID[4]).toBeNull();
   });
 
+  it("each have the boss's challenge room past the midpoint, with a checkpoint just before it", () => {
+    for (const id of ALL_BOSS_STAGES) {
+      const L = new Level(BOSS_STAGES[id]);
+      const at = L.challenge;
+      expect(at, id).not.toBeNull();
+      const sec = L.sectionAt(at!.x, at!.y - 1)!;
+      // The checkpoint in the room's first screen, in the same section, just before the boss.
+      expect(L.checkpoints.some((c) => c.x < at!.x && at!.x - c.x < 512 && L.sectionAt(c.x, c.y - 1) === sec), id).toBe(true);
+      // Before the boss door, after the miniboss (where there is one).
+      expect(at!.x, id).toBeLessThan(L.boss!.x);
+      if (L.miniboss && L.sectionAt(L.miniboss.x, L.miniboss.y - 1) === sec) expect(at!.x, id).toBeGreaterThan(L.miniboss.x);
+    }
+  });
+
   it('each give a different boss weapon, covering every special weapon', () => {
     const rewards = ALL_BOSS_STAGES.map((id) => BOSS_STAGES[id].bossWeapon);
     expect(new Set(rewards).size).toBe(ALL_BOSS_STAGES.length);

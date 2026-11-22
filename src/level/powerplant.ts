@@ -1,8 +1,10 @@
 import type { StageData } from './Level';
-import { bossArena, bossHall, miniHall, rows, SKY } from './rooms';
+import { SKY, bossArena, bossHall, challengeRoom, miniHall, rows } from './rooms';
 
 /** The quiet hallway before the boss room (see bossHall). */
 const lobby = bossHall();
+/** Where the stage's boss challenges you to their own game (see challengeRoom). */
+const duel = challengeRoom();
 
 // POWER PLANT. Built around switch blocks ('[' and ']' take turns being solid,
 // blinking before they vanish) and the dark: in the unlit rooms you only see
@@ -43,7 +45,7 @@ export const POWERPLANT: StageData = {
   bossName: 'VOLT',
   bossWeapon: 'spark',
   signature: [{ kind: 'teslaCoil', from: 'roller', every: 1 }],
-  layout: ['....FGH12378I|56|XY', 'ABCDE'],
+  layout: ['....FGH1239078I|56|XY', 'ABCDE'],
   dark: 'CDEG',
   blackout: '23',
   screens: {
@@ -112,6 +114,9 @@ export const POWERPLANT: StageData = {
     ],
     I: [CEIL, CEIL, ...rows('...............#', 8), '...............D', '...............D', '...c...........D', CEIL, CEIL],
     // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
+    // --- The boss's challenge: their own game, before the last stretch ---
+    '9': duel.a,
+    '0': duel.b,
     '7': ['################', '################', '................', '................', '................', '................', '................', '................', '................', '................', '........Z.......', '........Z.......', '..k.....Z...o...', '################', '################'],
     '8': ['################', '################', '................', '................', '................', '................', '.......f........', '................', '................', '................', '.............$..', '............###.', '................', '#####[[[]]]#####', '#####.....######'],
     '5': lobby.left,
