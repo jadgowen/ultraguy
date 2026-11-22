@@ -587,9 +587,36 @@ export class Level {
   /** Tile indices for the translucent water layer drawn over sprites. */
   waterIndexGrid(): number[][] {
     const w = Tile.Water - 1;
+    const wetColumns = this.underwaterColumns();
     return this.grid((t) => (isWaterTile(t) ? w : -1)).map((row, r) =>
-      row.map((v, c) => (v === -1 && this.underwaterSeeThrough(c, r) ? w : v)),
+      row.map((v, c) => (v === -1 && (this.underwaterSeeThrough(c, r) || wetColumns.has(r * this.cols + c)) ? w : v)),
     );
+  }
+
+  /**
+   * Bubble columns (updrafts) under water, every cell of them: a column
+   * touching water anywhere is water all through, so its middle isn't a dry
+   * strip in the tint.
+   */
+  private underwaterColumns(): Set<number> {
+    const wet = new Set<number>();
+    const queue: [number, number][] = [];
+    for (let r = 0; r < this.rows; r++)
+      for (let c = 0; c < this.cols; c++)
+        if (this.tileAt(c, r) === Tile.Updraft && [this.tileAt(c - 1, r), this.tileAt(c + 1, r), this.tileAt(c, r - 1), this.tileAt(c, r + 1)].some(isWaterTile)) {
+          wet.add(r * this.cols + c);
+          queue.push([c, r]);
+        }
+    while (queue.length) {
+      const [c, r] = queue.pop()!;
+      for (const [x, y] of [[c - 1, r], [c + 1, r], [c, r - 1], [c, r + 1]]) {
+        const k = y * this.cols + x;
+        if (x < 0 || y < 0 || x >= this.cols || y >= this.rows || wet.has(k) || this.tileAt(x, y) !== Tile.Updraft) continue;
+        wet.add(k);
+        queue.push([x, y]);
+      }
+    }
+    return wet;
   }
 
   /**

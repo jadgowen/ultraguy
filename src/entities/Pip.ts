@@ -20,6 +20,8 @@ export interface PipHost {
   shoot: (x: number, y: number, vx: number, vy: number) => void;
   /** Pip lights up the dark only where it's dark. */
   dark: () => boolean;
+  /** Is this point under water? (Its thruster and spark trail turn to bubbles there.) */
+  wet?: (x: number, y: number) => boolean;
 }
 
 interface Bit {
@@ -307,11 +309,16 @@ export class Pip {
   private stepBits(): void {
     const sp = Math.hypot(this.vx, this.vy);
     const every = sp > 2 ? 1 : sp > 0.8 ? 2 : 3;
-    if (this.t % every === 0) {
+    const wet = this.h.wet?.(this.x, this.y) ?? false;
+    if (wet) {
+      // Under water the thruster fizzes: small bubbles wobble up instead of sparks falling.
+      if (this.t % (every * 4) === 0) this.addBit('pip_bubble', this.x + (Math.random() - 0.5) * 4, this.y + 6, (Math.random() - 0.5) * 0.3 - this.vx * 0.1, -0.3 - Math.random() * 0.3, 34 + Math.floor(Math.random() * 16), { grow: true });
+    } else if (this.t % every === 0) {
       this.addBit(Math.random() < 0.5 ? 'pip_flame' : 'pip_dot', this.x + (Math.random() - 0.5) * 3, this.y + 7, (Math.random() - 0.5) * 0.4 - this.vx * 0.2, 0.6 + Math.random() * 0.6, 10 + Math.floor(Math.random() * 6));
     }
     const trail = this.look_.trail;
-    if (trail === 'sparks' && this.t % 2 === 0) this.addBit('pip_flame', this.x - this.vx * 2, this.y, (Math.random() - 0.5) * 1.6, -0.5 - Math.random(), 22, { spin: 0 });
+    if (trail === 'sparks' && wet && this.t % 5 === 0) this.addBit('pip_bubble', this.x - this.vx * 2 + (Math.random() - 0.5) * 6, this.y, (Math.random() - 0.5) * 0.4, -0.4 - Math.random() * 0.3, 44, { grow: true });
+    else if (trail === 'sparks' && this.t % 2 === 0) this.addBit('pip_flame', this.x - this.vx * 2, this.y, (Math.random() - 0.5) * 1.6, -0.5 - Math.random(), 22, { spin: 0 });
     if (trail === 'bubbles' && this.t % 7 === 0) this.addBit('pip_bubble', this.x + (Math.random() - 0.5) * 8, this.y + 2, (Math.random() - 0.5) * 0.3, -0.35, 50, { grow: true });
     if (trail === 'notes' && this.t % 18 === 0) this.addBit('pip_note', this.x - this.h.player().facing * 6, this.y - 2, (Math.random() - 0.5) * 0.4, -0.45, 55, { spin: 0.02 });
     if (trail === 'stars' && this.t % 6 === 0) this.addBit('pip_star', this.x + (Math.random() - 0.5) * 10, this.y + (Math.random() - 0.5) * 8, 0, 0.1, 30, { spin: 0.08 });

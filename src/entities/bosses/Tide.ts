@@ -8,11 +8,16 @@ import { BossFx } from './bossFx';
 
 type Mode = 'rise' | 'cruise' | 'aim' | 'dash' | 'bubbles' | 'dive' | 'geyser' | 'ring';
 
+/** Tide is drawn at twice his sprite's size: a leviathan, as big as he is in his own game. */
+const SCALE = 2;
+
 /**
  * TIDE (Reef). Weak to Spark Ring. Swims after the intro.
- *  - dash: flashes, then charges straight across at your height
- *  - bubbles: releases slow bubbles that drift toward you
+ *  - dash: flashes, then charges straight across at your height, shedding
+ *    bubbles behind him that drift up
+ *  - bubbles: volleys of three bubbles fired at you (four volleys when he's hurt)
  *  - geyser: dives to the floor and sends water spouts up under you
+ *  - cruising, once he's hurt: now and then a bubble at you
  *  - EX ring: swims to the middle and blows rings of bubbles outward
  */
 export class Tide extends Boss {
@@ -28,7 +33,8 @@ export class Tide extends Boss {
   private wasGrounded = true;
 
   constructor(g: GameScene, at: Point, room: Room) {
-    super(g, 'tide', 30, 20, 'spark', at, room);
+    super(g, 'tide', 30 * SCALE, 20 * SCALE, 'spark', at, room);
+    this.sprite.setScale(SCALE);
     this.fx = new BossFx(g);
   }
 
@@ -51,9 +57,20 @@ export class Tide extends Boss {
     return false;
   }
 
+  /** A bubble from his mouth, aimed at the player (angle offset `spread`). */
+  private spit(speed: number, spread = 0): void {
+    const p = this.g.player;
+    const mx = this.cx + this.facing * this.w * 0.45;
+    const my = this.cy - 4;
+    const a = Math.atan2(p.cy - my, p.cx - mx) + spread;
+    this.g.spawnEnemyShot({ x: mx - 5, y: my - 5, w: 10, h: 10, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, tex: 'bbubble', dmg: 3, life: 220 });
+  }
+
   protected think(): void {
     const p = this.g.player;
-    const cruiseY = this.room.floor - 80;
+    const cruiseY = this.room.floor - 84;
+    const minY = this.room.top + this.h / 2 + 6;
+    const maxY = this.room.floor - this.h / 2 - 2;
     switch (this.mode) {
       case 'rise':
         if (this.swimTo(this.cx, cruiseY, 1.5)) this.setMode('cruise');
@@ -63,18 +80,27 @@ export class Tide extends Boss {
         const tx = this.side > 0 ? this.room.right - 40 : this.room.left + 40;
         this.swimTo(tx, cruiseY + Math.sin(this.t * 0.06) * 10, this.phase2 ? 1.8 : 1.3);
         this.facePlayer();
+        // Hurt, he doesn't let you rest: a bubble at you while he circles.
+        if (this.phase2 && this.t === 30) {
+          this.spit(1.8);
+          sfx.bubble();
+        }
         if (this.t >= this.quick(this.phase2 ? 50 : 70)) this.choose();
         break;
       }
 
       case 'aim':
         this.facePlayer();
-        this.swimTo(this.cx, Phaser.Math.Clamp(p.cy, this.room.top + 20, this.room.floor - 12), 1.5);
+        this.swimTo(this.cx, Phaser.Math.Clamp(p.cy, minY, maxY), 1.8);
         if (this.t >= (this.phase2 ? 20 : 30)) this.setMode('dash');
         break;
 
       case 'dash':
         this.x += this.facing * (this.phase2 ? 4.2 : 3.4);
+        // Bubbles shed in his wake drift up behind him: the water he's crossed stays dangerous.
+        if (this.t % (this.phase2 ? 8 : 11) === 0) {
+          this.g.spawnEnemyShot({ x: this.cx - this.facing * this.w * 0.4 - 5, y: this.cy - 5, w: 10, h: 10, vx: -this.facing * 0.2, vy: -0.45, tex: 'bbubble', dmg: 3, life: 150 });
+        }
         if (this.x <= this.room.left || this.x + this.w >= this.room.right) {
           this.x = Phaser.Math.Clamp(this.x, this.room.left, this.room.right - this.w);
           this.g.shake(3);
@@ -84,15 +110,19 @@ export class Tide extends Boss {
         }
         break;
 
-      case 'bubbles':
+      case 'bubbles': {
+        // Volleys of three, fired straight at you (a fan you have to slip through).
         this.facePlayer();
-        if (this.t % 18 === 0 && this.t <= (this.phase2 ? 90 : 54)) {
-          const vx = Math.sign(p.cx - this.cx) * 0.7;
-          this.g.spawnEnemyShot({ x: this.cx - 5, y: this.cy - 5, w: 10, h: 10, vx, vy: -0.4, tex: 'bbubble', dmg: 3, life: 260 });
+        const volleys = this.phase2 ? 4 : 3;
+        const gap = this.phase2 ? 22 : 28;
+        if (this.t >= 16 && (this.t - 16) % gap === 0 && (this.t - 16) / gap < volleys) {
+          const speed = this.phase2 ? 2.1 : 1.7;
+          for (const sp of [-0.28, 0, 0.28]) this.spit(speed, sp);
           sfx.bubble();
         }
-        if (this.t >= 100) this.endAttack();
+        if (this.t >= 16 + volleys * gap + 20) this.endAttack();
         break;
+      }
 
       case 'ring': {
         const midX = (this.room.left + this.room.right) / 2;
@@ -117,7 +147,7 @@ export class Tide extends Boss {
 
       case 'dive':
         this.facePlayer();
-        if (this.swimTo(this.cx, this.room.floor - this.h / 2 - 2, 2.4) || this.t > 80) {
+        if (this.swimTo(this.cx, maxY, 2.4) || this.t > 80) {
           this.geyserX = p.cx;
           this.setMode('geyser');
         }
@@ -185,7 +215,9 @@ export class Tide extends Boss {
     super.render();
     const key = `tide_${this.frame()}`;
     this.sprite.setTexture(key);
-    const a = BOSS_ANCHORS[key] ?? BOSS_ANCHORS.tide_idle;
+    const raw = BOSS_ANCHORS[key] ?? BOSS_ANCHORS.tide_idle;
+    const sc = (pt: [number, number]): [number, number] => [pt[0] * SCALE, pt[1] * SCALE];
+    const a = { eye: raw.eye && sc(raw.eye), lights: raw.lights?.map(sc) };
     this.fx.update({
       x: Math.round(this.cx),
       bottom: Math.round(this.bottom),

@@ -1,5 +1,5 @@
 import type { StageData } from './Level';
-import { SKY, bossHall, bossRoom, challengeRoom, miniHall, rows, water } from './rooms';
+import { SKY, bossArena, bossHall, challengeRoom, miniHall, rows, water } from './rooms';
 
 /** The quiet hallway before the boss room (see bossHall). */
 const lobby = bossHall();
@@ -24,7 +24,17 @@ const duel = challengeRoom('#', true);
 //          row 2:  . . . . G H I 1 2 J | X Y
 
 const ROCK = '################';
-const room = bossRoom();
+// TIDE's trench: a spike pit in each half of the floor, and a ledge in each
+// half with spikes hanging over it (a full jump off a ledge reaches them).
+const room = bossArena('#', {
+  2: '....^^^^........',
+  8: '...CCCCCC.......',
+  13: '########^^^#####',
+}, {
+  2: '.........^^^^..#',
+  8: '........CCCCCC.#',
+  13: '###^^^#########' + '#',
+});
 const hall = miniHall('#', true, true);
 
 export const REEF: StageData = {

@@ -269,7 +269,7 @@ export class Miniboss extends Boss {
    */
   private stepLightning(): void {
     const p = this.g.player;
-    if (++this.strikeT % 110 === 0 && !this.strike) this.strike = { x: Phaser.Math.Clamp(p.cx, this.room.left + 8, this.room.right - 8), t: 0 };
+    if (++this.strikeT % 210 === 0 && !this.strike) this.strike = { x: Phaser.Math.Clamp(p.cx, this.room.left + 8, this.room.right - 8), t: 0 };
     const k = this.strike;
     if (!k) return;
     k.t++;
@@ -401,7 +401,8 @@ export class Miniboss extends Boss {
       // Shots falling from the ceiling, one on the player's position.
       case 'rain': {
         this.float();
-        const count = fast ? 6 : 4;
+        // (Fewer for the Storm Kite: its fight already has the wind and the jumping.)
+        const count = this.mini === 'kite' ? (fast ? 4 : 3) : fast ? 6 : 4;
         if (this.t % 14 === 0 && this.t <= count * 14) {
           const i = this.t / 14;
           const x = i === 1 ? p.cx : this.room.left + 20 + Math.random() * (this.room.right - this.room.left - 40);

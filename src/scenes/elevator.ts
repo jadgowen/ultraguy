@@ -4,6 +4,7 @@ import type { Player } from '../entities/Player';
 import { Level } from '../level/Level';
 import type { ThemeId } from '../level/Level';
 import { sfx } from '../sfx';
+import { makeFrames } from '../tileFx';
 import type { ShotOptions } from './GameScene';
 
 /** How fast the lift climbs (px per step), and how far below it the magma follows. */
@@ -39,7 +40,10 @@ export class Elevator {
   private readonly x0: number; // shaft interior, world px
   private readonly x1: number;
   private readonly platform: Phaser.GameObjects.Image;
-  private readonly lava: Phaser.GameObjects.TileSprite;
+  /** The magma: the stage's living lava (crest, churning body, heat glow), as in the boss room. */
+  private readonly lava: { top: Phaser.GameObjects.TileSprite; body: Phaser.GameObjects.TileSprite; glow: Phaser.GameObjects.TileSprite };
+  /** Frames since the scene started (the lava keeps moving while you wait). */
+  private anim = 0;
 
   constructor(private h: ElevatorHost) {
     const e = h.level.elevator!;
@@ -54,8 +58,14 @@ export class Elevator {
     this.x1 = (c1 + 1) * TILE;
     makePlatform(h.scene);
     this.platform = h.scene.add.image(0, 0, 'lift_platform').setOrigin(0, 0).setDepth(3);
-    const lavaKey = h.scene.textures.exists(`lava_${h.theme}`) ? `lava_${h.theme}` : 'lift_platform';
-    this.lava = h.scene.add.tileSprite(this.x0, 0, this.x1 - this.x0, VIEW_H * 3, lavaKey).setOrigin(0, 0).setDepth(14).setAlpha(0.95);
+    makeFrames(h.scene, h.theme);
+    const w = this.x1 - this.x0;
+    const ts = (key: string, hh: number) => h.scene.add.tileSprite(this.x0, 0, w, hh, key).setOrigin(0, 0).setDepth(14);
+    this.lava = {
+      top: ts(`lava_top_${h.theme}_0`, TILE),
+      body: ts(`lava_body_${h.theme}_0`, VIEW_H * 3),
+      glow: ts(`lava_glow_${h.theme}`, TILE).setOrigin(0, 1).setDepth(14.1).setScale(1, 3).setBlendMode(Phaser.BlendModes.ADD),
+    };
     this.reset();
   }
 
@@ -150,9 +160,16 @@ export class Elevator {
 
   private draw(): void {
     this.platform.setPosition(Math.round(this.x), Math.round(this.top));
-    this.lava.setPosition(this.x0, Math.round(this.lavaTop));
-    this.lava.tilePositionX = this.t * 0.3;
-    this.lava.setVisible(this.state !== 'idle');
+    const L = this.lava;
+    const y = Math.round(this.lavaTop);
+    const f = Math.floor(++this.anim / 5) % 8;
+    const drift = (this.anim * 0.4) % TILE;
+    L.top.setTexture(`lava_top_${this.h.theme}_${f}`).setY(y - 2);
+    L.body.setTexture(`lava_body_${this.h.theme}_${f}`).setY(y - 2 + TILE);
+    L.top.tilePositionX = L.body.tilePositionX = drift;
+    L.glow.setY(y).setAlpha(0.6 + Math.sin(this.anim * 0.1) * 0.25);
+    const on = this.state !== 'idle';
+    for (const o of [L.top, L.body, L.glow]) o.setVisible(on);
   }
 }
 

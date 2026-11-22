@@ -6,6 +6,8 @@ import { Level, SWITCH_OFF_INDEX, Tile } from '../level/Level';
 import { THEMES } from '../level/themes';
 import { Box, overlaps } from '../physics';
 import { sfx } from '../sfx';
+import { makeFrames } from '../tileFx';
+import type { ThemeId } from '../level/Level';
 
 /**
  * Stage set pieces that aren't sky-specific (see sky.ts for clouds and wind):
@@ -85,7 +87,26 @@ export class Hazards {
   private wall: { x: number; start: number; stop: number; y: number; on: boolean; done: boolean; sprite: Phaser.GameObjects.TileSprite; face: Phaser.GameObjects.TileSprite } | null = null;
   /** Moving belt surfaces drawn over conveyor runs, scrolled the way they push. */
   private belts: { sprite: Phaser.GameObjects.TileSprite; dir: number }[] = [];
-  private lava: { y: number; start: number; top: number; x0: number; x1: number; on: boolean; fill: Phaser.GameObjects.TileSprite } | null = null;
+  /**
+   * The rising tide: Caldera's lava (the same living lava as the boss room's
+   * surge: a rolling crest, a churning body, a heat glow) or Canopy's brambles
+   * (thorny tendrils writhing over a tangle).
+   */
+  private lava: {
+    y: number;
+    start: number;
+    top: number;
+    x0: number;
+    x1: number;
+    on: boolean;
+    kind: 'lava' | 'bramble';
+    theme: string;
+    fill: Phaser.GameObjects.TileSprite;
+    crest: Phaser.GameObjects.TileSprite;
+    glow: Phaser.GameObjects.TileSprite | null;
+    /** Brambles: ragged shoots spilling past each side, so an edge never reads as a cut line. */
+    sides: Phaser.GameObjects.TileSprite[];
+  } | null = null;
 
   constructor(private host: HazardHost) {
     const { scene, level } = host;
@@ -167,10 +188,43 @@ export class Hazards {
           x1 = Math.max(x1, c * TILE + SCREEN_W);
         }
       }
-      // (The jungle's rising tide is brambles, not lava.)
-      const tex = scene.textures.exists(`rise_${host.theme}`) ? `rise_${host.theme}` : `lava_${host.theme}`;
-      const fill = scene.add.tileSprite(x0, start, x1 - x0, SCREEN_H * 4, tex).setOrigin(0).setDepth(14).setAlpha(0.95);
-      this.lava = { y: start, start, top, x0, x1, on: false, fill };
+      // Drawn only inside the shaft: the columns between its walls (a column
+      // that's mostly solid down the rising screens is wall). The walls frame
+      // it, so its sides never end in a hard line against open air.
+      const solidShare = (c: number) => {
+        let solid = 0;
+        let n = 0;
+        for (let r = Math.floor(top / TILE) - 5; r < Math.floor(start / TILE) - 4; r++) {
+          const id = level.screenIdAt(c * TILE, r * TILE);
+          if (!id || !rise.screens.includes(id)) continue;
+          n++;
+          if (level.isSolid(c, r)) solid++;
+        }
+        return n ? solid / n : 1;
+      };
+      let c0 = x0 / TILE;
+      let c1 = x1 / TILE - 1;
+      while (c0 < c1 && solidShare(c0) >= 0.6) c0++;
+      while (c1 > c0 && solidShare(c1) >= 0.6) c1--;
+      const dx = c0 * TILE;
+      const w = (c1 + 1) * TILE - dx;
+      if (host.theme === 'jungle') {
+        // (The jungle's rising tide is brambles, not lava.)
+        const fill = scene.add.tileSprite(dx, start, w, SCREEN_H * 4, 'rise_jungle').setOrigin(0).setDepth(14);
+        const crest = scene.add.tileSprite(dx, start, w, BRAMBLE_H, 'bramble_crest_0').setOrigin(0).setDepth(14.1);
+        const side = (x: number, flip: boolean) => scene.add.tileSprite(x, start, BRAMBLE_SIDE_W, SCREEN_H * 4, 'bramble_side').setOrigin(0).setDepth(14).setFlipX(flip);
+        const sides = [side(dx - BRAMBLE_SIDE_W, true), side(dx + w, false)];
+        this.lava = { y: start, start, top, x0: dx, x1: dx + w, on: false, kind: 'bramble', theme: host.theme, fill, crest, glow: null, sides };
+      } else {
+        const theme = host.theme as ThemeId;
+        makeFrames(scene, theme);
+        const fill = scene.add.tileSprite(dx, start, w, SCREEN_H * 4, `lava_body_${theme}_0`).setOrigin(0).setDepth(14);
+        const crest = scene.add.tileSprite(dx, start, w, TILE, `lava_top_${theme}_0`).setOrigin(0).setDepth(14);
+        // A taller heat haze over it (the glow texture is one tile, stretched).
+        const glow = scene.add.tileSprite(dx, start, w, TILE, `lava_glow_${theme}`).setOrigin(0, 1).setDepth(14.1).setScale(1, 3).setBlendMode(Phaser.BlendModes.ADD);
+        this.lava = { y: start, start, top, x0: dx, x1: dx + w, on: false, kind: 'lava', theme, fill, crest, glow, sides: [] };
+      }
+      this.placeLava();
     }
   }
 
@@ -416,11 +470,44 @@ export class Hazards {
       const gap = L.y - p.bottom;
       L.y -= rise.speed * (gap > VIEW_H * 0.75 ? 2.5 : 1);
     }
-    L.fill.setY(Math.round(L.y));
-    L.fill.tilePositionY = 0;
-    L.fill.tilePositionX = (this.t * 0.3) % TILE;
+    this.placeLava();
+    // Embers off the lava's surface, in view.
+    if (L.kind === 'lava' && L.on && this.t % 5 === 0) {
+      const v = this.host.view();
+      const x = Math.max(L.x0, v.x) + Math.random() * Math.min(VIEW_W, L.x1 - Math.max(L.x0, v.x));
+      if (L.y < v.y + VIEW_H + 8) this.host.burst(x, L.y + 2, 'ember', 1);
+    }
     // Only where the lava actually is: once you're past the climb, other screens are safe.
     if (p.alive && p.bottom > L.y + 6 && p.cx >= L.x0 && p.cx < L.x1) p.die(true);
+  }
+
+  /** Move the rising tide's layers to its surface and animate them. */
+  private placeLava(): void {
+    const L = this.lava;
+    if (!L) return;
+    const y = Math.round(L.y);
+    if (L.kind === 'lava') {
+      // As in the boss room: the crest a little over the surface, the body under it, drifting along.
+      const f = Math.floor(this.t / 5) % 8;
+      const drift = (this.t * 0.4) % TILE;
+      L.crest.setTexture(`lava_top_${L.theme}_${f}`).setY(y - 2);
+      L.crest.tilePositionX = drift;
+      L.fill.setTexture(`lava_body_${L.theme}_${f}`).setY(y - 2 + TILE);
+      L.fill.tilePositionX = drift;
+      L.glow?.setY(y).setAlpha(0.6 + Math.sin(this.t * 0.1) * 0.25);
+    } else {
+      // The tendrils reach up over the surface; the tangle under them shifts as it climbs.
+      const f = Math.floor(this.t / 6) % BRAMBLE_FRAMES;
+      L.crest.setTexture(`bramble_crest_${f}`).setY(y - BRAMBLE_REACH);
+      L.crest.tilePositionX = Math.round(Math.sin(this.t * 0.013) * 6);
+      L.fill.setY(y - BRAMBLE_REACH + BRAMBLE_H - 2);
+      L.fill.tilePositionX = Math.round(Math.sin(this.t * 0.017 + 1) * 4);
+      L.fill.tilePositionY = Math.round(-this.t * 0.08) % 64;
+      for (const sd of L.sides) {
+        sd.setY(y + 2);
+        sd.tilePositionY = L.fill.tilePositionY;
+      }
+    }
   }
 
   /** After a death: lava back down, presses back up. */
@@ -428,7 +515,7 @@ export class Hazards {
     if (this.lava) {
       this.lava.y = this.lava.start;
       this.lava.on = false;
-      this.lava.fill.setY(this.lava.start);
+      this.placeLava();
     }
     for (const k of this.crushers) {
       k.y = k.top;
@@ -626,33 +713,187 @@ function makeCompactorTextures(scene: Phaser.Scene): void {
   g.destroy();
 }
 
-/** Canopy's rising brambles: a thicket of dark vines and thorns (tiles both ways). */
+/** Canopy's brambles: the crest strip's size, how far its tendrils reach over the deadly line, and its frames. */
+const BRAMBLE_W = 96;
+const BRAMBLE_H = 40;
+const BRAMBLE_REACH = 22;
+const BRAMBLE_FRAMES = 8;
+const BRAMBLE_SIDE_W = 10;
+
+/**
+ * Canopy's rising brambles. The body (`rise_jungle`, 64x64, tiles both ways)
+ * is a dark tangle of thorny vines, deeper in shadow toward the bottom of each
+ * strand; it scrolls slowly so the thicket seems to churn as it climbs. Over
+ * it, the crest (`bramble_crest_<k>`): a ragged top edge bristling with thorns
+ * and, reaching up from it, thorny tendrils that sway and curl, each tipped
+ * with a hook and some with a red bud.
+ */
 function makeBrambles(scene: Phaser.Scene): void {
-  const tex = scene.textures.createCanvas('rise_jungle', 32, 32)!;
-  const ctx = tex.getContext();
-  const px = (c: string, x: number, y: number, w = 1, h = 1) => {
-    ctx.fillStyle = c;
-    ctx.fillRect(((x % 32) + 32) % 32, ((y % 32) + 32) % 32, w, h);
+  const DARK = '#0e170b';
+  const VINE = ['#1a3312', '#24481a', '#2f5a1e', '#3f7a28', '#5a9a34'];
+  const THORN = ['#6a5a34', '#a89858', '#e8d8a0'];
+  const BUD = ['#8a1c28', '#c83a3a', '#ff7a6a'];
+  const make = (key: string, w: number, h: number, paint: (px: (c: string, x: number, y: number, ww?: number, hh?: number) => void) => void) => {
+    if (scene.textures.exists(key)) return;
+    const tex = scene.textures.createCanvas(key, w, h)!;
+    const ctx = tex.getContext();
+    paint((c, x, y, ww = 1, hh = 1) => {
+      if (y < 0 || y >= h) return;
+      ctx.fillStyle = c;
+      ctx.fillRect(((Math.round(x) % w) + w) % w, Math.round(y), ww, hh);
+    });
+    tex.refresh();
   };
-  px('#14200f', 0, 0, 32, 32);
-  // Tangled vines: a few sine strands, each with a light top edge and thorns.
-  const strands = [
-    { y: 4, a: 3, f: 2, c: '#2f5a1e', l: '#4f8a2e' },
-    { y: 13, a: 4, f: 1, c: '#24481a', l: '#3f7a28' },
-    { y: 22, a: 3, f: 3, c: '#2f5a1e', l: '#5a9a34' },
-    { y: 28, a: 2, f: 2, c: '#1e3a14', l: '#36662a' },
-  ];
-  for (const s of strands) {
-    for (let x = 0; x < 32; x++) {
-      const y = Math.round(s.y + s.a * Math.sin((x / 32) * Math.PI * 2 * s.f));
-      px(s.c, x, y, 1, 3);
-      px(s.l, x, y, 1, 1);
-      if (x % 7 === 3) {
-        // A thorn, pointing up.
-        px('#c8b878', x, y - 1);
-        px('#e8d8a0', x, y - 2);
+  // A thorn: a hooked spike from (x, y) out to `side`, curving up, with a dark underside so it reads.
+  const thorn = (px: (c: string, x: number, y: number, ww?: number, hh?: number) => void, x: number, y: number, side: number, big = false) => {
+    px(DARK, x + side, y + 1);
+    px(DARK, x + side * 2, y + 1);
+    px(THORN[0], x + side, y);
+    px(THORN[1], x + side * 2, y);
+    px(THORN[1], x + side * 3, y - 1);
+    px(THORN[2], x + side * 3, y - 2);
+    if (big) {
+      px(DARK, x + side * 3, y);
+      px(THORN[1], x + side * 4, y - 2);
+      px(THORN[2], x + side * 4, y - 3);
+      px('#fff8d0', x + side * 4, y - 4);
+    } else px('#fff8d0', x + side * 3, y - 3);
+  };
+  // --- The body: tangled strands crossing every which way, with thorns along them.
+  make('rise_jungle', 64, 64, (px) => {
+    px(DARK, 0, 0, 64, 64);
+    const strands = [
+      { y: 6, a: 4, f: 1, ph: 0 },
+      { y: 18, a: 5, f: 2, ph: 1.3 },
+      { y: 30, a: 3, f: 1, ph: 2.6 },
+      { y: 41, a: 6, f: 2, ph: 0.7 },
+      { y: 53, a: 4, f: 1, ph: 4.1 },
+      { y: 60, a: 3, f: 3, ph: 2.0 },
+    ];
+    strands.forEach((st, n) => {
+      for (let x = 0; x < 64; x++) {
+        const y = st.y + st.a * Math.sin((x / 64) * Math.PI * 2 * st.f + st.ph);
+        const shade = n % 2 ? 1 : 2;
+        px(VINE[0], x, y + 2, 1, 2);
+        px(VINE[shade], x, y, 1, 2);
+        px(VINE[shade + 1], x, y - 1);
+        // Wrap around: the bottom strand's shadow comes back in at the top.
+        px(VINE[0], x, y + 2 - 64, 1, 2);
+        if ((x + n * 5) % 9 === 0) thorn(px, x, y - 1, (x + n) % 2 ? 1 : -1, (x + n) % 4 === 0);
+      }
+    });
+    // A few loose leaves and old buds in the shadows.
+    for (let i = 0; i < 9; i++) {
+      const x = (i * 23 + 7) % 64;
+      const y = (i * 37 + 11) % 64;
+      if (i % 3 === 0) {
+        px(BUD[0], x, y, 2, 2);
+        px(BUD[1], x, y);
+      } else {
+        px(VINE[2], x, y, 3, 1);
+        px(VINE[3], x + 1, y - 1, 2, 1);
       }
     }
+  });
+
+  // --- The sides: shoots poking out sideways from the thicket's edge (x = 0 is the edge), thorny, on nothing.
+  make('bramble_side', BRAMBLE_SIDE_W, 64, (px) => {
+    for (let y = 0; y < 64; y += 2) {
+      const len = Math.max(0, Math.round(3 + 3 * Math.sin(y * 0.37) + 2 * Math.sin(y * 0.11 + 2)));
+      // The thicket's dark fringe, then a shoot with a light top edge.
+      px(DARK, 0, y, Math.min(2, len + 1), 2);
+      for (let x = 0; x < len; x++) {
+        const yy = y + Math.round(Math.sin(x * 0.9 + y) * 0.6);
+        px(VINE[2], x, yy);
+        px(VINE[0], x, yy + 1);
+        if (x === len - 1) px(VINE[4], x, yy - 1);
+      }
+      if (len > 4 && y % 6 === 0) {
+        px(THORN[1], len, y - 1);
+        px(THORN[2], len + 1, y - 2);
+      }
+    }
+  });
+
+  // --- The crest: a ragged top over the tangle, and thorny tendrils writhing up from it.
+  const W = BRAMBLE_W;
+  const base = (x: number) => BRAMBLE_REACH + Math.round(1.6 * Math.sin((x / W) * Math.PI * 4) + 1.1 * Math.sin((x / W) * Math.PI * 10 + 1));
+  const tendrils = [
+    { x: 7, h: 17, a: 4, off: 0, bud: false, curl: 1 },
+    { x: 21, h: 10, a: 3, off: 2.1, bud: true, curl: -1 },
+    { x: 34, h: 21, a: 5, off: 4.0, bud: false, curl: -1 },
+    { x: 49, h: 13, a: 3.5, off: 1.0, bud: false, curl: 1 },
+    { x: 63, h: 19, a: 4.5, off: 3.3, bud: true, curl: 1 },
+    { x: 77, h: 9, a: 3, off: 5.2, bud: false, curl: -1 },
+    { x: 88, h: 15, a: 4, off: 0.6, bud: false, curl: -1 },
+  ];
+  for (let k = 0; k < BRAMBLE_FRAMES; k++) {
+    const ph = (k / BRAMBLE_FRAMES) * Math.PI * 2;
+    make(`bramble_crest_${k}`, W, BRAMBLE_H, (px) => {
+      // The tangle under the edge (the body takes over just below the strip).
+      for (let x = 0; x < W; x++) {
+        const b = base(x);
+        px(DARK, x, b - 1, 1, BRAMBLE_H - b + 1);
+        px(VINE[2], x, b, 1, 2);
+        px(VINE[4], x, b);
+        px(VINE[0], x, b + 2);
+        // Loops of vine just under the edge, rippling.
+        const ly = b + 5 + Math.round(1.5 * Math.sin(x * 0.35 + ph * (x % 2 ? 1 : -1)));
+        px(VINE[3], x, ly);
+        px(VINE[1], x, ly + 1);
+        const ly2 = b + 11 + Math.round(2 * Math.sin(x * 0.2 - ph));
+        px(VINE[2], x, ly2);
+        px(VINE[0], x, ly2 + 1);
+      }
+      // Thorns bristling along the edge, nodding with the sway.
+      for (let x = 2; x < W; x += 6) thorn(px, x, base(x) - 1, Math.sin(ph + x) > 0 ? 1 : -1);
+      // The tendrils: thick at the root, thinning to a whip, bending more toward the tip.
+      const paths = tendrils.map((t) => {
+        const root = base(t.x);
+        return Array.from({ length: t.h + 1 }, (_, s) => {
+          const u = s / t.h;
+          return { x: Math.round(t.x + t.a * Math.sin(ph + t.off + u * 2.2) * u ** 1.2), y: root - s, th: u < 0.35 ? 3 : u < 0.75 ? 2 : 1, s };
+        });
+      });
+      // Outline first (so tendrils crossing the edge still read), then the stalks.
+      for (const path of paths) for (const q of path) px(DARK, q.x - 1, q.y - 1, q.th + 2, 3);
+      paths.forEach((path, n) => {
+        const t = tendrils[n];
+        for (const q of path) {
+          px(VINE[2], q.x, q.y, q.th, 1);
+          px(VINE[4], q.x, q.y);
+          if (q.th > 1) px(VINE[1], q.x + q.th - 1, q.y);
+        }
+        // Thorns along it, alternating sides, bigger near the root.
+        for (const q of path) if (q.s > 1 && q.s < t.h - 1 && q.s % 3 === 0) {
+          const side = q.s % 6 ? 1 : -1;
+          thorn(px, side > 0 ? q.x + q.th - 1 : q.x, q.y, side, q.s < t.h * 0.5);
+        }
+        // The tip curls over into a hook, or swells into a red bud.
+        const tip = path[path.length - 1];
+        if (t.bud) {
+          // A round bud in green sepals, outlined; it pulses.
+          const bx = tip.x;
+          const by = tip.y - 1;
+          px(DARK, bx - 1, by - 5, 3, 1);
+          px(DARK, bx - 2, by - 4, 5, 3);
+          px(DARK, bx - 1, by - 1, 3, 1);
+          px(BUD[1], bx - 1, by - 4, 3, 3);
+          px(BUD[0], bx - 1, by - 2, 3, 1);
+          px(BUD[0], bx + 1, by - 3);
+          px(k % 4 < 2 ? '#ffd0c0' : BUD[2], bx - 1, by - 4);
+          px(VINE[3], bx - 2, by - 1);
+          px(VINE[3], bx + 2, by - 1);
+          px(VINE[4], bx, by);
+        } else {
+          const c = t.curl * (Math.sin(ph + t.off) > -0.3 ? 1 : -1);
+          px(VINE[3], tip.x, tip.y - 1);
+          px(VINE[3], tip.x + c, tip.y - 2);
+          px(THORN[1], tip.x + c * 2, tip.y - 2);
+          px(THORN[2], tip.x + c * 3, tip.y - 1);
+          px('#fff8d0', tip.x + c * 3, tip.y);
+        }
+      });
+    });
   }
-  tex.refresh();
 }

@@ -25,6 +25,10 @@ export interface BoxingData {
 }
 
 const MAX_HP = 96;
+/** Steps after he goes down before the count starts (so the announcer isn't talking over himself). */
+const COUNT_DELAY = 70;
+/** The count is drawn at this (whole) scale on top of the font's biggest size. */
+const COUNT_SCALE = 2;
 const ROUND_FRAMES = 60 * 75;
 const ROUNDS = 3;
 const SCALE = 2;
@@ -78,6 +82,15 @@ export class BoxingScene extends Phaser.Scene {
   private banner!: ReturnType<typeof pixelText>;
   private info!: ReturnType<typeof pixelText>;
   private corner: Phaser.GameObjects.Container | null = null;
+  /** The ten count: a big outlined number in the middle of the ring (the copies behind it are the outline). */
+  private countLayer!: Phaser.GameObjects.Container;
+  private countTexts: ReturnType<typeof pixelText>[] = [];
+  private countShown = 0;
+  /** Your last punch that landed (frames since, where, how hard), for the hit flash; and one he blocked. */
+  private landT = 99;
+  private landHigh = false;
+  private blockT = 99;
+  private blockHigh = false;
   private crowd: Phaser.Sound.BaseSound | null = null;
   private result: 'win' | 'lose' | null = null;
 
@@ -96,7 +109,7 @@ export class BoxingScene extends Phaser.Scene {
       acc: 0, frame: 0, round: 1, clock: ROUND_FRAMES, phase: 'corner', phaseT: 0, story: null,
       oState: 'idle', oT: 0, oDur: 60, guard: 'high', oHp: MAX_HP, oDowns: 0, flash: 0,
       yState: 'idle', yT: 0, hp: MAX_HP, hearts: 20, stars: 0, dodgeDir: 0, yDowns: 0, roundDowns: 0, mash: 0, result: null, corner: null,
-      hudLeft: undefined, hudMid: undefined, hudRight: undefined,
+      hudLeft: undefined, hudMid: undefined, hudRight: undefined, countShown: 0, landT: 99, blockT: 99,
     });
     this.drawArena();
     this.opp = this.add.image(OPP_X, OPP_Y, 'gbox_idle').setOrigin(0.5, 1).setScale(SCALE).setDepth(5);
@@ -105,6 +118,16 @@ export class BoxingScene extends Phaser.Scene {
     this.hud = this.add.graphics().setDepth(40);
     this.banner = pixelText(this, VIEW_W / 2, 70, '', { fontSize: '16px', color: '#fff1e0', stroke: '#000000' }).setOrigin(0.5).setDepth(41);
     this.info = pixelText(this, VIEW_W / 2, 28, '', { color: '#fff1e0', stroke: '#000000' }).setOrigin(0.5, 0).setDepth(41);
+    // The count: eight dark copies around a bright one make a thick outline.
+    this.countTexts = [];
+    this.countLayer = this.add.container(VIEW_W / 2, 70).setDepth(42).setVisible(false);
+    // (The font tops out at 4x; the whole count is drawn at twice that.)
+    const o = 2;
+    for (const [dx, dy] of [[-o, 0], [o, 0], [0, -o], [0, o], [-o, -o], [o, -o], [-o, o], [o, o]]) {
+      this.countTexts.push(pixelText(this, dx, dy, '', { fontSize: '32px', color: '#1a1428' }).setOrigin(0.5));
+    }
+    this.countTexts.push(pixelText(this, 0, 0, '', { fontSize: '32px', color: '#ffe14a' }).setOrigin(0.5));
+    this.countLayer.add(this.countTexts);
     pixelText(this, 6, VIEW_H - 12, 'L/R DODGE  DOWN BLOCK  JUMP/FIRE PUNCH (+UP FACE)  START STAR', { color: '#8a8fa8', stroke: '#000000' }).setDepth(41);
 
     stopMusic();
@@ -193,6 +216,7 @@ export class BoxingScene extends Phaser.Scene {
   }
 
   private endRound(): void {
+    this.hideCount();
     sfx.bell();
     if (this.round < ROUNDS) {
       this.round++;
@@ -208,6 +232,7 @@ export class BoxingScene extends Phaser.Scene {
   }
 
   private finishFight(won: boolean, text: string): void {
+    this.hideCount();
     if (this.result) return;
     this.result = won ? 'win' : 'lose';
     this.phase = 'over';
@@ -310,14 +335,15 @@ export class BoxingScene extends Phaser.Scene {
         // Mash to get up before the count of ten.
         if (c.justPressed('jump') || c.justPressed('fire')) this.mash++;
         const count = Math.floor(this.yT / 50) + 1;
-        this.info.setText(`${Math.min(count, 10)}...   MASH JUMP/FIRE TO GET UP!`);
-        if (this.yT % 50 === 0) sfx.tick();
+        this.info.setText('MASH JUMP/FIRE TO GET UP!');
+        if (count <= 10) this.showCount(count, '#ff6a5a');
         if (this.mash >= 12 + this.yDowns * 4) {
           this.hp = Math.round(MAX_HP * 0.4);
           // Back up with your wind back: fresh hearts, not winded.
           this.hearts = Math.max(this.hearts, 12);
           this.mash = 0;
           this.info.setText('');
+          this.hideCount();
           this.toIdle();
           this.oState = 'idle';
           this.oT = 0;
@@ -326,6 +352,33 @@ export class BoxingScene extends Phaser.Scene {
         return;
       }
     }
+  }
+
+  /** Call out the count: the number pops up big in the ring, and the announcer says it. */
+  private showCount(n: number, color: string): void {
+    if (n === this.countShown) return;
+    this.countShown = n;
+    const main = this.countTexts[this.countTexts.length - 1];
+    for (const t of this.countTexts) t.setText(`${n}`);
+    main.setColor(color);
+    this.countLayer.setVisible(true).setScale(COUNT_SCALE * 1.5).setAlpha(1);
+    this.tweens.killTweensOf(this.countLayer);
+    this.tweens.add({ targets: this.countLayer, scale: COUNT_SCALE, duration: 180, ease: 'Back.easeOut' });
+    playVoice(this, `box_count${n}`);
+    sfx.tick();
+  }
+
+  private hideCount(): void {
+    this.countShown = 0;
+    this.tweens.killTweensOf(this.countLayer);
+    this.countLayer.setVisible(false);
+  }
+
+  /** A number flying off where a punch lands (or BLOCK where it doesn't). */
+  private popText(text: string, x: number, y: number, color: string): void {
+    const t = pixelText(this, x, y, text, { fontSize: '16px', color, stroke: '#000000' }).setOrigin(0.5).setDepth(43);
+    const back = pixelText(this, x + 1, y + 1, text, { fontSize: '16px', color: '#1a1428' }).setOrigin(0.5).setDepth(42.9);
+    this.tweens.add({ targets: [t, back], y: `-=26`, alpha: 0, duration: 650, ease: 'Cubic.easeOut', onComplete: () => (t.destroy(), back.destroy()) });
   }
 
   private toIdle(): void {
@@ -341,6 +394,9 @@ export class BoxingScene extends Phaser.Scene {
     const guarded = !open && o !== 'wind' && o !== 'punch' && (this.guard === 'high') === this.punchHigh;
     if (guarded) {
       sfx.punchBlock();
+      this.blockT = 0;
+      this.blockHigh = this.punchHigh;
+      this.popText('BLOCK', OPP_X + (this.punchSide === 'L' ? -1 : 1) * 44, OPP_Y - (this.punchHigh ? 100 : 66), '#9aa8c8');
       this.hearts = Math.max(0, this.hearts - 1);
       // He likes to answer a blocked punch.
       if (Math.random() < 0.35) this.startAttack();
@@ -373,6 +429,11 @@ export class BoxingScene extends Phaser.Scene {
 
   private hurtOpp(dmg: number): void {
     sfx.punch();
+    // It landed: a burst, a flash on him, a jolt, and the damage flying off.
+    this.landT = 0;
+    this.landHigh = this.punchHigh;
+    this.popText(`${dmg}`, OPP_X + (this.punchSide === 'L' ? -1 : 1) * Phaser.Math.Between(34, 44), OPP_Y - (this.punchHigh ? 104 : 70), dmg >= 8 ? '#ff6a5a' : '#ffe14a');
+    this.cameras.main.shake(90, dmg >= 8 ? 0.008 : 0.004);
     this.oHp = Math.max(0, this.oHp - dmg);
     if (this.oHp === 0) {
       this.knockDown();
@@ -398,6 +459,8 @@ export class BoxingScene extends Phaser.Scene {
 
   private stepOpp(): void {
     this.oT++;
+    this.landT++;
+    this.blockT++;
     if (this.flash > 0) this.flash--;
     switch (this.oState) {
       case 'idle':
@@ -438,15 +501,17 @@ export class BoxingScene extends Phaser.Scene {
         }
         return;
       case 'down': {
-        const count = Math.floor(this.oT / 50) + 1;
-        if (this.oT % 50 === 1) sfx.tick();
-        this.info.setText(count <= 10 ? `${count}` : '');
-        if (count > 10 || (this.oDowns >= 3 && count >= 10)) {
-          this.info.setText('');
+        // (The count starts once the announcer's "Down he goes!" is out.)
+        const t = this.oT - COUNT_DELAY;
+        if (t < 0) return;
+        const count = Math.floor(t / 50) + 1;
+        if (count <= 10) this.showCount(count, '#ffe14a');
+        if (count > 10 || (this.oDowns >= 3 && count >= 10 && t % 50 >= 40)) {
+          this.hideCount();
           this.finishFight(true, 'KNOCKOUT!');
-        } else if (count >= this.getUpAt && this.oDowns < 3) {
+        } else if (count >= this.getUpAt && this.oDowns < 3 && t % 50 >= 30) {
           this.oHp = Math.round(MAX_HP * (this.oDowns === 1 ? 0.6 : 0.4));
-          this.info.setText('');
+          this.hideCount();
           this.oState = 'idle';
           this.oT = 0;
           this.oDur = 60;
@@ -524,7 +589,9 @@ export class BoxingScene extends Phaser.Scene {
     const bob = o === 'idle' || o === 'taunt' ? Math.round(Math.sin(this.frame / 10) * 1.5) : 0;
     const lunge = o === 'punch' ? 6 : o === 'wind' ? -2 : 0;
     this.opp.setPosition(OPP_X + (o === 'taunt' ? Math.sin(this.frame / 6) * 4 : 0), OPP_Y + bob + lunge);
-    this.opp.setTint(o === 'hit' && this.oT < 4 ? 0xffb0b0 : 0xffffff);
+    // A punch that lands flashes him white, then red; a blocked one doesn't touch him.
+    if (this.landT < 4) this.opp.setTintFill(0xffffff);
+    else this.opp.setTint(this.landT < 12 ? 0xff8a8a : 0xffffff);
     // His eye flashes white at the start of a wind-up.
     this.eyeFlash.setVisible(this.flash > 0 && this.flash % 4 < 3).setPosition(OPP_X - 24 * SCALE + 24.5 * SCALE, OPP_Y + bob - 60 * SCALE + 12.5 * SCALE);
 
@@ -595,15 +662,28 @@ export class BoxingScene extends Phaser.Scene {
       b.fillStyle(0xffffff, 0.9).fillRect(x, y, 2, 2);
       b.fillStyle(0xffffff, 0.25).fillCircle(x + 1, y + 1, 6);
     }
-    // A punch landing: a star of light at his face or his body.
-    if (this.oState === 'hit' && this.oT < 8) {
-      const y = OPP_Y - (this.punchHigh ? 100 : 66);
-      const k = this.oT / 8;
-      f.fillStyle(0xffffff, 0.9 * (1 - k)).fillCircle(OPP_X, y, 6 + k * 6);
+    // A punch landing: a big burst of light at his face or his body, with rays and sparks.
+    if (this.landT < 12) {
+      const y = OPP_Y - (this.landHigh ? 100 : 66);
+      const k = this.landT / 12;
+      f.fillStyle(0xffffff, 0.95 * (1 - k)).fillCircle(OPP_X, y, 9 + k * 10);
+      f.fillStyle(0xffe14a, 0.5 * (1 - k)).fillCircle(OPP_X, y, 16 + k * 16);
       for (let i = 0; i < 8; i++) {
-        const a = (i / 8) * Math.PI * 2 + fr * 0.2;
-        f.fillStyle(0xffe14a, 1 - k).fillRect(OPP_X + Math.cos(a) * (8 + k * 18), y + Math.sin(a) * (8 + k * 14), 2, 2);
+        const a = (i / 8) * Math.PI * 2 + 0.2;
+        const r0 = 10 + k * 10;
+        const r1 = 22 + k * 22;
+        f.lineStyle(2, 0xfff4b0, 1 - k).lineBetween(OPP_X + Math.cos(a) * r0, y + Math.sin(a) * r0, OPP_X + Math.cos(a) * r1, y + Math.sin(a) * r1);
       }
+      for (let i = 0; i < 10; i++) {
+        const a = (i / 10) * Math.PI * 2 + fr * 0.2;
+        f.fillStyle(0xffe14a, 1 - k).fillRect(OPP_X + Math.cos(a) * (12 + k * 26), y + Math.sin(a) * (10 + k * 20), 3, 3);
+      }
+    }
+    // A blocked punch: a dull grey clank against his gloves, nothing more.
+    if (this.blockT < 8) {
+      const y = OPP_Y - (this.blockHigh ? 104 : 70);
+      const k = this.blockT / 8;
+      f.lineStyle(2, 0x9aa8c8, 0.7 * (1 - k)).strokeCircle(OPP_X, y, 6 + k * 8);
     }
     // The star uppercut: his glove blazes on the way up.
     if (this.yState === 'star') f.fillStyle(0xffe14a, 0.35 + Math.sin(fr) * 0.1).fillCircle(this.you.x + 2, this.you.y - 74, 14);

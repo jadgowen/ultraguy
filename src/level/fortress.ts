@@ -94,7 +94,8 @@ export const FORTRESS_1: StageData = {
 /**
  * Fortress 2: DEPTHS. An elemental remix: snowballs across ice, cracking ice
  * that drops you into a flooded vault, currents in the dark (one with you,
- * one against), a bubble column under a backward current, cracking ice over
+ * one against), a bubble column up to the vault's air pocket (under a backward
+ * current), out over a wall that holds the water in, then cracking ice over
  * lava, then a climb with lava rising after you: a spring, cracking ice,
  * switch blocks, a ladder, a lift. Then the ABYSS EYE.
  *
@@ -128,8 +129,25 @@ export const FORTRESS_2: StageData = {
     ]),
     // In the dark: a current pushing back. Swim under it.
     D: water([CEIL, CEIL, SKY, SKY, '{{{{{{{{{{{{{{{{', '{{{{{{{{{{{{{{{{', '{{{{{{{{{{{{{{{{', SKY, '......u.........', SKY, '...###....###...', SKY, SKY, '###^^^###^^^####', FLOOR]),
-    // Still dark: a bubble column up into a current pushing you off the wall.
-    E: water([CEIL, CEIL, SKY, '{{{{{{{{{{......', '..........###...', ...rows('.......yyy###...', 8), FLOOR, FLOOR]),
+    // Still dark: the vault's air pocket. Left of a pillar hanging from the roof
+    // it's flooded to the ceiling; right of it the water has a surface, held in
+    // by a wall. A bubble column lifts you up into a current pushing you back
+    // under the surface; jump out onto the wall and drop down into the lava room.
+    E: [
+      CEIL,
+      CEIL,
+      '~~~~~~~##.......',
+      '~~~~~~~##.......',
+      '~~~~~~~##.......',
+      '~~~~~~~##.......',
+      '~~~~~~~~~~~~~###',
+      '{{{{{{{{{{{{{###',
+      '~~~~~~~~~yyy~###',
+      '~~~~u~~~~yyy~###',
+      ...rows('~~~~~~~~~yyy~###', 3),
+      FLOOR,
+      FLOOR,
+    ],
     // Out of the water: cracking ice over lava.
     F: [CEIL, CEIL, ...rows(SKY, 9), '.c..........m...', SKY, '####xxx..xxx####', '####LLLLLLLL####'],
     // The lava starts rising: spring, cracking ice, switch blocks, ladder.

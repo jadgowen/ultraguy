@@ -203,6 +203,16 @@
     "shop_vault": "voice_shop_vault.mp3",
     "pip_intro1": "voice_pip_intro1.mp3",
     "pip_intro2": "voice_pip_intro2.mp3",
-    "pip_intro3": "voice_pip_intro3.mp3"
+    "pip_intro3": "voice_pip_intro3.mp3",
+    "box_count1": "voice_box_count1.mp3",
+    "box_count2": "voice_box_count2.mp3",
+    "box_count3": "voice_box_count3.mp3",
+    "box_count4": "voice_box_count4.mp3",
+    "box_count5": "voice_box_count5.mp3",
+    "box_count6": "voice_box_count6.mp3",
+    "box_count7": "voice_box_count7.mp3",
+    "box_count8": "voice_box_count8.mp3",
+    "box_count9": "voice_box_count9.mp3",
+    "box_count10": "voice_box_count10.mp3"
   }
 }

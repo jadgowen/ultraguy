@@ -35,6 +35,8 @@ import { PixelText, pixelText } from '../pixelFont';
 /** How long the stage title card shows, in steps. */
 const TITLE_CARD_FRAMES = 170;
 const TRANSITION_FRAMES = 64;
+/** How long the camera glides when it hands over between following you and riding the magma elevator. */
+const CAM_GLIDE_FRAMES = 48;
 const DOOR_PAN_FRAMES = 80;
 const DOOR_TILE_FRAMES = 5; // frames per door tile opening/closing
 const DOOR_TILE_INDEX = Tile.Door - 1;
@@ -52,9 +54,11 @@ const LIVES_MAX = 9;
  * Lives and taken 1-UPs for the current stage visit. They live outside the
  * scene so a trip into an encounter (and back) doesn't reset them.
  */
-const visit = { stage: '' as string, lives: LIVES_START, oneUpsTaken: new Set<number>(), cachesTaken: new Set<number>(), challengeLosses: 0 };
+const visit = { stage: '' as string, lives: LIVES_START, oneUpsTaken: new Set<number>(), cachesTaken: new Set<number>(), challengeLosses: 0, miniDefeated: false };
 /** Freeze-frame when a full charge shot hits a boss. */
 const CHARGE_HIT_STOP = 3;
+/** After the Mammoth falls through the ice, the holes freeze back over this soon (steps; it surfaces in about 75). */
+const ICE_REFREEZE_AFTER_FALL = 40;
 
 /**
  * Boss Hall: which boss each teleporter (left to right) sends you to. The first
@@ -251,6 +255,13 @@ export class GameScene extends Phaser.Scene {
   /** Thin ice under strain: cracks on it so far, and the countdown to it giving way. */
   /** Caldera's magma elevator (null elsewhere). */
   private elevator: Elevator | null = null;
+  /**
+   * Who has the camera: the sections (following you) or the lift. When that
+   * changes, the camera glides over (eased in and out, like the scroll between
+   * floors) instead of jumping.
+   */
+  private camMode: 'free' | 'lift' = 'free';
+  private camGlide: { fromX: number; fromY: number; t: number } | null = null;
   /** Pip, the hero's drone (once a boss is down). */
   private pip: Pip | null = null;
   /** Power Plant's blackout (null elsewhere). */
@@ -311,6 +322,7 @@ export class GameScene extends Phaser.Scene {
       visit.oneUpsTaken = new Set();
       visit.cachesTaken = new Set();
       visit.challengeLosses = 0;
+      visit.miniDefeated = false;
       // 1-UPs bought at Rivet's go into this stage's lives.
       const bought = this.stageId === 'dojo' ? 0 : loadSave().spareLives;
       if (bought) {
@@ -318,6 +330,8 @@ export class GameScene extends Phaser.Scene {
         updateSave((d) => (d.spareLives = 0));
       }
     }
+    // Back from an encounter (the boss's game, a part's guardian): a miniboss beaten on this visit stays beaten.
+    this.miniDefeated = visit.miniDefeated;
     this.capsules = [];
     this.teleport = null;
     this.hubSpot = null;
@@ -1697,7 +1711,7 @@ export class GameScene extends Phaser.Scene {
       const c = this.capsules[r.step];
       if (c) this.checkpoint = { x: c.box.x + c.box.w / 2, y: c.box.y + c.box.h };
     } else if (r.kind === 'mini') {
-      this.miniDefeated = r.won;
+      this.miniDefeated = visit.miniDefeated = r.won;
       const at = L.miniboss;
       if (at) {
         const cp = r.won ? { x: at.x, y: at.y } : before(at.x);
@@ -2041,7 +2055,7 @@ export class GameScene extends Phaser.Scene {
       }
       // Miniboss: the camera unlocks, it leaves a big refill, and the stage goes on.
       if (boss instanceof Miniboss) {
-        this.miniDefeated = true;
+        this.miniDefeated = visit.miniDefeated = true;
         this.arena = null;
         this.dropPickup(boss.cx - 10, boss.cy, 10, 0, 'hp_big', 12, 10);
         if (this.unlocked.length > 1) this.dropPickup(boss.cx + 10, boss.cy, 0, 14, 'ammo_big', 12, 10);
@@ -2283,16 +2297,37 @@ export class GameScene extends Phaser.Scene {
   }
 
   private followCamera(): void {
-    if (this.elevator?.active) {
-      this.camX = this.elevator.camX;
-      this.camY = this.elevator.camY;
+    const lift = !!this.elevator?.active;
+    const mode = lift ? 'lift' : 'free';
+    if (mode !== this.camMode) {
+      this.camMode = mode;
+      this.camGlide = { fromX: this.camX, fromY: this.camY, t: 0 };
+    }
+    let tx: number;
+    let ty: number;
+    if (lift) {
+      tx = this.elevator!.camX;
+      ty = this.elevator!.camY;
+    } else {
+      // Ease into an arena lock (minibosses lock mid-scroll) and back out of it.
+      const target = this.arena ? this.arena.camX : this.cameraTargetX(this.section);
+      const d = target - this.camX;
+      tx = Math.abs(d) <= 4 ? target : this.camX + Math.sign(d) * 4;
+      ty = this.section.row * SCREEN_H;
+    }
+    const g = this.camGlide;
+    if (g) {
+      // Eased in and out toward wherever the target is now (the lift keeps moving).
+      const k = ++g.t / CAM_GLIDE_FRAMES;
+      const e = k * k * (3 - 2 * k);
+      if (!lift && !this.arena) tx = this.cameraTargetX(this.section);
+      this.camX = g.fromX + (tx - g.fromX) * e;
+      this.camY = g.fromY + (ty - g.fromY) * e;
+      if (g.t >= CAM_GLIDE_FRAMES) this.camGlide = null;
       return;
     }
-    // Ease into an arena lock (minibosses lock mid-scroll) and back out of it.
-    const target = this.arena ? this.arena.camX : this.cameraTargetX(this.section);
-    const d = target - this.camX;
-    this.camX = Math.abs(d) <= 4 ? target : this.camX + Math.sign(d) * 4;
-    this.camY = this.section.row * SCREEN_H;
+    this.camX = tx;
+    this.camY = ty;
   }
 
   private startTransition(next: Section, dir: 1 | -1): void {
@@ -2422,6 +2457,9 @@ export class GameScene extends Phaser.Scene {
   private respawn(): void {
     this.restoreIce();
     this.elevator?.reset();
+    // Back at a checkpoint the camera is just there (no glide).
+    this.camMode = 'free';
+    this.camGlide = null;
     this.blackout?.reset();
     this.arenaFx.reset();
     this.clearActors();
@@ -2662,6 +2700,7 @@ export class GameScene extends Phaser.Scene {
           this.bullets.push(b);
         },
         dark: () => this.hazards.isDark(this.level.screenIdAt(this.player.cx, this.player.cy)),
+        wet: (x, y) => this.level.isWater(Math.floor(x / TILE), Math.floor(y / TILE)),
       },
       { shell: save.pipShell, paint: save.pipPaint, trail: save.pipTrail },
       mods,
@@ -2744,6 +2783,14 @@ export class GameScene extends Phaser.Scene {
     this.shake(5);
     for (let i = 0; i < 10; i++) this.addEffect(b.cx + (Math.random() - 0.5) * 30, this.bossRoomFloor(b) - 2, (Math.random() - 0.5) * 3, -2 - Math.random() * 3, 0.2, 30, false, 'spark');
     this.flashLabel('INTO THE DRINK!');
+    // The ice heals fast while it's under: open holes freeze over (and slabs
+    // cracked on that charge mend) before it's back up and charging, so it
+    // has to break through again rather than run straight back in.
+    for (const h of this.iceHoles) h.t = Math.min(h.t, ICE_REFREEZE_AFTER_FALL);
+    for (const [k, crack] of this.iceCracks) {
+      crack.img.destroy();
+      this.iceCracks.delete(k);
+    }
     if (b.hp === 0) this.startBossDeath();
   }
 

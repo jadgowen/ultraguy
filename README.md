@@ -63,7 +63,7 @@ challenges you to their own game. Some fights change the game entirely; each is 
 | Scrapyard challenge | Scrap | top-down junk maze: four rooms, keys, a hookshot that swings you across shafts; Scrap's magnet field turns shots until you stun him (scrap-heap walls with lit tops and front faces, rusted floor plates, magnet posts, shutters, blinking warning lamps, beetles and turret sprouts, a chained claw hookshot, a heart-and-key status bar; art in `dungeonArt.ts`) | `DungeonScene.ts` |
 | Reef challenge | Tide | trench descent: dive head-first down a winding deep-sea trench (darker the deeper you go; your lamp and flares light the way) past jellyfish, sea mines and urchins, grabbing air bubbles, while Tide hunts you: his body loops through the dark, then his lights glow where he'll strike, lunging across from the side (aimed where you'd be if you kept cruising, so brake or dive out of it) or surging up from below. Reach the vent at the bottom and he jams in it behind you (art in `trenchArt.ts`; the old pinball table, `PinballScene.ts`, is no longer on a capsule) | `TrenchScene.ts` |
 | Caldera challenge | Magma | maze bomb battle: drop bombs, blast rock, grab bomb/fire/speed power-ups, 3 hearts each | `BombScene.ts` |
-| Fortress Gate + Boss Hall bonus | Gatekeeper | behind-the-back boxing (his only fight), three rounds, Coach Jared in your corner (both fighters drawn on the shaded rig in `art/boxArt.mjs`; the arena, with its crowd, lighting rig, banner, ropes and mat, in `boxingArt.ts`; sweeping spotlights, camera flashes and punch sparks) | `BoxingScene.ts` |
+| Fortress Gate + Boss Hall bonus | Gatekeeper | behind-the-back boxing (his only fight), three rounds, Coach Jared in your corner (both fighters drawn on the shaded rig in `art/boxArt.mjs`; the arena, with its crowd, lighting rig, banner, ropes and mat, in `boxingArt.ts`; sweeping spotlights, camera flashes and punch sparks). A punch that lands bursts with light, flashes him white then red, jolts the screen and throws off its damage; a blocked one only clanks grey with BLOCK. Knockdown counts are a big outlined number in the ring (yellow for him, red for you) called out by the announcer (`box_count1`..`box_count10`; his count starts after "Down he goes!") | `BoxingScene.ts` |
 | Boss Hall bonus (after beating the game) | Overlord | fixed-screen alien shooter: two waves, then the mothership | `ShooterScene.ts` |
 
 The games share `ModeScene.ts`. **Stage challenges:** walk up to the boss and they say their piece
@@ -103,11 +103,11 @@ matter, and four set pieces with no boss at all.
 | Stage | Midpoint | How it works |
 |---|---|---|
 | Foundry | PRESS TITAN on the line | presses (`!`) slam over the arena and the floor is a belt; your shots bounce off him: lure him under a press (three crushes beat him) |
-| Canopy | THE GREAT CLIMB | up the inside of a tree on flowers, branches and vines while brambles rise after you (`rise` with the jungle's `rise_jungle` fill) |
-| Glacier | TUSK MAMMOTH on thin ice | your shots bounce off him and he only charges; his charges break the thin ice (`_`, drawn pale) behind him, and charging back over a hole drops him in the water (three falls beat him); holes freeze back over |
+| Canopy | THE GREAT CLIMB | up the inside of a tree on flowers, branches and vines while brambles rise after you (`rise`; a tangle of thorny vines, `rise_jungle`, under a crest of thorny tendrils that sway and curl, some tipped with red buds, `bramble_crest_<k>`; both in `hazards.ts`; the rising brambles and lava are drawn only between the shaft's walls, and the brambles' sides fray into thorny shoots) |
+| Glacier | TUSK MAMMOTH on thin ice | your shots bounce off him and he only charges; his charges break the thin ice (`_`, drawn pale) behind him, and charging back over a hole drops him in the water (three falls beat him); holes freeze back over (fast once it's fallen in, so it has to break through again) |
 | Stratos | STORM KITE over open sky | a ledge each side, a gap with moving and crumbling clouds between, and the gusts still blowing |
 | Power Plant | BLACKOUT | the lights cut out as you walk in (`blackout`), Sparkers swarm; shoot the three generators (`O`) to bring the lights back and open the shutter (`Q`); `src/scenes/blackout.ts` |
-| Caldera | MAGMA ELEVATOR | a lift (`;` start, `,` stop) carries you up a shaft with magma right behind; `src/scenes/elevator.ts` |
+| Caldera | MAGMA ELEVATOR | a lift (`;` start, `,` stop) carries you up a shaft with magma right behind (the same living lava as the boss room's surge, also used for the stage's rising lava). The camera glides onto the lift as it rumbles and back off at the top (`CAM_GLIDE_FRAMES`, eased in and out); `src/scenes/elevator.ts` |
 | Scrapyard | COMPACTOR ESCAPE | a wall of grinding steel (`compactor`) chases you through junk: slide under the pipes, jump the rest |
 | Reef | the ANGLER's dark trench | pitch dark; its lure is the only other light, and it dims and flickers just before it lunges |
 
@@ -159,7 +159,7 @@ Each stage's boss room is its own too (`bossArena` in `src/level/rooms.ts`; the 
 | VOLT | switch-block ledges that take turns, and live floor plates that switch with the barriers |
 | MAGMA | the lava surges over the floor every so often (it burns, it doesn't kill; drawn with the stage's animated lava); wait it out on a basalt ledge |
 | SCRAP | two junk humps stop his rolling saws, and a crane platform rides back and forth overhead |
-| TIDE | underwater |
+| TIDE | underwater, a spike pit in each half of the floor, and a ledge in each half with spikes hanging over it (a full jump off a ledge reaches them). Tide is drawn at twice his sprite's size (as big as in his own game); his bubbles come in aimed fans, he sheds bubbles behind his dash, and once hurt he spits at you while cruising |
 
 Just before the midpoint, a low block hides a crawlspace (only the
 slide gets in) holding an energy tank (E-tank), and in some stages a 1-UP; it looks like solid wall,
@@ -206,7 +206,7 @@ game notes each track the first time it plays, and older saves get the ones thei
 
 **PIP.** Once you've beaten a stage boss, Rivet sends Pip along with you: a little drone that hangs behind
 UltraGuy's shoulder on a spring (it lags when you move off, overshoots when you stop, bobs, tilts into its
-motion, flaps its fins, and its thruster never stops sparking). Its eye follows whatever it's interested in.
+motion, flaps its fins, and its thruster never stops sparking, or fizzing bubbles under water, where the SPARKS trail turns to bubbles too). Its eye follows whatever it's interested in.
 It jolts and spins when you get hit, and does a lazy loop over your head if you stand still. It comes with a
 LAMP (light around it in the dark). Rivet's PIP workshop sells FETCH (80: flies out and brings back bolts and
 pickups), GUARD (150: once charged, zaps an enemy shot about to hit you) and ZAP (200: pot shots at enemies,

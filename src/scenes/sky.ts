@@ -84,7 +84,11 @@ export class Sky {
   /** Gusts this much stronger, with shorter calms between (the Storm Kite, enraged); 1 = normal. */
   storm = 1;
 
+  /** Under water, an updraft is a bubble column: bubbles rise in it instead of wind streaks. */
+  private readonly bubbly: boolean;
+
   constructor(private host: SkyHost, theme: string) {
+    this.bubbly = theme === 'water';
     const { scene, level } = host;
     for (const m of level.movers) {
       const dist = Math.hypot(m.x1 - m.x0, m.y1 - m.y0);
@@ -241,6 +245,14 @@ export class Sky {
     const visible = this.updraftCells.filter(({ c, r }) => c * TILE >= v.x - TILE && c * TILE <= v.x + VIEW_W && r * TILE >= v.y - TILE && r * TILE <= v.y + VIEW_H);
     if (!visible.length) return;
     const { c, r } = visible[Math.floor(Math.random() * visible.length)];
+    if (this.bubbly) {
+      // A bubble wobbling up the column, growing a little as it goes.
+      const x = c * TILE + 3 + Math.random() * (TILE - 6);
+      const b = this.host.scene.add.image(x, r * TILE + TILE, 'bubble_fx').setAlpha(0.8).setDepth(-1).setScale(0.6 + Math.random() * 0.5);
+      this.host.scene.tweens.add({ targets: b, y: b.y - 56, scale: b.scale * 1.4, alpha: 0, duration: 1100, onComplete: () => b.destroy() });
+      this.host.scene.tweens.add({ targets: b, x: x + (Math.random() < 0.5 ? -3 : 3), duration: 280, yoyo: true, repeat: 2, ease: 'Sine.easeInOut' });
+      return;
+    }
     const s = this.host.scene.add.image(c * TILE + Math.random() * TILE, r * TILE + TILE, 'windline').setAngle(90).setAlpha(0.5).setDepth(-1);
     this.host.scene.tweens.add({ targets: s, y: s.y - 40, alpha: 0, duration: 600, onComplete: () => s.destroy() });
   }

@@ -27,7 +27,8 @@ function canvas(scene: Phaser.Scene, key: string, w: number, h: number, paint: (
   tex.refresh();
 }
 
-function makeFrames(scene: Phaser.Scene, theme: ThemeId): void {
+/** Draw a theme's living-tile frames (lava crest and body, glow, embers...); safe to call again. */
+export function makeFrames(scene: Phaser.Scene, theme: ThemeId): void {
   const t = THEMES[theme];
   const lb = hex(t.lava.base);
   const ll = hex(t.lava.light);
