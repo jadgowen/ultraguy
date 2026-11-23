@@ -389,6 +389,10 @@ export class GameScene extends Phaser.Scene {
     const sets = [tileset];
     if (env) sets.push(map.addTilesetImage('auto', `auto_${stage.theme}`, TILE, TILE, 0, 0, AUTO_GID)!);
     this.layer = map.createLayer(0, sets, 0, 0)!.setDepth(0);
+    for (const { c, r } of this.level.hangingSpikes()) {
+      const tile = this.layer.getTileAt(c, r);
+      if (tile) tile.flipY = true;
+    }
     // Water sits on its own translucent layer drawn over the sprites.
     if (this.level.hasWater()) {
       const waterMap = this.make.tilemap({ data: this.level.waterIndexGrid(), tileWidth: TILE, tileHeight: TILE });
@@ -2054,6 +2058,20 @@ export class GameScene extends Phaser.Scene {
     const boss = this.boss;
     if (!boss || this.bossDeathT === 0) return;
     const t = this.bossDeathT++;
+    // Gone under the ice: bubbles and a last splash where it sank, then straight to the win.
+    if (this.drownedAt) {
+      const at = this.drownedAt;
+      boss.sprite.setVisible(false);
+      if (t === 1) {
+        sfx.splash();
+        for (let i = 0; i < 12; i++) this.addEffect(at.x + (Math.random() - 0.5) * 30, at.y - 2, (Math.random() - 0.5) * 3, -2 - Math.random() * 3, 0.2, 30, false, 'spark');
+      }
+      if (t % 8 === 0) this.burst(at.x + (Math.random() - 0.5) * 20, at.y + 4, 'bubble_fx', 2);
+      if (t < 70) return;
+      this.drownedAt = null;
+      this.bossDeathT = 170;
+      return;
+    }
     if (t < 100) {
       if (t % 6 === 0) {
         this.addEffect(boss.x + Math.random() * boss.w, boss.y + Math.random() * boss.h, 0, 0, 0, 16, true);
@@ -2503,6 +2521,7 @@ export class GameScene extends Phaser.Scene {
     this.arena = null;
     this.drawShadeRing(null);
     this.bossDeathT = 0;
+    this.drownedAt = null;
     this.wind = 0;
     this.sky.reset();
     this.hazards.reset();
@@ -2827,8 +2846,17 @@ export class GameScene extends Phaser.Scene {
       crack.img.destroy();
       this.iceCracks.delete(k);
     }
-    if (b.hp === 0) this.startBossDeath();
+    if (b.hp === 0) {
+      // That fall finished it: it goes under for good (bubbles, no explosions).
+      this.drownedAt = { x: b.cx, y: this.bossRoomFloor(b) };
+      this.startBossDeath();
+      this.hitStop = 0; // (no freeze-frame: it just goes under)
+      b.sprite.setVisible(false);
+    }
   }
+
+  /** Where a miniboss went under for the last time (it sinks instead of exploding), or null. */
+  private drownedAt: Point | null = null;
 
   private bossRoomFloor(b: Miniboss): number {
     return b.bottom;

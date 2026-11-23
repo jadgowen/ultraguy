@@ -18,7 +18,7 @@ const duel = challengeRoom();
 //     barrels coming the other way (I), and one last crane (J).
 //  4. THE COMPACTOR (instead of a miniboss): past the crawlspace (1), a wall
 //     of grinding steel comes in from the left and keeps coming (2-4). Run:
-//     slide under the low pipes, jump the junk, the barrels and the pit. It
+//     climb the junk up to the high walkway, jump its gap (the barrels!), drop and slide under the last pipe. It
 //     stops when it hits the end of the yard. Then SCRAP.
 //
 // Layout:  row 0:  . . . . . . H I J 1 2 3 4 K | X Y
@@ -82,12 +82,13 @@ export const SCRAPYARD: StageData = {
     I: [GIRDER, GIRDER, '.!...!...!...!..', ...rows(SKY, 9), '..............@.', '>>>>>>>>>>>>>>>>', FLOOR],
     J: [GIRDER, GIRDER, ...rows(SKY, 8), '.....j..........', '............####', '............####', '####=-----..####', '####^^^^^^^^####'],
     '1': hall.a,
-    // Junk to jump, then a low pipe: slide under it.
-    '2': [GIRDER, GIRDER, ...rows('.........#####..', 9), '....##...#####..', '....##..........', FLOOR, FLOOR],
-    // A belt dragging you back, barrels rolling at you, and a pit.
-    '3': [GIRDER, GIRDER, ...rows(SKY, 10), '..............@.', '<<<<<<<<...#####', '########...#####'],
-    // One more pipe, and a junkbot. The wall stops at the end of the yard.
-    '4': [GIRDER, GIRDER, ...rows('....######......', 10), '..............j.', FLOOR, FLOOR],
+    // A wall of junk blocks the floor: climb a low ledge, a middle one, then up onto the high shelf.
+    '2': [GIRDER, GIRDER, ...rows(SKY, 5), '..........######', '.............###', '.......###...###', '.............###', '...###.......###', '.............###', FLOOR, FLOOR],
+    // Along the high walkway, barrels rolling at you and a gap to jump. Fall through and a belt
+    // drags you back toward the wall: two ledges to climb back up by.
+    '3': [GIRDER, GIRDER, ...rows(SKY, 4), '..............@.', '######...######.', '..#........#....', '..#...CCC..#....', '..#........#....', '..#CCC.....#....', '..#........#....', '<<<<<<<<<<<<<<<<', FLOOR],
+    // Drop down, slide under one more pipe, hop the junk. The wall stops at the end of the yard.
+    '4': [GIRDER, GIRDER, ...rows('....######......', 9), '....######..##..', '............##j.', FLOOR, FLOOR],
     K: [...rows('...............#', 10), '...............D', '...............D', '..c............D', FLOOR, FLOOR],
     // --- Extra stretch before the boss door: more of the stage's enemies, a bolt cache ---
     // --- The boss's challenge: their own game, before the last stretch ---

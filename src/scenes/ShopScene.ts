@@ -10,6 +10,7 @@ import { pipUnlocked } from '../pip';
 import { sfx } from '../sfx';
 import { touch } from '../touch';
 import { FONT, MenuScene } from './menu';
+import { SHELF_Y } from '../shopArt';
 
 /** Every hidden 1-UP in the boss stages ("stage:x:y", as GameScene records them). */
 let secretOneUps: string[] | null = null;
@@ -31,10 +32,20 @@ const PIP_ROW = COLORS_ROW + 1;
 const JUKEBOX_ROW = PIP_ROW + 1;
 const VAULT_ROW = JUKEBOX_ROW + 1;
 
+/** Each row's ware on the shelves (LEAVE has none). */
+const WARES = [...SHOP_ITEMS.map((i) => (i.id === 'oneup' || i.id === 'etank' ? i.id : `ware_${i.id}`)), 'ware_paint', 'ware_pip', 'ware_jukebox', 'ware_key'];
+
+/** Where Rivet stands (feet, behind the counter) and the speech bubble's box. */
+const RIVET = { x: 58, y: 186 };
+const BUBBLE = { x: 84, y: 92, w: 122, h: 36 };
+/** Characters a bubble line holds. */
+const BUBBLE_CHARS = 19;
+
 /**
- * RIVET'S PARTS & PROVISIONS, opened from the stage select. Rivet stands
- * behind the counter on the left; the goods are on the right. More goods
- * come in as you beat bosses. Bolts come from beaten enemies and caches.
+ * RIVET'S PARTS & PROVISIONS, opened from the stage select: inside the shop,
+ * Rivet behind his counter on the left with his wares on the shelves behind
+ * him (the one you're looking at lights up), the price list on the right.
+ * More goods come in as you beat bosses. Bolts come from beaten enemies and caches.
  */
 export class ShopScene extends MenuScene {
   private rivet!: Phaser.GameObjects.Image;
@@ -43,6 +54,8 @@ export class ShopScene extends MenuScene {
   private blurb!: PixelText;
   private rows: PixelText[] = [];
   private talkT = 0;
+  private wares: { img: Phaser.GameObjects.Image; y: number }[] = [];
+  private glow!: Phaser.GameObjects.Graphics;
   private backKey!: Phaser.Input.Keyboard.Key;
   private leaving = 0;
 
@@ -52,34 +65,62 @@ export class ShopScene extends MenuScene {
 
   create(): void {
     this.initMenu();
-    this.backdrop('city', 0.7);
+    this.add.image(0, 0, 'shop_room').setOrigin(0).setDepth(-20);
     playMusic(this, 'shop');
     this.backKey = this.input.keyboard!.addKey(Phaser.Input.Keyboard.KeyCodes.BACKSPACE);
     this.talkT = 0;
     this.leaving = 0;
     const small = { fontFamily: FONT, fontSize: '8px', color: '#8a8fa8' };
 
-    pixelText(this, VIEW_W / 2, 12, "RIVET'S PARTS & PROVISIONS", { fontFamily: FONT, fontSize: '12px', color: '#4ab8a8', stroke: '#000000' }).setOrigin(0.5, 0);
+    // The sign over the shelves.
+    pixelText(this, 106, 9, "RIVET'S PARTS & PROVISIONS", { ...small, color: '#fff1e0' }).setOrigin(0.5, 0);
+
+    // The wares on the shelves: five on the top shelf, four below.
+    this.glow = this.add.graphics().setDepth(-11);
+    this.wares = WARES.map((key, i) => {
+      const top = i < 5;
+      const x = top ? 34 + i * 36 : 46 + (i - 5) * 40;
+      const y = SHELF_Y[top ? 0 : 1];
+      return { img: this.add.image(x, y, key).setOrigin(0.5, 1).setDepth(-10), y };
+    });
 
     // Rivet behind the counter.
-    this.rivet = this.add.image(96, 152, 'rivet0').setOrigin(0.5, 1).setScale(2);
-    this.add.image(16, 146, 'shop_counter').setOrigin(0, 0);
-    pixelText(this, 96, 166, 'OPEN', { ...small, color: '#fff1e0' }).setOrigin(0.5, 0);
-    // Speech bubble.
-    this.panel(100, 46, 168, 30);
-    this.say = pixelText(this, 22, 35, '', { ...small, color: '#fff1e0' });
+    this.rivet = this.add.image(RIVET.x, RIVET.y, 'rivet0').setOrigin(0.5, 1).setDepth(-8);
+    this.add.image(4, 168, 'shop_counter2').setOrigin(0, 0).setDepth(-7);
+    pixelText(this, 106, 198, 'OPEN', { ...small, color: '#fff1e0' }).setOrigin(0.5, 0).setDepth(-6);
 
-    // The goods.
-    this.panel(312, 108, 200, 132);
+    // Speech bubble, its tail pointing down at Rivet.
+    const b = this.add.graphics().setDepth(-6);
+    b.fillStyle(0x1a1428).fillRoundedRect(BUBBLE.x - 1, BUBBLE.y - 1, BUBBLE.w + 2, BUBBLE.h + 2, 6);
+    b.fillTriangle(BUBBLE.x + 6, BUBBLE.y + BUBBLE.h - 2, BUBBLE.x + 18, BUBBLE.y + BUBBLE.h - 2, RIVET.x + 12, RIVET.y - 46);
+    b.fillStyle(0xfff1e0).fillRoundedRect(BUBBLE.x, BUBBLE.y, BUBBLE.w, BUBBLE.h, 5);
+    b.fillTriangle(BUBBLE.x + 8, BUBBLE.y + BUBBLE.h - 1, BUBBLE.x + 16, BUBBLE.y + BUBBLE.h - 1, RIVET.x + 13, RIVET.y - 48);
+    this.say = pixelText(this, BUBBLE.x + 5, BUBBLE.y + 5, '', { ...small, color: '#1a1428' }).setDepth(-5);
+
+    // The price list.
+    this.panel(317, 115, 200, 178);
+    pixelText(this, 236, 32, 'ITEM', small);
+    pixelText(this, 332, 32, 'COST', small);
+    pixelText(this, 374, 32, 'HAVE', small);
     const beaten = ALL_BOSS_STAGES.filter((id) => loadSave().cleared.includes(id)).length;
     const labels = [...SHOP_ITEMS.map((i) => (beaten >= i.unlock ? i.name : '???')), 'COLORS', 'PIP', 'JUKEBOX', 'VAULT KEY', 'LEAVE'];
-    this.rows = this.list(230, 50, labels);
-    this.boltsText = pixelText(this, 230, 196, '', { fontFamily: FONT, fontSize: '12px', color: '#c8ccd8' });
-    this.add.image(222, 202, 'nut').setScale(1.5);
-    this.blurb = pixelText(this, VIEW_W / 2, VIEW_H - 22, '', { ...small, color: '#5ef0c8' }).setOrigin(0.5, 0);
-    pixelText(this, VIEW_W / 2, VIEW_H - 10, 'UP/DOWN choose   ENTER/Z buy   BKSP leave', small).setOrigin(0.5, 0);
+    this.rows = this.list(236, 46, labels);
+    // Your bolts, at the foot of the list.
+    this.add.image(240, 191, 'nut').setScale(1.5);
+    pixelText(this, 250, 187, 'BOLTS', small);
+    this.boltsText = pixelText(this, 404, 187, '', { ...small, color: '#ffe14a' }).setOrigin(1, 0);
+
+    // The selected ware's description, and the keys.
+    this.add.rectangle(0, 212, VIEW_W, VIEW_H - 212, 0x05060c, 0.85).setOrigin(0).setDepth(-4);
+    this.blurb = pixelText(this, VIEW_W / 2, 217, '', { ...small, color: '#5ef0c8' }).setOrigin(0.5, 0);
+    pixelText(this, VIEW_W / 2, 229, 'UP/DOWN choose   ENTER/Z buy   BKSP leave', small).setOrigin(0.5, 0);
     this.refresh();
     this.speak("Welcome to Rivet's! Bolts in, goodies out!", 'shop_welcome');
+  }
+
+  /** A row's text: the name, then its cost and how many you hold, in columns. */
+  private row(name: string, cost = '', have = ''): string {
+    return name.padEnd(16) + cost.padStart(4) + '   ' + have;
   }
 
   /** Prices, how many you hold, and the selected item's description. */
@@ -90,16 +131,20 @@ export class ShopScene extends MenuScene {
       const row = this.rows[i];
       const open = beaten >= item.unlock;
       const have = owned(save, item.id);
-      const tag = !open ? '' : item.max === 1 ? (have ? ' OWNED' : ` ${item.price}`) : ` ${item.price}  ${have}/${item.max}`;
-      row.setText(`${open ? item.name.padEnd(12) : '???'.padEnd(12)}${tag}`);
+      if (!open) row.setText(this.row('???'));
+      else if (item.max === 1) row.setText(this.row(item.name, have ? '' : String(item.price), have ? 'OWN' : ''));
+      else row.setText(this.row(item.name, String(item.price), `${have}/${item.max}`));
+      this.dark(i, !open);
     });
-    this.rows[COLORS_ROW].setText('PAINT SHOP'.padEnd(12) + ' >');
-    this.rows[PIP_ROW].setText(pipUnlocked(save) ? 'PIP'.padEnd(12) + ' >' : '???');
-    this.rows[JUKEBOX_ROW].setText('JUKEBOX'.padEnd(12) + (save.jukebox ? ' >' : ` ${JUKEBOX_PRICE}`));
+    this.rows[COLORS_ROW].setText(this.row('PAINT SHOP', '', '>'));
+    this.rows[PIP_ROW].setText(pipUnlocked(save) ? this.row("PIP'S WORKSHOP", '', '>') : this.row('???'));
+    this.dark(PIP_ROW, !pipUnlocked(save));
+    this.rows[JUKEBOX_ROW].setText(save.jukebox ? this.row('JUKEBOX', '', '>') : this.row('JUKEBOX', String(JUKEBOX_PRICE)));
     // The secret: Rivet's rival's vault, once every hidden 1-UP is found.
     const secret = secretProgress();
     const vaultOpen = secret.found >= secret.total;
-    this.rows[VAULT_ROW].setText(vaultOpen ? 'VAULT KEY'.padEnd(12) + ' FREE' : `???`.padEnd(12) + ` ${secret.found}/${secret.total}`);
+    this.rows[VAULT_ROW].setText(vaultOpen ? this.row('VAULT KEY', 'FREE') : this.row('???', '', `${secret.found}/${secret.total}`));
+    this.dark(VAULT_ROW, !vaultOpen);
     this.select(this.selected);
     this.boltsText.setText(String(save.bolts));
     const item = SHOP_ITEMS[this.selected];
@@ -112,13 +157,21 @@ export class ShopScene extends MenuScene {
     else this.blurb.setText(item.blurb);
   }
 
+  /** Wares not yet in stock are dark shapes on the shelf. */
+  private dark(i: number, on: boolean): void {
+    const w = this.wares[i];
+    if (!w) return;
+    if (on) w.img.setTint(0x0c0a14).setAlpha(0.8);
+    else w.img.clearTint().setAlpha(1);
+  }
+
   /** Rivet says something (with a voice line, if there is one). */
   private speak(text: string, voice?: string): void {
-    // Wrap to the bubble (26 characters a line).
+    // Wrap to the bubble.
     const lines: string[] = [''];
     for (const word of text.split(' ')) {
       const line = lines[lines.length - 1];
-      if (line && line.length + 1 + word.length > 26) lines.push(word);
+      if (line && line.length + 1 + word.length > BUBBLE_CHARS) lines.push(word);
       else lines[lines.length - 1] = line ? `${line} ${word}` : word;
     }
     this.say.setText(lines.join('\n'));
@@ -131,7 +184,18 @@ export class ShopScene extends MenuScene {
     // Blink now and then; flap the mouth while talking.
     const blink = this.frame % 180 > 172;
     this.rivet.setTexture(this.talkT > 0 && this.frame % 10 < 5 ? 'rivet_talk' : blink ? 'rivet1' : 'rivet0');
-    this.rivet.setY(152 + (Math.floor(this.frame / 30) % 2));
+    this.rivet.setY(RIVET.y + (Math.floor(this.frame / 30) % 2));
+    // The ware you're looking at glows and bobs on its shelf.
+    this.glow.clear();
+    this.wares.forEach((w, i) => {
+      const on = i === this.selected;
+      w.img.setY(w.y - (on ? 2 + Math.round(Math.sin(this.frame / 8)) : 0));
+      if (on) {
+        const a = 0.22 + Math.sin(this.frame / 10) * 0.08;
+        this.glow.fillStyle(0xffe14a, a).fillCircle(w.img.x, w.y - 8, 12);
+        this.glow.fillStyle(0xfff1a0, a).fillCircle(w.img.x, w.y - 8, 7);
+      }
+    });
     if (this.leaving > 0) {
       if (--this.leaving === 0) this.scene.start('select');
       return this.leaving === 0;

@@ -167,7 +167,7 @@ export class Hazards {
       // It starts out of sight to the left (behind you as you walk in).
       const start = x0 - 96;
       const sprite = scene.add.tileSprite(start - VIEW_W, y, VIEW_W, SCREEN_H, 'compactor_body').setOrigin(0).setDepth(14).setVisible(false);
-      const face = scene.add.tileSprite(start, y, 12, SCREEN_H, 'compactor_face').setOrigin(0).setDepth(14).setVisible(false);
+      const face = scene.add.tileSprite(start, y, 26, SCREEN_H, 'compactor_face_0').setOrigin(0).setDepth(14).setVisible(false);
       this.wall = { x: start, start, stop: x1, y, on: false, done: false, sprite, face };
     }
     const rise = level.data.rise;
@@ -278,9 +278,10 @@ export class Hazards {
     W.sprite.setX(Math.round(W.x - VIEW_W)).setVisible(W.on || W.done);
     W.face.setX(Math.round(W.x)).setVisible(W.on || W.done);
     W.sprite.tilePositionY = 0;
-    W.face.tilePositionY = (this.t * 0.5) % 16;
+    // The drill cones turn while it's moving.
+    if (W.on) W.face.setTexture(`compactor_face_${Math.floor(this.t / 3) % 4}`);
     // Caught by it: flattened.
-    if (p.alive && W.on && p.x < W.x + 10 && p.bottom > W.y && p.y < W.y + SCREEN_H) p.die(true);
+    if (p.alive && W.on && p.x < W.x + 18 && p.bottom > W.y && p.y < W.y + SCREEN_H) p.die(true);
   }
 
   /** The compactor is grinding after you right now. */
@@ -295,7 +296,7 @@ export class Hazards {
 
   /** The compactor wall's front edge (world x), or -Infinity. */
   get wallX(): number {
-    return this.wall?.on ? this.wall.x + 10 : -Infinity;
+    return this.wall?.on ? this.wall.x + 18 : -Infinity;
   }
 
   private stepCrushers(): void {
@@ -674,43 +675,71 @@ export function makeHazardTextures(scene: Phaser.Scene): void {
 }
 
 /**
- * The compactor: a riveted steel wall (body, tiles vertically) with a face of
- * grinding teeth on its leading edge (scrolls as it advances).
+ * The compactor: a heavy drill rig grinding in from the left.
+ *  - body (`compactor_body`, 64x32, tiles vertically): dark steel housing in
+ *    riveted plates, amber vents glowing, a hazard-striped front edge;
+ *  - face (`compactor_face_<k>`, 26x32, 4 frames, tiles vertically): a stack of
+ *    steel drill cones pointing at you, shaded and outlined, their spiral
+ *    grooves turning frame to frame. Everything outside the cones is clear.
  */
 function makeCompactorTextures(scene: Phaser.Scene): void {
-  const K = 0x1a1428;
-  const g = scene.make.graphics({ x: 0, y: 0 }, false);
-  const r = (c: number, x: number, y: number, w: number, h: number) => g.fillStyle(c).fillRect(x, y, w, h);
-  r(0x3a2e2a, 0, 0, WALL_W, 32);
-  r(0x5a4a40, 0, 0, WALL_W, 2);
-  r(0x241a18, 0, 30, WALL_W, 2);
-  for (let x = 0; x < WALL_W; x += 16) {
-    r(0x6a5a4e, x + 1, 3, 14, 12);
-    r(0x8a7a68, x + 1, 3, 14, 1);
-    r(0x4a3c34, x + 1, 14, 14, 1);
-    r(0x6a5a4e, x + 1, 17, 14, 12);
-    r(0x8a7a68, x + 1, 17, 14, 1);
-    r(0x4a3c34, x + 1, 28, 14, 1);
-    r(0xb8a890, x + 3, 5, 1, 1);
-    r(0xb8a890, x + 12, 19, 1, 1);
+  const K = '#1a1428';
+  const make = (key: string, w: number, h: number, paint: (px: (c: string, x: number, y: number, ww?: number, hh?: number) => void) => void) => {
+    if (scene.textures.exists(key)) return;
+    const tex = scene.textures.createCanvas(key, w, h)!;
+    const ctx = tex.getContext();
+    paint((c, x, y, ww = 1, hh = 1) => {
+      ctx.fillStyle = c;
+      ctx.fillRect(x, y, ww, hh);
+    });
+    tex.refresh();
+  };
+  make('compactor_body', WALL_W, 32, (px) => {
+    px('#2a2430', 0, 0, WALL_W, 32);
+    // Plates, lit on top, with rivets.
+    for (let x = 0; x < WALL_W - 10; x += 18) {
+      for (const y of [1, 17]) {
+        px('#4a4452', x + 1, y, 16, 14);
+        px('#6a6474', x + 1, y, 16, 1);
+        px('#1e1a24', x + 1, y + 13, 16, 1);
+        px('#8a8494', x + 3, y + 2, 1, 1);
+        px('#8a8494', x + 14, y + 2, 1, 1);
+      }
+      // A vent glowing amber between the plates.
+      px('#1a1418', x + 6, 15, 6, 2);
+      px('#ff9a30', x + 7, 15, 4, 1);
+    }
+    // Hydraulic rails along the front.
+    px('#8a8fa8', WALL_W - 12, 0, 2, 32);
+    px('#c8ccd8', WALL_W - 12, 0, 1, 32);
+    // Hazard stripes, diagonal, down the front edge.
+    for (let y = 0; y < 32; y++) for (let x = WALL_W - 9; x < WALL_W; x++) px((x + y) % 8 < 4 ? '#ffc040' : K, x, y);
+    px('#1e1a24', WALL_W - 10, 0, 1, 32);
+  });
+  for (let k = 0; k < 4; k++) {
+    make(`compactor_face_${k}`, 26, 32, (px) => {
+      // One cone per tile: base at the left (a collar), tip at the right, centered on y 16.
+      const inside = (x: number, y: number) => x >= 3 && x <= 24 && Math.abs(y - 16) <= 13 * (1 - (x - 3) / 22) + 0.5;
+      // Collar.
+      px(K, 0, 1, 4, 30);
+      px('#6a7288', 1, 2, 2, 28);
+      px('#a8b0c4', 1, 2, 1, 28);
+      for (let y = 0; y < 32; y++) for (let x = 3; x < 26; x++) {
+        if (!inside(x, y)) {
+          // Outline around the cone (only next to it: the rest stays clear).
+          if (inside(x - 1, y) || inside(x + 1, y) || inside(x, y - 1) || inside(x, y + 1)) px(K, x, y);
+          continue;
+        }
+        // Shaded steel: bright on top, dark below; spiral grooves turning with the frame.
+        const v = (y - 16) / 13;
+        let c = v < -0.45 ? '#e6eaf4' : v < -0.05 ? '#b8c0d4' : v < 0.45 ? '#8a92a8' : '#5a6276';
+        if ((x * 2 + y + k * 4) % 8 < 2) c = v < 0 ? '#6a7288' : '#3a4052';
+        px(c, x, y);
+      }
+      // A glint at the tip.
+      px('#ffffff', 22, 15, 2, 1);
+    });
   }
-  // Hazard stripes down the right edge.
-  for (let y = 0; y < 32; y += 8) {
-    r(0xffc040, WALL_W - 6, y, 6, 4);
-    r(K, WALL_W - 6, y + 4, 6, 4);
-  }
-  g.generateTexture('compactor_body', WALL_W, 32);
-  g.clear();
-  // Teeth: wedges pointing right.
-  r(K, 0, 0, 12, 16);
-  r(0x8a98b0, 0, 1, 4, 14);
-  for (let i = 0; i < 6; i++) {
-    r(0xb8c4d8, 4, 2 + i, 2 + i, 1);
-    r(0x8a98b0, 4, 8 + i, 7 - i, 1);
-  }
-  r(0xeef2fa, 4, 2, 2, 1);
-  g.generateTexture('compactor_face', 12, 16);
-  g.destroy();
 }
 
 /** Canopy's brambles: the crest strip's size, how far its tendrils reach over the deadly line, and its frames. */

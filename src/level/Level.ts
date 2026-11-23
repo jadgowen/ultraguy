@@ -637,8 +637,20 @@ export class Level {
    */
   private underwaterSeeThrough(c: number, r: number): boolean {
     const t = this.tileAt(c, r);
-    if (t !== Tile.Spike && t !== Tile.Ladder && t !== Tile.Updraft) return false;
-    return [this.tileAt(c - 1, r), this.tileAt(c + 1, r), this.tileAt(c, r - 1)].some(isWaterTile);
+    if (t !== Tile.Spike && t !== Tile.Ladder && t !== Tile.Updraft && t !== Tile.Cloud) return false;
+    // Water beside it, above it, or (for spikes hanging from a ceiling) below it.
+    const below = t === Tile.Spike ? [this.tileAt(c, r + 1)] : [];
+    return [this.tileAt(c - 1, r), this.tileAt(c + 1, r), this.tileAt(c, r - 1), ...below].some(isWaterTile);
+  }
+
+  /** Spikes hanging from a ceiling (solid above, open below): drawn pointing down. */
+  hangingSpikes(): { c: number; r: number }[] {
+    const out: { c: number; r: number }[] = [];
+    const solid = (c: number, r: number) => { const t = this.tileAt(c, r); return t === Tile.Solid || t === Tile.Fake; };
+    for (let r = 0; r < this.rows; r++)
+      for (let c = 0; c < this.cols; c++)
+        if (this.tileAt(c, r) === Tile.Spike && solid(c, r - 1) && !solid(c, r + 1)) out.push({ c, r });
+    return out;
   }
 
   private grid(index: (t: Tile) => number): number[][] {
